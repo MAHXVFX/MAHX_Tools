@@ -618,9 +618,9 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.folder_combo.clear()
         self.folder_combo.addItem("ALL")
         if self._favorite_hdrs:
-            self.folder_combo.addItem("收藏")
+            self.folder_combo.addItem("⭐ 收藏")
         if self._recent_hdrs:
-            self.folder_combo.addItem("⭐ Recent")
+            self.folder_combo.addItem("最近")
         if self._has_root_hdrs():
             self.folder_combo.addItem("Root Only")
         for folder in self._subfolders:
@@ -651,7 +651,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         selected = self.folder_combo.currentText()
         if selected == "ALL":
             filtered = self.thumbnails
-        elif selected == "收藏":
+        elif selected == "⭐ 收藏":
             if not self.thumbnails:
                 filtered = []
             else:
@@ -661,7 +661,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
                 if not filtered and self._favorite_hdrs:
                     filtered = self.thumbnails
                     self.folder_combo.setCurrentText("ALL")
-        elif selected == "⭐ Recent":
+        elif selected == "最近":
             if not self.thumbnails:
                 filtered = []
             else:
@@ -1282,7 +1282,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.folder_combo.setCurrentText(current_filter if current_filter in available_filters else "ALL")
         self.folder_combo.blockSignals(False)
 
-        if current_filter == "收藏":
+        if current_filter == "⭐ 收藏":
             self._apply_filter()
         else:
             for widget in self._thumbnail_widgets:
@@ -1301,9 +1301,9 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.folder_combo.clear()
         self.folder_combo.addItem("ALL")
         if self._favorite_hdrs:
-            self.folder_combo.addItem("收藏")
+            self.folder_combo.addItem("⭐ 收藏")
         if self._recent_hdrs:
-            self.folder_combo.addItem("⭐ Recent")
+            self.folder_combo.addItem("最近")
         if self._has_root_hdrs():
             self.folder_combo.addItem("Root Only")
         for folder in self._subfolders:
