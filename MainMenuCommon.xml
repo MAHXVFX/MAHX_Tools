@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mainMenu>
+  <menuBar>
+    <subMenu id="my_tools_menu">
+      <!-- 建议将 insertBefore 放在 label 之前 -->
+      <insertBefore>help_menu</insertBefore>
+      <label>MAHX_Tools</label>
+      
+      <scriptItem id="my_tools.hello_world">
+        <label>Hello</label>
+        <scriptCode><![CDATA[        
+import hou
+hou.ui.displayMessage("Hello, Houdini!")
+        ]]></scriptCode>
+      </scriptItem>
+      
+      <!-- ✅ 正确的分隔线写法 -->
+      <separatorItem/>
+      
+      <scriptItem id="my_tools.run_script">
+        <label>HDR Library</label>
+        <scriptCode><![CDATA[
+import sys
+from MAHX import HDR_LibraryPanel
+HDR_LibraryPanel.Panel()
+# 清除你的所有模块缓存
+for name in list(sys.modules.keys()):
+    if name.startswith('MAHX'):
+        del sys.modules[name]
+
+        ]]></scriptCode>
+      </scriptItem>
+      
+      <subMenu id="my_tools_sub_menu">
+        <label>More tools</label>
+        <scriptItem id="my_tools.sub_item_1">
+          <label>tools</label>
+          <scriptCode><![CDATA[
+print("Null")
+          ]]></scriptCode>
+        </scriptItem>
+      </subMenu>
+    </subMenu>
+  </menuBar>
+</mainMenu>
