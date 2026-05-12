@@ -20,13 +20,9 @@ hou.ui.displayMessage("Hello, Houdini!")
       <scriptItem id="my_tools.run_script">
         <label>HDR Library</label>
         <scriptCode><![CDATA[
-import sys
-from MAHX import HDR_LibraryPanel
-HDR_LibraryPanel.Panel()
-# 清除你的所有模块缓存
-for name in list(sys.modules.keys()):
-    if name.startswith('MAHX'):
-        del sys.modules[name]
+
+from MAHX import Panel
+Panel()
 
         ]]></scriptCode>
       </scriptItem>
