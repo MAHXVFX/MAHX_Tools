@@ -9,6 +9,9 @@ from MAHX.common import HDR_EXTENSIONS
 from MAHX.common import find_ffmpeg, _collect_hdr_files
 
 
+SHARED_PLACEHOLDER_FILENAME = "_placeholder_gray.jpg"
+
+
 class ThumbnailWorker(QThread):
     progress = Signal(int, int)
     finished = Signal(list, list)
@@ -19,6 +22,7 @@ class ThumbnailWorker(QThread):
         self.hdr_dir = os.path.normpath(hdr_dir)
         self.cache_dir = os.path.normpath(cache_dir)
         self.ffmpeg_path = find_ffmpeg()
+        self._shared_placeholder_path = os.path.join(self.cache_dir, SHARED_PLACEHOLDER_FILENAME)
 
     def run(self):
         try:
@@ -28,11 +32,12 @@ class ThumbnailWorker(QThread):
             total = len(hdr_files)
             for idx, hdr_path in enumerate(hdr_files):
                 try:
-                    thumbnail_path = self._generate_thumbnail(hdr_path)
+                    thumbnail_path, is_placeholder = self._generate_thumbnail(hdr_path)
                     thumbnails.append({
                         'hdr_path': hdr_path,
                         'thumbnail_path': thumbnail_path,
-                        'filename': os.path.basename(hdr_path)
+                        'filename': os.path.basename(hdr_path),
+                        'is_placeholder': is_placeholder,
                     })
                     self.progress.emit(idx + 1, total)
                 except Exception as e:
@@ -50,7 +55,9 @@ class ThumbnailWorker(QThread):
         thumbnail_path = os.path.normpath(os.path.join(self.cache_dir, thumbnail_rel))
 
         if os.path.exists(thumbnail_path):
-            return thumbnail_path
+            if os.path.getsize(thumbnail_path) > 3000:
+                return thumbnail_path, False
+            os.remove(thumbnail_path)
 
         os.makedirs(os.path.dirname(thumbnail_path), exist_ok=True)
 
@@ -69,22 +76,25 @@ class ThumbnailWorker(QThread):
                 if os.name == 'nt':
                     startup_kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
                 result = subprocess.run(cmd, capture_output=True, timeout=30, **startup_kwargs)
-                if result.returncode != 0:
-                    print(f"ffmpeg failed for {hdr_path}: {result.stderr}")
                 thumbnail_path = os.path.normpath(thumbnail_path)
+                if result.returncode == 0 and os.path.exists(thumbnail_path):
+                    if os.path.getsize(thumbnail_path) > 3000:
+                        return thumbnail_path, False
+                elif result.returncode != 0:
+                    print(f"ffmpeg failed for {hdr_path}: {result.stderr}")
                 if os.path.exists(thumbnail_path):
-                    file_size = os.path.getsize(thumbnail_path)
-                    if file_size > 1000:
-                        return thumbnail_path
+                    os.remove(thumbnail_path)
             except Exception as e:
                 print(f"ffmpeg exception for {hdr_path}: {e}")
 
-        self._create_valid_placeholder(thumbnail_path)
-        return thumbnail_path
+        self._ensure_shared_placeholder()
+        return self._shared_placeholder_path, True
 
-    def _create_valid_placeholder(self, thumbnail_path):
-        os.makedirs(os.path.dirname(thumbnail_path), exist_ok=True)
+    def _ensure_shared_placeholder(self):
+        if os.path.exists(self._shared_placeholder_path):
+            return
+        os.makedirs(os.path.dirname(self._shared_placeholder_path), exist_ok=True)
         img = QImage(256, 256, QImage.Format_RGB32)
         img.fill(Qt.GlobalColor.darkGray)
         pixmap = QPixmap.fromImage(img)
-        pixmap.save(thumbnail_path, "JPG", 85)
+        pixmap.save(self._shared_placeholder_path, "JPG", 85)

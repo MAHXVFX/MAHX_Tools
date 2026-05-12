@@ -159,6 +159,12 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.print_path_checkbox.stateChanged.connect(self._on_setting_changed)
         settings_layout.addWidget(self.print_path_checkbox)
 
+        self.hide_gray_checkbox = QtWidgets.QCheckBox("Hide gray thumbnails")
+        self.hide_gray_checkbox.setChecked(False)
+        self.hide_gray_checkbox.setCursor(QCursor(Qt.PointingHandCursor))
+        self.hide_gray_checkbox.stateChanged.connect(self._on_setting_changed)
+        settings_layout.addWidget(self.hide_gray_checkbox)
+
         btn_layout = QtWidgets.QHBoxLayout()
         self.btn_scan = QtWidgets.QPushButton("Scan HDR Files")
         self.btn_scan.setCursor(QCursor(Qt.PointingHandCursor))
@@ -209,14 +215,20 @@ class HDRLibraryPanel(QtWidgets.QWidget):
 
     def _update_folder_combo(self):
         self.folder_combo.blockSignals(True)
+        current_text = self.folder_combo.currentText()
         self.folder_combo.clear()
-        for option in self._filter_mgr.get_filter_options():
+        hide_placeholders = self.hide_gray_checkbox.isChecked()
+        for option in self._filter_mgr.get_filter_options(hide_placeholders):
             self.folder_combo.addItem(option)
+        available = [self.folder_combo.itemText(i) for i in range(self.folder_combo.count())]
+        self.folder_combo.setCurrentText(current_text if current_text in available else 'ALL')
         self.folder_combo.blockSignals(False)
 
     def _apply_filter(self):
         selected = self.folder_combo.currentText()
         filtered = self._filter_mgr.apply_filter(selected)
+        if self.hide_gray_checkbox.isChecked():
+            filtered = [t for t in filtered if not t.get('is_placeholder', False)]
         self._display_thumbnails(filtered)
 
     def _display_thumbnails(self, filtered_thumbnails):
@@ -249,6 +261,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.hdr_directory = settings.get('hdr_directory', '')
         self.cache_directory = settings.get('cache_directory', '')
         self.print_path_checkbox.setChecked(settings.get('print_path', True))
+        self.hide_gray_checkbox.setChecked(settings.get('hide_gray_thumbnails', False))
         self._filter_mgr.recent_hdrs = settings.get('recent_hdrs', [])
         self._filter_mgr.favorite_hdrs = settings.get('favorite_hdrs', [])
         self._filter_mgr.hdr_directory = self.hdr_directory
@@ -345,7 +358,9 @@ class HDRLibraryPanel(QtWidgets.QWidget):
                     continue
                 subfolders.append(folder)
             folder_path = '' if folder == '__root__' else folder
-            for thumbnail_filename in thumbnails:
+            for thumbnail_entry in thumbnails:
+                thumbnail_filename = thumbnail_entry['filename']
+                is_placeholder = thumbnail_entry.get('is_placeholder', False)
                 thumbnail_path = os.path.normpath(os.path.join(self.cache_directory, folder_path, thumbnail_filename))
                 hdr_base = thumbnail_filename.replace('_Thumbnail.jpg', '')
                 hdr_path = None
@@ -362,7 +377,8 @@ class HDRLibraryPanel(QtWidgets.QWidget):
                     all_thumbnails.append({
                         'hdr_path': hdr_path,
                         'thumbnail_path': thumbnail_path,
-                        'filename': os.path.basename(hdr_path)
+                        'filename': os.path.basename(hdr_path),
+                        'is_placeholder': is_placeholder,
                     })
 
         if not all_thumbnails:
@@ -393,12 +409,14 @@ class HDRLibraryPanel(QtWidgets.QWidget):
             rel_path = os.path.relpath(hdr_path, self.hdr_directory)
             thumbnail_rel = rel_path.rsplit('.', 1)[0] + '_Thumbnail.jpg'
             thumbnail_path = os.path.normpath(os.path.join(self.cache_directory, thumbnail_rel))
+            is_placeholder = not os.path.exists(thumbnail_path)
             thumbnails.append({
                 'hdr_path': os.path.normpath(hdr_path),
                 'thumbnail_path': thumbnail_path,
-                'filename': os.path.basename(hdr_path)
+                'filename': os.path.basename(hdr_path),
+                'is_placeholder': is_placeholder,
             })
-            if not os.path.exists(thumbnail_path):
+            if is_placeholder:
                 missing_count += 1
 
         self._filter_mgr.thumbnails = thumbnails
@@ -476,12 +494,16 @@ class HDRLibraryPanel(QtWidgets.QWidget):
     def _on_setting_changed(self, state):
         if not self._loading_settings:
             self._save_settings()
+            if self.sender() == self.hide_gray_checkbox:
+                self._update_folder_combo()
+                self._apply_filter()
 
     def _save_settings(self):
         settings = SettingsManager.load()
         settings['hdr_directory'] = self.hdr_directory
         settings['cache_directory'] = self.cache_directory
         settings['print_path'] = self.print_path_checkbox.isChecked()
+        settings['hide_gray_thumbnails'] = self.hide_gray_checkbox.isChecked()
         settings['recent_hdrs'] = self._filter_mgr.recent_hdrs
         settings['favorite_hdrs'] = self._filter_mgr.favorite_hdrs
         settings['current_filter'] = self.folder_combo.currentText()

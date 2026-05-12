@@ -114,16 +114,29 @@ class FilterManager:
             for t in self._thumbnails
         )
 
-    def get_filter_options(self):
+    def _folder_has_valid_thumbnails(self, folder_path):
+        return any(
+            self._folder_cache.get(t['hdr_path']) == folder_path
+            and not t.get('is_placeholder', False)
+            for t in self._thumbnails
+        )
+
+    def get_filter_options(self, hide_placeholders=False):
         options = ["ALL"]
         if self._favorite_hdrs:
             options.append("\u2605 \u6536\u85cf")
         if self._recent_hdrs:
             options.append("\u6700\u8fd1")
         if self.has_root_hdrs():
-            options.append("Root Only")
+            if not hide_placeholders or self._folder_has_valid_thumbnails(
+                os.path.normpath(self._hdr_directory).lower()
+            ):
+                options.append("Root Only")
         for folder in self._subfolders:
-            options.append(folder)
+            if not hide_placeholders or self._folder_has_valid_thumbnails(
+                os.path.normpath(os.path.join(self._hdr_directory, folder)).lower()
+            ):
+                options.append(folder)
         return options
 
     def apply_filter(self, selected):
@@ -186,5 +199,8 @@ class FilterManager:
                 folder = '__root__'
             if folder not in grouped:
                 grouped[folder] = []
-            grouped[folder].append(thumbnail_filename)
+            grouped[folder].append({
+                'filename': thumbnail_filename,
+                'is_placeholder': thumb.get('is_placeholder', False),
+            })
         return grouped

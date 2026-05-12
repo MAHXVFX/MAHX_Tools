@@ -44,6 +44,19 @@ MAHX_Tools/
 - 设置存储在 `MAHX_HDR_Library_Settings.json` 中
 - 视频处理使用 `MAHX.common.utils` 中的 `find_ffmpeg()`
 
+## 设置项
+
+- `hdr_directory` - HDR 库目录路径
+- `cache_directory` - 缩略图缓存目录路径
+- `print_path` - 双击缩略图时是否打印 HDR 路径到控制台
+- `hide_gray_thumbnails` - 是否隐藏纯灰色缩略图（即缺少缩略图文件的 HDR）
+- `thumbnail_size` - 缩略图尺寸
+- `current_filter` - 当前选中的文件夹过滤器
+- `recent_hdrs` - 最近使用的 HDR 列表
+- `favorite_hdrs` - 收藏的 HDR 列表
+- `thumbnails` - 缓存的缩略图元数据
+- `hdr_dir_mtime` - HDR 目录的修改时间戳（用于缓存验证）
+
 ## 开发注意事项
 
 - 这是 Houdini 专用工具；在 Houdini 环境外没有独立测试
