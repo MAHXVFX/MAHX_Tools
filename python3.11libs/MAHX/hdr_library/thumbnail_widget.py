@@ -4,6 +4,11 @@ from PySide6 import QtWidgets, QtCore
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QPixmap, QImage, QCursor
 
+FAVORITE_STAR_STYLE = (
+    "background-color: #e0cb56; color: #000000; font-size: 14px; font-weight: bold; "
+    "border-radius: 7px; border: none; padding: 0px;"
+)
+
 
 class HDRThumbnailWidget(QtWidgets.QWidget):
     doubleClicked = Signal(str)
@@ -17,6 +22,7 @@ class HDRThumbnailWidget(QtWidgets.QWidget):
         self._original_pixmap = None
         self._placeholder_pixmap = None
         self._loaded = False
+        self._image_size = image_size
         self.setFixedSize(size, size + 20)
         self.setCursor(QCursor(QtCore.Qt.PointingHandCursor))
         self._hovered = False
@@ -39,7 +45,14 @@ class HDRThumbnailWidget(QtWidgets.QWidget):
             self._loaded = False
         main_layout.addWidget(self.image_label)
 
-        self.name_label = QtWidgets.QLabel(self._display_name())
+        self._star_label = QtWidgets.QLabel("\u2605", self.image_label)
+        self._star_label.setStyleSheet(FAVORITE_STAR_STYLE)
+        self._star_label.setFixedSize(20, 20)
+        self._star_label.setAlignment(QtCore.Qt.AlignCenter)
+        self._star_label.setVisible(self._is_favorite)
+        self._position_star()
+
+        self.name_label = QtWidgets.QLabel(os.path.basename(self.hdr_path))
         self.name_label.setAlignment(QtCore.Qt.AlignCenter)
         self.name_label.setStyleSheet("color: #cccccc; font-size: 10px;")
         self.name_label.setFixedHeight(20)
@@ -47,13 +60,13 @@ class HDRThumbnailWidget(QtWidgets.QWidget):
         self.name_label.installEventFilter(self)
         main_layout.addWidget(self.name_label)
 
-    def _display_name(self):
-        prefix = "[Fav] " if self._is_favorite else ""
-        return prefix + os.path.basename(self.hdr_path)
+    def _position_star(self):
+        w = self._star_label.width()
+        self._star_label.move(self.image_label.width() - w - 2, 2)
 
     def setFavorite(self, is_favorite):
         self._is_favorite = is_favorite
-        self.name_label.setText(self._display_name())
+        self._star_label.setVisible(is_favorite)
 
     def _load_thumbnail(self, image_size=170):
         if self._loaded:
@@ -96,7 +109,9 @@ class HDRThumbnailWidget(QtWidgets.QWidget):
     def updateSize(self, size, image_size, cache=None):
         self.setFixedSize(size, size + 20)
         self.image_label.setFixedSize(image_size, image_size)
+        self._image_size = image_size
         self._reload_scaled_pixmap(image_size)
+        self._position_star()
 
     def _reload_scaled_pixmap(self, image_size):
         if self._original_pixmap:
