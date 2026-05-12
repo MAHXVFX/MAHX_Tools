@@ -154,8 +154,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         toolbar_layout = QtWidgets.QHBoxLayout()
         self.btn_toggle_settings = QtWidgets.QPushButton("Settings")
         self.btn_toggle_settings.setObjectName("settingsButton")
-        self.btn_toggle_settings.setStyleSheet("background-color: #0d6399; color: white; padding: 6px 16px; border-radius: 10px;")
-        self.btn_toggle_settings.setFixedWidth(100)
+        self.btn_toggle_settings.setStyleSheet("QPushButton#settingsButton { background-color: #0d6399; color: white; padding: 6px 8px; border-radius: 10px; min-width: 50px; }")
         self.btn_toggle_settings.setCursor(QCursor(Qt.PointingHandCursor))
         self.btn_toggle_settings.clicked.connect(self._toggle_settings)
         toolbar_layout.addWidget(self.btn_toggle_settings)
@@ -255,7 +254,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.hdr_path_edit.setPlaceholderText("Select HDR library directory...")
         hdr_layout.addWidget(self.hdr_path_edit)
         self.btn_browse_hdr = QtWidgets.QPushButton("Browse")
-        self.btn_browse_hdr.setStyleSheet("background-color: #e0cb56; color: black; border-radius: 10px; padding: 4px 12px; min-height: 12px;")
+        self.btn_browse_hdr.setStyleSheet("background-color: #e0cb56; color: black; border-radius: 10px; padding: 4px 6px; min-height: 12px; min-width: 50px;")
         self.btn_browse_hdr.setCursor(QCursor(Qt.PointingHandCursor))
         self.btn_browse_hdr.clicked.connect(self.browse_hdr_directory)
         hdr_layout.addWidget(self.btn_browse_hdr)
@@ -268,7 +267,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.cache_path_edit.setPlaceholderText("Select thumbnail cache directory...")
         cache_layout.addWidget(self.cache_path_edit)
         self.btn_browse_cache = QtWidgets.QPushButton("Browse")
-        self.btn_browse_cache.setStyleSheet("background-color: #e0cb56; color: black; border-radius: 10px; padding: 4px 12px; min-height: 12px;")
+        self.btn_browse_cache.setStyleSheet("background-color: #e0cb56; color: black; border-radius: 10px; padding: 4px 6px; min-height: 12px; min-width: 50px;")
         self.btn_browse_cache.setCursor(QCursor(Qt.PointingHandCursor))
         self.btn_browse_cache.clicked.connect(self.browse_cache_directory)
         cache_layout.addWidget(self.btn_browse_cache)
@@ -601,8 +600,6 @@ class HDRLibraryPanel(QtWidgets.QWidget):
     def _toggle_settings(self):
         is_visible = self.settings_widget.isVisible()
         self.settings_widget.setVisible(not is_visible)
-        self._pulse_button(self.btn_toggle_settings, not is_visible)
-        self._animate_button_width(self.btn_toggle_settings, not is_visible)
         self._elastic_resize(self.settings_widget, not is_visible)
 
     def _animate_button_width(self, button, expanding):

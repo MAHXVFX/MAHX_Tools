@@ -13,20 +13,27 @@ _panel_window = None
 def _on_panel_closed():
     global _panel_window
     if _panel_window:
-        size = _panel_window.size()
-        settings = SettingsManager.load()
-        settings['window_width'] = size.width()
-        settings['window_height'] = size.height()
-        SettingsManager.save(settings)
+        try:
+            size = _panel_window.size()
+            settings = SettingsManager.load()
+            settings['window_width'] = size.width()
+            settings['window_height'] = size.height()
+            SettingsManager.save(settings)
+        except RuntimeError:
+            pass
     _panel_window = None
 
 
 def Panel():
     global _panel_window
-    if _panel_window is not None and _panel_window.isVisible():
-        _panel_window.raise_()
-        _panel_window.activateWindow()
-        return
+    if _panel_window is not None:
+        try:
+            if _panel_window.isVisible():
+                _panel_window.raise_()
+                _panel_window.activateWindow()
+                return
+        except (RuntimeError, AttributeError):
+            _panel_window = None
 
     class SavedSizeDialog(QtWidgets.QDialog):
         def capture_initial_state(self):
