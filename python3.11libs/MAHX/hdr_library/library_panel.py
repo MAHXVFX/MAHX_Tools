@@ -162,7 +162,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.hide_gray_checkbox = QtWidgets.QCheckBox("Hide gray thumbnails")
         self.hide_gray_checkbox.setChecked(False)
         self.hide_gray_checkbox.setCursor(QCursor(Qt.PointingHandCursor))
-        self.hide_gray_checkbox.stateChanged.connect(self._on_setting_changed)
+        self.hide_gray_checkbox.toggled.connect(self._on_hide_gray_toggled)
         settings_layout.addWidget(self.hide_gray_checkbox)
 
         btn_layout = QtWidgets.QHBoxLayout()
@@ -213,21 +213,24 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         layout.addWidget(self.version_label)
         return layout
 
-    def _update_folder_combo(self):
+    def _update_folder_combo(self, hide_placeholders=None):
+        if hide_placeholders is None:
+            hide_placeholders = self.hide_gray_checkbox.isChecked()
         self.folder_combo.blockSignals(True)
         current_text = self.folder_combo.currentText()
         self.folder_combo.clear()
-        hide_placeholders = self.hide_gray_checkbox.isChecked()
         for option in self._filter_mgr.get_filter_options(hide_placeholders):
             self.folder_combo.addItem(option)
         available = [self.folder_combo.itemText(i) for i in range(self.folder_combo.count())]
         self.folder_combo.setCurrentText(current_text if current_text in available else 'ALL')
         self.folder_combo.blockSignals(False)
 
-    def _apply_filter(self):
+    def _apply_filter(self, hide_gray=None):
+        if hide_gray is None:
+            hide_gray = self.hide_gray_checkbox.isChecked()
         selected = self.folder_combo.currentText()
         filtered = self._filter_mgr.apply_filter(selected)
-        if self.hide_gray_checkbox.isChecked():
+        if hide_gray:
             filtered = [t for t in filtered if not t.get('is_placeholder', False)]
         self._display_thumbnails(filtered)
 
@@ -305,7 +308,9 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         thumbnails = self._filter_mgr.thumbnails
         missing_count = sum(
             1 for t in thumbnails
-            if os.path.exists(t['hdr_path']) and not os.path.exists(t['thumbnail_path'])
+            if os.path.exists(t['hdr_path'])
+            and not t.get('is_placeholder', False)
+            and not os.path.exists(t['thumbnail_path'])
         )
         if len(thumbnails) == 0 and self.hdr_directory:
             self._set_status(TEXT_STATUS, "No HDR files found")
@@ -372,7 +377,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
                 if not hdr_path:
                     hdr_path = os.path.normpath(os.path.join(self.hdr_directory, folder_path, hdr_base + '.hdr'))
                 if os.path.exists(hdr_path):
-                    if not os.path.exists(thumbnail_path):
+                    if not os.path.exists(thumbnail_path) and not is_placeholder:
                         missing_thumbnails += 1
                     all_thumbnails.append({
                         'hdr_path': hdr_path,
@@ -403,7 +408,6 @@ class HDRLibraryPanel(QtWidgets.QWidget):
 
         thumbnails = []
         hdr_files, subfolders = _collect_hdr_files(self.hdr_directory)
-        missing_count = 0
 
         for hdr_path in hdr_files:
             rel_path = os.path.relpath(hdr_path, self.hdr_directory)
@@ -416,8 +420,6 @@ class HDRLibraryPanel(QtWidgets.QWidget):
                 'filename': os.path.basename(hdr_path),
                 'is_placeholder': is_placeholder,
             })
-            if is_placeholder:
-                missing_count += 1
 
         self._filter_mgr.thumbnails = thumbnails
         self._filter_mgr.subfolders = sorted(subfolders)
@@ -426,8 +428,6 @@ class HDRLibraryPanel(QtWidgets.QWidget):
 
         if len(thumbnails) == 0:
             self._set_status(TEXT_STATUS, "No HDR files found")
-        elif missing_count > 0:
-            self._set_status(STATUS_WARNING, f"Loaded {len(thumbnails)} HDR files ({missing_count} missing - scan to regenerate)")
         else:
             self._set_status(STATUS_SUCCESS, f"Loaded {len(thumbnails)} HDR files (existing thumbnails only)")
 
@@ -491,12 +491,16 @@ class HDRLibraryPanel(QtWidgets.QWidget):
             self.btn_refresh.setEnabled(True)
             self._save_settings()
 
+    def _on_hide_gray_toggled(self, checked):
+        hide_gray = self.hide_gray_checkbox.isChecked()
+        self._update_folder_combo(hide_placeholders=hide_gray)
+        self._apply_filter(hide_gray=hide_gray)
+        if not self._loading_settings:
+            self._save_settings()
+
     def _on_setting_changed(self, state):
         if not self._loading_settings:
             self._save_settings()
-            if self.sender() == self.hide_gray_checkbox:
-                self._update_folder_combo()
-                self._apply_filter()
 
     def _save_settings(self):
         settings = SettingsManager.load()

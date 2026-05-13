@@ -56,7 +56,7 @@ class SavedSizeDialog(QtWidgets.QDialog):
                 settings['cache_directory'] = panel.cache_directory
                 settings['print_path'] = panel.print_path_checkbox.isChecked()
 
-            if panel._thumbnail_cache_dirty and panel._filter_mgr.thumbnails:
+            if panel._filter_mgr.thumbnails:
                 settings['subfolders'] = panel._filter_mgr.subfolders
                 settings['thumbnails'] = panel._filter_mgr.group_thumbnails_by_folder(panel.cache_directory)
                 if os.path.exists(panel.hdr_directory):
