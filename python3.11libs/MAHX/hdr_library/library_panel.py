@@ -63,7 +63,6 @@ class HDRLibraryPanel(QtWidgets.QWidget):
 
     def _init_ui(self):
         self.setWindowTitle("HDR Asset Library")
-        self.setMinimumSize(500, 360)
         self.setStyleSheet(STYLE_SHEET)
 
         main_layout = QtWidgets.QVBoxLayout(self)
