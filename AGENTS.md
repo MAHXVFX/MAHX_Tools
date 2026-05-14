@@ -2,17 +2,28 @@
 
 ## 概述
 
-Houdini PySide6 工具包，主要功能是 HDR 环境光库面板。支持两种打开方式：
-- 菜单栏：`MainMenuCommon.xml` → `MAHX.Panel()`
-- 内嵌面板：`python_panels/MAHDR.pypanel` → `HDRLibraryPanel`
+Houdini PySide6 工具包，主要功能：
+- **HDR 环境光库面板**：管理 HDR 环境光缩略图，一键加载到场景环境光节点
+- **MA ShelfTool Pro**：自定义工具架面板，以缩略图展示工具架上的工具，支持点击自动放置和拖拽到 NetworkEditor 定位放置
+
+### 面板入口
+
+| 面板 | 打开方式 |
+|---|---|
+| HDR 环境光库 | 菜单栏 `MainMenuCommon.xml` → `MAHX.Panel()`；内嵌面板 `MAHDR.pypanel` |
+| MA ShelfTool Pro | 内嵌面板 `MAShelfToolPro.pypanel`（Pane Tab 菜单 → MA ShelfTool Pro） |
 
 ## 架构
 
 ```
 MAHX_Tools/
 ├── MainMenuCommon.xml             # 菜单栏入口（HDR Library 菜单项）
+├── toolbar/
+│   ├── test.shelf                 # 工具架定义文件（SOP 工具：Lines particles）
+│   └── Houdini_Shelf_Tool_Trigger_Guide.md
 ├── python_panels/
-│   └── MAHDR.pypanel              # Houdini 内嵌面板入口（Pane Tab 菜单）
+│   ├── MAHDR.pypanel              # HDR 环境光库面板
+│   └── MAShelfToolPro.pypanel     # 工具架缩略图面板
 └── python3.11libs/MAHX/
     ├── __init__.py                # 导出所有公共接口
     ├── common/
@@ -30,7 +41,39 @@ MAHX_Tools/
         └── thumbnail_widget.py    # HDRThumbnailWidget 单个缩略图控件
 ```
 
-## 关键数据流
+## MA ShelfTool Pro 设计
+
+### 核心流程
+
+```
+toolbar/test.shelf
+    ↓ hou.shelves.loadFile()     （启动时加载一次，替换需重启 Houdini）
+Houdini Shelf 系统（内存注册）
+    ↓ hou.shelves.tool(name)     按工具名称查找
+Tool 对象
+    ↓ exec(tool.script())        在 kwargs 上下文中执行工具脚本
+创建节点 → 定位到 NetworkEditor
+```
+
+### 关键数据流
+
+1. **缩略图加载流**：`MAShelfToolPro.pypanel` → `ThumbnailWidget` → 灰色占位图（当前），后续支持自定义 `.jpg/.png` 缩略图
+2. **点击触发流**：`mouseReleaseEvent` → `execute_tool({"autoplace": True})` → 自动放置到 NetworkEditor
+3. **拖拽触发流**：`mouseMoveEvent` → `QDrag.exec_()` → `_drop_at_cursor()` → `ne.cursorPosition()` → `execute_tool()` 带精确坐标
+4. **shelf 加载流**：`ensure_shelf()` → `MAHX.__file__` 定位项目根 → `toolbar/test.shelf` → `hou.shelves.loadFile()`
+
+### 关键陷阱（Shelf Tool 触发）
+
+详见 `toolbar/Houdini_Shelf_Tool_Trigger_Guide.md`
+
+- `hou.shelves` **是模块不是函数**：正确调用 `hou.shelves.shelfSets()`、`hou.shelves.tool(name)`
+- **Tool 没有 run()**：只能用 `exec(tool.script())`
+- **必须传 `"pane": ne` 到 kwargs**：否则脚本走错分支，不处理坐标
+- **`num_args` 必须拉高**：默认 `num_args=1` → hscript 里 `$argc < 2` 会重置 `$arg2/$arg3` 为 0。传 `"outputnodename": ""` 让 `num_args=6`
+- **`cursorPosition()` 直接获取网络坐标**：不要自己算 `visibleBounds` + `screenPosition` 映射
+- **`sys.exit()` 捕获 `SystemExit`**：脚本中的 `sys.exit()` 抛出 `SystemExit`，不被 `except Exception` 捕获，需单独处理
+
+## 关键数据流（HDR Library）
 
 1. 菜单流：`MainMenuCommon.xml` → `Panel()` → `SavedSizeDialog` 包裹 `HDRLibraryPanel` → `_load_settings()`
 2. 内嵌面板流：Pane Tab 菜单 → `MAHDR.pypanel` → `HDRLibraryPanel`（直接返回）→ `_load_settings()`

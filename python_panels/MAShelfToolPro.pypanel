@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pythonPanelDocument>
+  <interface name="mashelftoolpro" label="MA ShelfTool Pro" icon="MISC_python">
+    <script><![CDATA[
+import os
+import hou
+import MAHX
+from PySide6 import QtWidgets, QtGui, QtCore
+
+
+def ensure_shelf():
+    """基于 MAHX 模块路径定位 toolbar/test.shelf，不依赖 HIP"""
+    if "MAHX" in hou.shelves.shelfSets():
+        return
+    pkg_dir = os.path.dirname(MAHX.__file__)
+    project_root = os.path.dirname(os.path.dirname(pkg_dir))
+    hou.shelves.loadFile(os.path.join(project_root, "toolbar", "test.shelf"))
+
+
+def execute_tool(tool_name, extra_kwargs=None):
+    """获取工具脚本并在 kwargs 上下文中执行"""
+    ensure_shelf()
+    tool = hou.shelves.tool(tool_name)
+    kwargs = {"autoplace": True}
+    if extra_kwargs:
+        kwargs.update(extra_kwargs)
+    exec(tool.script())
+
+
+class ThumbnailWidget(QtWidgets.QLabel):
+    """工具缩略图 - 点击自动放置 / 拖拽到 NE 定位放置"""
+
+    def __init__(self, tool_name, parent=None):
+        super().__init__(parent)
+        self._tool_name = tool_name
+        self._drag_start = None
+
+        pixmap = QtGui.QPixmap(120, 80)
+        pixmap.fill(QtGui.QColor(85, 85, 85))
+        self.setPixmap(pixmap)
+        self.setFixedSize(120, 80)
+        self.setToolTip(tool_name)
+        self.setCursor(QtCore.Qt.OpenHandCursor)
+        self.setAlignment(QtCore.Qt.AlignCenter)
+
+    # ── 鼠标事件 ──────────────────────────────────
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            self._drag_start = event.pos()
+
+    def mouseMoveEvent(self, event):
+        if not (event.buttons() & QtCore.Qt.LeftButton) or self._drag_start is None:
+            return
+        if (event.pos() - self._drag_start).manhattanLength() < 10:
+            return
+
+        # 开始拖拽
+        drag = QtGui.QDrag(self)
+        mime = QtCore.QMimeData()
+        mime.setText(f"mahx_tool:{self._tool_name}")
+        drag.setMimeData(mime)
+        drag.setPixmap(
+            self.pixmap().scaled(64, 64, QtCore.Qt.KeepAspectRatio,
+                                 QtCore.Qt.SmoothTransformation)
+        )
+        drag.exec_(QtCore.Qt.CopyAction)
+
+        # 拖拽结束 → 光标下的 NE 定位执行
+        self._drop_at_cursor()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton and self._drag_start is not None:
+            if (event.pos() - self._drag_start).manhattanLength() < 10:
+                try:
+                    execute_tool(self._tool_name)
+                except SystemExit:
+                    pass
+        self._drag_start = None
+
+    # ── 拖拽释放：cursorPosition() 获得网络坐标 ──
+    def _drop_at_cursor(self):
+        ne = None
+        for pane in hou.ui.paneTabs():
+            if isinstance(pane, hou.NetworkEditor):
+                ne = pane
+                break
+
+        if ne is not None:
+            pos = ne.cursorPosition()
+            try:
+                # 必须传入 pane，否则工具脚本的 activePane 找不到 NE，
+                # 导致永远不走处理 nodepositionx/y 的分支
+                # 另外传 outputnodename/inputindex 让 num_args 升到 6，
+                # 否则 hscript 里 $argc < 2 会把 arg2/arg3 重置为 0
+                execute_tool(self._tool_name, {
+                    "pane": ne,
+                    "autoplace": False,
+                    "nodepositionx": str(pos[0]),
+                    "nodepositiony": str(pos[1]),
+                    "outputnodename": "",
+                    "inputindex": -1,
+                })
+                return
+            except SystemExit:
+                pass
+
+        try:
+            execute_tool(self._tool_name)
+        except SystemExit:
+            pass
+
+
+class MAShelfToolProPanel(QtWidgets.QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setMinimumWidth(300)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        label = QtWidgets.QLabel("工具架 (MA ShelfTool Pro)")
+        label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 8px;")
+        layout.addWidget(label)
+        layout.addWidget(ThumbnailWidget("Lines particles"))
+        layout.addStretch()
+
+
+def onCreateInterface():
+    return MAShelfToolProPanel()
+]]></script>
+    <includeInPaneTabMenu menu_position="210" create_separator="false"/>
+    <help>MA ShelfTool Pro - 工具架工具缩略图面板，支持点击自动放置和拖拽到 NetworkEditor 定位放置</help>
+  </interface>
+</pythonPanelDocument>

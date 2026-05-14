@@ -3,3 +3,6 @@ __pycache__/
 MAHX_HDR_Library_Settings.json
 .trae/documents/MAHX项目代码优化计划.md
 python_panels/test.pypanel
+toolbar/test.shelf
+toolbar/Houdini_Shelf_Tool_Trigger_Guide.md
+.sisyphus/
