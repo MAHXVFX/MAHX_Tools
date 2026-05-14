@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <pythonPanelDocument>
-  <interface name="mashelftoolpro" label="MA ShelfTool Pro" icon="MISC_python">
+  <interface name="mashelftoolpro" label="MA ShelfTools Pro" icon="MISC_python">
     <script><![CDATA[
 import os
 import hou
@@ -117,7 +117,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.setMinimumWidth(300)
 
         layout = QtWidgets.QVBoxLayout(self)
-        label = QtWidgets.QLabel("工具架 (MA ShelfTool Pro)")
+        label = QtWidgets.QLabel("工具架 (MA ShelfTools Pro)")
         label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 8px;")
         layout.addWidget(label)
         layout.addWidget(ThumbnailWidget("Lines particles"))

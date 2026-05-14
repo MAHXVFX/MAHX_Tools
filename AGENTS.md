@@ -11,7 +11,7 @@ Houdini PySide6 工具包，主要功能：
 | 面板 | 打开方式 |
 |---|---|
 | HDR 环境光库 | 菜单栏 `MainMenuCommon.xml` → `MAHX.Panel()`；内嵌面板 `MAHDR.pypanel` |
-| MA ShelfTool Pro | 内嵌面板 `MAShelfToolPro.pypanel`（Pane Tab 菜单 → MA ShelfTool Pro） |
+| MA ShelfTools Pro | 内嵌面板 `MAShelfToolPro.pypanel`（Pane Tab 菜单 → MA ShelfTools Pro） |
 
 ## 架构
 
