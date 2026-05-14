@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pythonPanelDocument>
+  <interface name="mahdr" label="MAHDR HDR Library" icon="MISC_python" showNetworkNavigationBar="false" help_url="">
+    <script><![CDATA[
+from MAHX.hdr_library.library_panel import HDRLibraryPanel
+
+def onCreateInterface():
+    panel = HDRLibraryPanel()
+    panel._load_settings()
+    return panel
+]]></script>
+    <includeInPaneTabMenu menu_position="210" create_separator="false"/>
+    <includeInToolbarMenu menu_position="210" create_separator="false"/>
+    <help><![CDATA[MAHX HDR Environment Light Library Panel]]></help>
+  </interface>
+</pythonPanelDocument>

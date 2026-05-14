@@ -49,6 +49,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
 
         self._filter_mgr = FilterManager()
         self._thumb_mgr = ThumbnailManager()
+        self._saved_on_close = False
 
         self._resize_timer = QTimer()
         self._resize_timer.setSingleShot(True)
@@ -512,6 +513,43 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         settings['favorite_hdrs'] = self._filter_mgr.favorite_hdrs
         settings['current_filter'] = self.folder_combo.currentText()
         SettingsManager.save(settings)
+
+    def _save_on_close(self):
+        """关闭时保存全部状态（含缩略图缓存）。
+        用于嵌入面板模式（pypanel），此时没有 SavedSizeDialog 包裹。"""
+        if self._saved_on_close:
+            return
+        self._saved_on_close = True
+
+        settings = SettingsManager.load()
+
+        if self._settings_dirty:
+            settings['thumbnail_size'] = self._thumb_mgr.thumbnail_size
+            settings['current_filter'] = self.folder_combo.currentText()
+            settings['recent_hdrs'] = self._filter_mgr.recent_hdrs
+            settings['favorite_hdrs'] = self._filter_mgr.favorite_hdrs
+            settings['hdr_directory'] = self.hdr_directory
+            settings['cache_directory'] = self.cache_directory
+            settings['print_path'] = self.print_path_checkbox.isChecked()
+
+        if self._filter_mgr.thumbnails:
+            settings['subfolders'] = self._filter_mgr.subfolders
+            settings['thumbnails'] = self._filter_mgr.group_thumbnails_by_folder(self.cache_directory)
+            if os.path.exists(self.hdr_directory):
+                settings['hdr_dir_mtime'] = os.path.getmtime(self.hdr_directory)
+                subfolders_mtime = {}
+                for folder in self._filter_mgr.subfolders:
+                    folder_path = os.path.join(self.hdr_directory, folder)
+                    if os.path.exists(folder_path):
+                        subfolders_mtime[folder] = os.path.getmtime(folder_path)
+                settings['subfolders_mtime'] = subfolders_mtime
+
+        SettingsManager.save(settings)
+
+    def closeEvent(self, event):
+        """嵌入面板模式下由 Houdini 触发的关闭事件。"""
+        self._save_on_close()
+        super().closeEvent(event)
 
     def _scan_hdr_files(self):
         if not self.hdr_directory or not os.path.exists(self.hdr_directory):
