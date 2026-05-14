@@ -3,23 +3,73 @@
   <interface name="mashelftoolpro" label="MA ShelfTools Pro" icon="MISC_python">
     <script><![CDATA[
 import os
+import glob
+import re
 import hou
 import MAHX
 from PySide6 import QtWidgets, QtGui, QtCore
+from MAHX.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
+
+ACCENT_BLUE = "#0d6399"
+ACCENT_PURPLE = "#8a5cf5"
+BG_PRIMARY = "#18181b"
+BG_SECONDARY = "#1D1D20"
+BG_INPUT = "#2d2d2d"
+TEXT_PRIMARY = "#ffffff"
+TEXT_SECONDARY = "#cccccc"
+BORDER_COLOR = "#3d3d3d"
+
+THUMB_SLIDER_STYLE = f"""
+    QSlider#thumbSizeSlider {{
+        background-color: transparent; border: none;
+    }}
+    QSlider#thumbSizeSlider::groove:horizontal {{
+        border: none; height: 6px; background-color: #000000; border-radius: 3px;
+    }}
+    QSlider#thumbSizeSlider::sub-page:horizontal {{
+        background-color: {ACCENT_PURPLE}; border-radius: 3px;
+    }}
+    QSlider#thumbSizeSlider::handle:horizontal {{
+        background-color: {TEXT_PRIMARY}; border: 1px solid {ACCENT_PURPLE};
+        width: 14px; height: 14px; margin: -4px 0; border-radius: 7px;
+    }}
+"""
+
+_loaded_shelf_files = set()
+_TOOL_NAMES = []
+_DEFAULT_SIZE = 130
 
 
-def ensure_shelf():
-    """基于 MAHX 模块路径定位 toolbar/test.shelf，不依赖 HIP"""
-    if "MAHX" in hou.shelves.shelfSets():
-        return
-    pkg_dir = os.path.dirname(MAHX.__file__)
-    project_root = os.path.dirname(os.path.dirname(pkg_dir))
-    hou.shelves.loadFile(os.path.join(project_root, "toolbar", "test.shelf"))
+def project_root():
+    return os.path.dirname(os.path.dirname(os.path.dirname(MAHX.__file__)))
+
+
+def scan_tool_names():
+    names = []
+    shelf_dir = os.path.join(project_root(), "toolbar")
+    for f in sorted(glob.glob(os.path.join(shelf_dir, "*.shelf"))):
+        try:
+            with open(f, "r", encoding="utf-8") as fp:
+                content = fp.read()
+            names.extend(m.group(1) for m in re.finditer(r'<tool\s+name="([^"]+)"', content))
+        except Exception:
+            pass
+    return names
+
+
+def ensure_shelves():
+    shelf_dir = os.path.join(project_root(), "toolbar")
+    for f in sorted(glob.glob(os.path.join(shelf_dir, "*.shelf"))):
+        if f not in _loaded_shelf_files:
+            try:
+                hou.shelves.loadFile(f)
+            except:
+                pass
+            _loaded_shelf_files.add(f)
 
 
 def execute_tool(tool_name, extra_kwargs=None):
-    """获取工具脚本并在 kwargs 上下文中执行"""
-    ensure_shelf()
+    ensure_shelves()
     tool = hou.shelves.tool(tool_name)
     kwargs = {"autoplace": True}
     if extra_kwargs:
@@ -27,21 +77,72 @@ def execute_tool(tool_name, extra_kwargs=None):
     exec(tool.script())
 
 
-class ThumbnailWidget(QtWidgets.QLabel):
-    """工具缩略图 - 点击自动放置 / 拖拽到 NE 定位放置"""
+_TOOL_NAMES = scan_tool_names()
 
-    def __init__(self, tool_name, parent=None):
+
+def load_thumb_size():
+    data = ShelfToolsSettingsManager.load()
+    return max(70, min(250, data.get("thumb_size", _DEFAULT_SIZE)))
+
+
+def save_thumb_size(value):
+    ShelfToolsSettingsManager.update("thumb_size", value)
+
+
+class ThumbnailWidget(QtWidgets.QWidget):
+    def __init__(self, tool_name, size, parent=None):
         super().__init__(parent)
         self._tool_name = tool_name
         self._drag_start = None
+        self._size = 0
 
-        pixmap = QtGui.QPixmap(120, 80)
-        pixmap.fill(QtGui.QColor(85, 85, 85))
-        self.setPixmap(pixmap)
-        self.setFixedSize(120, 80)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
+        layout.setAlignment(QtCore.Qt.AlignCenter)
+
+        self.image_label = QtWidgets.QLabel()
+        self.image_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.image_label.setStyleSheet("background-color: transparent;")
+        layout.addWidget(self.image_label)
+
+        self.name_label = QtWidgets.QLabel(tool_name)
+        self.name_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.name_label.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; background-color: transparent;")
+        layout.addWidget(self.name_label)
+
         self.setToolTip(tool_name)
         self.setCursor(QtCore.Qt.OpenHandCursor)
-        self.setAlignment(QtCore.Qt.AlignCenter)
+        self.updateSize(size)
+
+    @staticmethod
+    def _make_rounded_pixmap(size, radius, color):
+        """创建指定圆角的纯色图片"""
+        pixmap = QtGui.QPixmap(size, size)
+        pixmap.fill(QtCore.Qt.transparent)
+        painter = QtGui.QPainter(pixmap)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        painter.setBrush(QtGui.QColor(color))
+        painter.setPen(QtCore.Qt.NoPen)
+        painter.drawRoundedRect(0, 0, size, size, radius, radius)
+        painter.end()
+        return pixmap
+
+    def updateSize(self, size):
+        if size == self._size:
+            return
+        self._size = size
+        name_h = max(14, size // 6)
+        radius = max(3, size // 8)
+        self.setFixedSize(size, size + 4 + name_h + 8)
+        self.image_label.setFixedSize(size, size)
+        self.name_label.setFixedHeight(name_h)
+        font = self.name_label.font()
+        font.setPointSize(max(7, size // 16))
+        self.name_label.setFont(font)
+        self.image_label.setPixmap(
+            self._make_rounded_pixmap(size, radius, "#2d2d2d"))
 
     # ── 鼠标事件 ──────────────────────────────────
     def mousePressEvent(self, event):
@@ -53,19 +154,15 @@ class ThumbnailWidget(QtWidgets.QLabel):
             return
         if (event.pos() - self._drag_start).manhattanLength() < 10:
             return
-
-        # 开始拖拽
         drag = QtGui.QDrag(self)
         mime = QtCore.QMimeData()
         mime.setText(f"mahx_tool:{self._tool_name}")
         drag.setMimeData(mime)
         drag.setPixmap(
-            self.pixmap().scaled(64, 64, QtCore.Qt.KeepAspectRatio,
-                                 QtCore.Qt.SmoothTransformation)
+            self.image_label.pixmap().scaled(64, 64, QtCore.Qt.KeepAspectRatio,
+                                             QtCore.Qt.SmoothTransformation)
         )
         drag.exec_(QtCore.Qt.CopyAction)
-
-        # 拖拽结束 → 光标下的 NE 定位执行
         self._drop_at_cursor()
 
     def mouseReleaseEvent(self, event):
@@ -77,34 +174,23 @@ class ThumbnailWidget(QtWidgets.QLabel):
                     pass
         self._drag_start = None
 
-    # ── 拖拽释放：cursorPosition() 获得网络坐标 ──
     def _drop_at_cursor(self):
         ne = None
         for pane in hou.ui.paneTabs():
             if isinstance(pane, hou.NetworkEditor):
                 ne = pane
                 break
-
         if ne is not None:
             pos = ne.cursorPosition()
             try:
-                # 必须传入 pane，否则工具脚本的 activePane 找不到 NE，
-                # 导致永远不走处理 nodepositionx/y 的分支
-                # 另外传 outputnodename/inputindex 让 num_args 升到 6，
-                # 否则 hscript 里 $argc < 2 会把 arg2/arg3 重置为 0
                 execute_tool(self._tool_name, {
-                    "pane": ne,
-                    "autoplace": False,
-                    "nodepositionx": str(pos[0]),
-                    "nodepositiony": str(pos[1]),
-                    "outputnodename": "",
-                    "inputindex": -1,
+                    "pane": ne, "autoplace": False,
+                    "nodepositionx": str(pos[0]), "nodepositiony": str(pos[1]),
+                    "outputnodename": "", "inputindex": -1,
                 })
                 return
             except SystemExit:
-                return  # NE 找到了但类型不兼容，直接退出，不再 fallback
-
-        # 没找到 NE 时才 fallback 自动放置
+                return
         try:
             execute_tool(self._tool_name)
         except SystemExit:
@@ -114,20 +200,97 @@ class ThumbnailWidget(QtWidgets.QLabel):
 class MAShelfToolProPanel(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
-        self.setMinimumWidth(300)
+        self.setMinimumWidth(350)
+        self.setStyleSheet(f"background-color: {BG_PRIMARY};")
+
+        # 加载保存的大小
+        init_size = load_thumb_size()
 
         layout = QtWidgets.QVBoxLayout(self)
-        label = QtWidgets.QLabel("工具架 (MA ShelfTools Pro)")
-        label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 8px;")
-        layout.addWidget(label)
-        layout.addWidget(ThumbnailWidget("Lines particles"))
-        layout.addStretch()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # ── 滑块行 ──
+        slider_row = QtWidgets.QHBoxLayout()
+        slider_row.setContentsMargins(8, 4, 8, 4)
+        slider_label = QtWidgets.QLabel("Size")
+        slider_label.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: 11px; background-color: transparent;")
+        slider_row.addWidget(slider_label)
+
+        self.thumb_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.thumb_slider.setObjectName("thumbSizeSlider")
+        self.thumb_slider.setMinimum(70)
+        self.thumb_slider.setMaximum(250)
+        self.thumb_slider.setValue(init_size)
+        self.thumb_slider.setStyleSheet(THUMB_SLIDER_STYLE)
+        self.thumb_slider.setCursor(QtCore.Qt.PointingHandCursor)
+        self.thumb_slider.valueChanged.connect(self._on_size_changed)
+        slider_row.addWidget(self.thumb_slider)
+
+        self.size_label = QtWidgets.QLineEdit(str(init_size))
+        self.size_label.setFixedWidth(40)
+        self.size_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.size_label.setStyleSheet(
+            f"background-color: {BG_INPUT}; color: white; border: 1px solid {BORDER_COLOR}; "
+            f"border-radius: 4px; padding: 2px 4px; font-size: 11px;")
+        self.size_label.returnPressed.connect(self._on_size_edit)
+        slider_row.addWidget(self.size_label)
+        layout.addLayout(slider_row)
+
+        # ── 分隔线 ──
+        sep = QtWidgets.QFrame()
+        sep.setFrameShape(QtWidgets.QFrame.HLine)
+        sep.setStyleSheet(f"color: {BORDER_COLOR}; background-color: {BORDER_COLOR}; max-height: 1px;")
+        layout.addWidget(sep)
+
+        # ── 工具区域（顶对齐） ──
+        self._container = QtWidgets.QWidget()
+        self._container.setStyleSheet(f"background-color: {BG_SECONDARY};")
+        container_layout = QtWidgets.QVBoxLayout(self._container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+
+        tools_layout = QtWidgets.QHBoxLayout()
+        tools_layout.setContentsMargins(6, 6, 6, 6)
+        tools_layout.setSpacing(0)
+
+        if not _TOOL_NAMES:
+            info = QtWidgets.QLabel("⚠️ 未找到工具")
+            info.setAlignment(QtCore.Qt.AlignCenter)
+            info.setStyleSheet(f"color: #888888; font-size: 14px; padding: 20px; background: transparent;")
+            tools_layout.addWidget(info)
+        else:
+            self._thumb_widgets = []
+            for name in _TOOL_NAMES:
+                tw = ThumbnailWidget(name, init_size)
+                self._thumb_widgets.append(tw)
+                tools_layout.addWidget(tw)
+            tools_layout.addStretch()
+
+        container_layout.addLayout(tools_layout)
+        container_layout.addStretch()  # 顶对齐
+        layout.addWidget(self._container, 1)
+
+    def _on_size_changed(self, value):
+        self.size_label.setText(str(value))
+        save_thumb_size(value)
+        if hasattr(self, '_thumb_widgets'):
+            for tw in self._thumb_widgets:
+                tw.updateSize(value)
+
+    def _on_size_edit(self):
+        try:
+            v = int(self.size_label.text().strip())
+            v = max(70, min(250, v))
+            self.thumb_slider.setValue(v)
+        except ValueError:
+            self.size_label.setText(str(self.thumb_slider.value()))
 
 
 def onCreateInterface():
     return MAShelfToolProPanel()
 ]]></script>
     <includeInPaneTabMenu menu_position="210" create_separator="false"/>
-    <help>MA ShelfTool Pro - 工具架工具缩略图面板，支持点击自动放置和拖拽到 NetworkEditor 定位放置</help>
+    <help>MA ShelfTools Pro - 工具架工具缩略图面板</help>
   </interface>
 </pythonPanelDocument>

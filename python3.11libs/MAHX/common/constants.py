@@ -2,6 +2,11 @@ import os
 
 _MAHX_TOOLS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
+HDR_SETTINGS_FILE = os.path.join(_MAHX_TOOLS_DIR, "MAHX_HDR_Library_Settings.json")
+HDR_CACHE_FILE = os.path.join(_MAHX_TOOLS_DIR, "MAHX_HDR_Library_Cache.json")
+SHELFTOOLS_SETTINGS_FILE = os.path.join(_MAHX_TOOLS_DIR, "MAHX_ShelfTools_Pro_Settings.json")
+SHELFTOOLS_CACHE_FILE = os.path.join(_MAHX_TOOLS_DIR, "MAHX_ShelfTools_Pro_Cache.json")
+
 HDR_EXTENSIONS = ['.hdr', '.exr', '.hdri', '.tif', '.tiff', '.png', '.jpg', '.jpeg', '.tga', '.bmp']
 
 HDR_PARAMETER_NAMES = (

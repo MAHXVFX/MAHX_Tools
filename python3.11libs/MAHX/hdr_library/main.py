@@ -5,7 +5,7 @@ from PySide6 import QtWidgets, QtCore
 from PySide6.QtCore import Qt
 
 from .library_panel import HDRLibraryPanel
-from MAHX.common import SettingsManager
+from MAHX.common import SettingsManager, CacheManager
 from MAHX.common.styles import DIALOG_BG_STYLE
 
 logger = logging.getLogger("MAHX")
@@ -35,8 +35,8 @@ class SavedSizeDialog(QtWidgets.QDialog):
             self._geometry_dirty = True
 
     def closeEvent(self, event):
+        # ── 设置（小数据） ──
         settings = SettingsManager.load()
-
         if self._geometry_dirty:
             size = self.size()
             pos = self.pos()
@@ -55,20 +55,24 @@ class SavedSizeDialog(QtWidgets.QDialog):
                 settings['hdr_directory'] = panel.hdr_directory
                 settings['cache_directory'] = panel.cache_directory
                 settings['print_path'] = panel.print_path_checkbox.isChecked()
-
-            if panel._filter_mgr.thumbnails:
-                settings['subfolders'] = panel._filter_mgr.subfolders
-                settings['thumbnails'] = panel._filter_mgr.group_thumbnails_by_folder(panel.cache_directory)
-                if os.path.exists(panel.hdr_directory):
-                    settings['hdr_dir_mtime'] = os.path.getmtime(panel.hdr_directory)
-                    subfolders_mtime = {}
-                    for folder in panel._filter_mgr.subfolders:
-                        folder_path = os.path.join(panel.hdr_directory, folder)
-                        if os.path.exists(folder_path):
-                            subfolders_mtime[folder] = os.path.getmtime(folder_path)
-                    settings['subfolders_mtime'] = subfolders_mtime
-
         SettingsManager.save(settings)
+
+        # ── 缓存（大数据） ──
+        if self.panel_widget and self.panel_widget._filter_mgr.thumbnails:
+            panel = self.panel_widget
+            cache = CacheManager.load()
+            cache['subfolders'] = panel._filter_mgr.subfolders
+            cache['thumbnails'] = panel._filter_mgr.group_thumbnails_by_folder(panel.cache_directory)
+            if os.path.exists(panel.hdr_directory):
+                cache['hdr_dir_mtime'] = os.path.getmtime(panel.hdr_directory)
+                subfolders_mtime = {}
+                for folder in panel._filter_mgr.subfolders:
+                    folder_path = os.path.join(panel.hdr_directory, folder)
+                    if os.path.exists(folder_path):
+                        subfolders_mtime[folder] = os.path.getmtime(folder_path)
+                cache['subfolders_mtime'] = subfolders_mtime
+            CacheManager.save(cache)
+
         super().closeEvent(event)
 
 

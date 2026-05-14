@@ -1,9 +1,13 @@
 ffmpeg.exe
 __pycache__/
 MAHX_HDR_Library_Settings.json
+MAHX_HDR_Library_Cache.json
 .trae/documents/MAHX项目代码优化计划.md
 python_panels/test.pypanel
 toolbar/test.shelf
 toolbar/Houdini_Shelf_Tool_Trigger_Guide.md
 .sisyphus/
 .uploads/
+toolbar/mahx.shelf
+MAHX_ShelfTools_Pro_Settings.json
+MAHX_ShelfTools_Pro_Cache.json

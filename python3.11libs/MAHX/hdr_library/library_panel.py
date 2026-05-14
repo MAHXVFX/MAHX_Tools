@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QFileDialog, QMessageBox
 from PySide6.QtGui import QCursor
 
 from MAHX.common import HDR_EXTENSIONS, HDR_PARAMETER_NAMES
-from MAHX.common import SettingsManager, _collect_hdr_files
+from MAHX.common import SettingsManager, CacheManager, _collect_hdr_files
 from MAHX.common.constants import (
     LAYOUT_MARGIN, RESIZE_DELAY_MS, DEFAULT_THUMBNAIL_SIZE,
     DEFAULT_THUMBNAIL_IMAGE_SIZE, THUMBNAIL_GRID_SPACING,
@@ -190,7 +190,6 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.scroll_area.setAlignment(Qt.AlignCenter)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self._vscroll = self.scroll_area.verticalScrollBar()
 
         self.thumbnail_widget = QtWidgets.QWidget()
         self.thumbnail_widget.setStyleSheet(THUMBNAIL_WIDGET_STYLE)
@@ -201,6 +200,11 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.scroll_area.setWidget(self.thumbnail_widget)
 
         return self.scroll_area
+
+    @property
+    def _vscroll(self):
+        """实时获取滚动条（Qt6 可能重建滚动条，不能缓存引用）"""
+        return self.scroll_area.verticalScrollBar()
 
     def _create_status_bar(self):
         layout = QtWidgets.QHBoxLayout()
@@ -321,12 +325,12 @@ class HDRLibraryPanel(QtWidgets.QWidget):
             text = "Ready" if self.hdr_directory else "No HDR library path set"
             self._set_status(color, text)
 
-    def _try_load_cached_thumbnails(self, settings=None):
-        if settings is None:
-            settings = SettingsManager.load()
-        cached_thumbnails = settings.get('thumbnails', {})
-        cached_root_mtime = settings.get('hdr_dir_mtime')
-        cached_subfolders_mtime = settings.get('subfolders_mtime', {})
+    def _try_load_cached_thumbnails(self, cache=None):
+        if cache is None:
+            cache = CacheManager.load()
+        cached_thumbnails = cache.get('thumbnails', {})
+        cached_root_mtime = cache.get('hdr_dir_mtime')
+        cached_subfolders_mtime = cache.get('subfolders_mtime', {})
 
         if not cached_thumbnails or not os.path.exists(self.hdr_directory):
             return False
@@ -514,14 +518,15 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         SettingsManager.save(settings)
 
     def _save_on_close(self):
-        """关闭时保存全部状态（含缩略图缓存）。
-        用于嵌入面板模式（pypanel），此时没有 SavedSizeDialog 包裹。"""
+        """关闭时保存全部状态。
+        设置（小）→ SettingsManager 实时兼容
+        缓存（大）→ CacheManager 独立文件，避免拖累实时写入"""
         if self._saved_on_close:
             return
         self._saved_on_close = True
 
+        # ── 设置（小数据） ──
         settings = SettingsManager.load()
-
         if self._settings_dirty:
             settings['thumbnail_size'] = self._thumb_mgr.thumbnail_size
             settings['current_filter'] = self.folder_combo.currentText()
@@ -530,20 +535,22 @@ class HDRLibraryPanel(QtWidgets.QWidget):
             settings['hdr_directory'] = self.hdr_directory
             settings['cache_directory'] = self.cache_directory
             settings['print_path'] = self.print_path_checkbox.isChecked()
+        SettingsManager.save(settings)
 
+        # ── 缓存（大数据） ──
         if self._filter_mgr.thumbnails:
-            settings['subfolders'] = self._filter_mgr.subfolders
-            settings['thumbnails'] = self._filter_mgr.group_thumbnails_by_folder(self.cache_directory)
+            cache = CacheManager.load()
+            cache['subfolders'] = self._filter_mgr.subfolders
+            cache['thumbnails'] = self._filter_mgr.group_thumbnails_by_folder(self.cache_directory)
             if os.path.exists(self.hdr_directory):
-                settings['hdr_dir_mtime'] = os.path.getmtime(self.hdr_directory)
+                cache['hdr_dir_mtime'] = os.path.getmtime(self.hdr_directory)
                 subfolders_mtime = {}
                 for folder in self._filter_mgr.subfolders:
                     folder_path = os.path.join(self.hdr_directory, folder)
                     if os.path.exists(folder_path):
                         subfolders_mtime[folder] = os.path.getmtime(folder_path)
-                settings['subfolders_mtime'] = subfolders_mtime
-
-        SettingsManager.save(settings)
+                cache['subfolders_mtime'] = subfolders_mtime
+            CacheManager.save(cache)
 
     def closeEvent(self, event):
         """嵌入面板模式下由 Houdini 触发的关闭事件。"""
