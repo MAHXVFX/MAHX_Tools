@@ -102,8 +102,9 @@ class ThumbnailWidget(QtWidgets.QLabel):
                 })
                 return
             except SystemExit:
-                pass
+                return  # NE 找到了但类型不兼容，直接退出，不再 fallback
 
+        # 没找到 NE 时才 fallback 自动放置
         try:
             execute_tool(self._tool_name)
         except SystemExit:
