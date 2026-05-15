@@ -1,6 +1,6 @@
 import os
 
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtWidgets, QtCore, QtGui
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QPixmap, QImage, QCursor
 
@@ -34,14 +34,14 @@ class HDRThumbnailWidget(QtWidgets.QWidget):
         self.image_label = QtWidgets.QLabel()
         self.image_label.setAlignment(QtCore.Qt.AlignCenter)
         self.image_label.setFixedSize(image_size, image_size)
-        self.image_label.setStyleSheet("background-color: #2b2b2b; border-radius: 5px;")
+        # 移除 border-radius，改用代码绘制圆角
+        self.image_label.setStyleSheet("background-color: transparent;")
         self.image_label.installEventFilter(self)
         if not lazy_load:
             self._load_thumbnail(image_size)
         else:
             placeholder = self._create_placeholder(image_size)
-            scaled_placeholder = placeholder.scaled(image_size, image_size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
-            self.image_label.setPixmap(scaled_placeholder)
+            self.image_label.setPixmap(placeholder)
             self._loaded = False
         main_layout.addWidget(self.image_label)
 
@@ -79,15 +79,16 @@ class HDRThumbnailWidget(QtWidgets.QWidget):
             pixmap = QPixmap(thumbnail_path)
             if not pixmap.isNull():
                 self._original_pixmap = pixmap
-                scaled_pixmap = self._original_pixmap.scaled(image_size, image_size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
-                self.image_label.setPixmap(scaled_pixmap)
+                scaled_pixmap = self._original_pixmap.scaled(
+                    image_size, image_size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+                rounded = self._apply_rounded_mask(scaled_pixmap, image_size)
+                self.image_label.setPixmap(rounded)
                 self._loaded = True
                 return
 
         placeholder = self._create_placeholder(image_size)
         self._original_pixmap = placeholder
-        scaled_pixmap = placeholder.scaled(image_size, image_size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
-        self.image_label.setPixmap(scaled_pixmap)
+        self.image_label.setPixmap(placeholder)
         self._loaded = True
 
     def ensure_loaded(self, image_size=170):
@@ -102,9 +103,44 @@ class HDRThumbnailWidget(QtWidgets.QWidget):
             self.image_label.setPixmap(placeholder)
 
     def _create_placeholder(self, image_size=170):
-        img = QImage(image_size, image_size, QImage.Format_RGB32)
-        img.fill(QtCore.Qt.GlobalColor.darkGray)
-        return QPixmap.fromImage(img)
+        radius = max(3, image_size // 8)
+        return self._make_rounded_pixmap(image_size, radius, "#2b2b2b")
+
+    @staticmethod
+    def _make_rounded_pixmap(size, radius, color):
+        """创建指定圆角的纯色占位图。"""
+        pixmap = QPixmap(size, size)
+        pixmap.fill(QtCore.Qt.transparent)
+        painter = QtGui.QPainter(pixmap)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        painter.setBrush(QtGui.QColor(color))
+        painter.setPen(QtCore.Qt.NoPen)
+        painter.drawRoundedRect(0, 0, size, size, radius, radius)
+        painter.end()
+        return pixmap
+
+    @staticmethod
+    def _apply_rounded_mask(pixmap, final_size):
+        """对图片应用圆角遮罩。"""
+        radius = max(3, final_size // 8)
+        result = QPixmap(final_size, final_size)
+        result.fill(QtCore.Qt.transparent)
+
+        painter = QtGui.QPainter(result)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
+
+        path = QtGui.QPainterPath()
+        path.addRoundedRect(0, 0, final_size, final_size, radius, radius)
+
+        painter.fillPath(path, QtGui.QColor("#2b2b2b"))
+        painter.setClipPath(path)
+        # 居中绘制
+        x = (final_size - pixmap.width()) // 2
+        y = (final_size - pixmap.height()) // 2
+        painter.drawPixmap(x, y, pixmap)
+        painter.end()
+        return result
 
     def updateSize(self, size, image_size, cache=None):
         self.setFixedSize(size, size + 20)
@@ -115,8 +151,10 @@ class HDRThumbnailWidget(QtWidgets.QWidget):
 
     def _reload_scaled_pixmap(self, image_size):
         if self._original_pixmap:
-            scaled_pixmap = self._original_pixmap.scaled(image_size, image_size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
-            self.image_label.setPixmap(scaled_pixmap)
+            scaled_pixmap = self._original_pixmap.scaled(
+                image_size, image_size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+            rounded = self._apply_rounded_mask(scaled_pixmap, image_size)
+            self.image_label.setPixmap(rounded)
 
     def enterEvent(self, event):
         self._hovered = True
