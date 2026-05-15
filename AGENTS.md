@@ -143,6 +143,9 @@ Tool 对象
 7. **右键设置图片流**：`QFileDialog.getOpenFileName()` → `shutil.copy2()` 到配置目录 → `ShelfToolsCacheManager.set_custom_image(unique_id)` → `_load_custom_image()`
 8. **GIF 悬停动画流**：`enterEvent` → `startTimer(500)` → `timerEvent` → `_start_gif_animation()` → `leaveEvent` → `killTimer()` + `_stop_gif_animation()`
 9. **设置面板流**：Settings 按钮 → `elastic_resize()` 展开/收起 → 路径输入框 + Browse 按钮 → `ShelfToolsSettingsManager.set_thumbnail_directory()`
+10. **右键编辑备注流**：`contextMenuEvent` → `_on_edit_notes()` → 自定义 QDialog (500x700) → `ShelfToolsCacheManager.set_note(unique_id)`
+11. **中键查看备注流**：`mouseReleaseEvent(MiddleButton)` → `_open_notes_window()` → 只读 QTextBrowser 渲染 markdown → 无备注则无事发生
+12. **悬停显示备注流**：`enterEvent` → 500ms 延迟 → `_show_notes_panel()` → 无边框 QTextBrowser 显示在缩略图上方/下方 → 鼠标移向备注时通过 `eventFilter` 保持显示
 
 ### 缩略图显示
 - 正方形 1:1，圆角 `size // 8`，默认灰色占位图
@@ -157,6 +160,33 @@ Tool 对象
 - **布局细节**：`image_label` 大小为 `size + 2`（右边缘缓冲防裁剪），缩略图间距 `12px`
 - **HDR 面板同步**：`hdr_library/thumbnail_widget.py` 同样使用代码绘制圆角，保持视觉一致
 
+### Notes 备注功能
+
+#### 三种交互方式
+| 触发方式 | 行为 | 面板类型 |
+|---|---|---|
+| 悬停 500ms | 显示小型浮动备注（只读，markdown 渲染） | 无边框 QTextBrowser，最大高度 200px |
+| 中键点击 | 打开独立备注窗口（只读，markdown 渲染） | 带标题栏 QDialog (450x600)，无备注则无事发生 |
+| 右键 → Notes | 打开备注编辑窗口 | 自定义 QDialog (500x700)，QTextEdit 可编辑 |
+
+#### 悬停备注智能定位
+- **优先上方显示**：若超出屏幕上边缘 → 改为下方显示
+- **鼠标移入保持**：鼠标从缩略图移向备注时，通过 150ms 延迟 + `eventFilter` 保持显示
+- **鼠标离开隐藏**：鼠标离开备注面板后 100ms 自动隐藏
+
+#### 窗口面板智能定位（中键/右键）
+- 使用 `_clamp_to_screen()` 统一处理，避免被屏幕边缘或任务栏裁剪
+- **水平**：优先右侧打开 → 超出右边缘 → 改为左侧打开
+- **垂直**：底部超出 → 上移（留 20px 间距）；顶部超出 → 下移贴顶边
+- 使用 `screen.availableGeometry()` 排除 Windows 任务栏区域
+
+#### 关键实现细节
+- **悬停备注**：`_init_notes_panel()` 创建独立窗口，`installEventFilter(self)` 检测鼠标进出
+- **`_mouse_in_notes` 标志**：跟踪鼠标是否在备注面板上，决定延迟隐藏行为
+- **`_delayed_hide_notes()`**：150ms 延迟检查，给鼠标移动到备注面板的时间窗口
+- **中键窗口**：无备注时直接 return，不显示任何内容
+- **编辑窗口**：OK/Cancel 按钮，保存后写入 `ShelfToolsCacheManager.set_note()`
+
 ### 缓存结构扩展
 
 ```json
@@ -166,6 +196,9 @@ Tool 对象
   },
   "custom_names": {
     "unique_id": "自定义显示名称"
+  },
+  "notes": {
+    "unique_id": "备注内容（markdown 格式）"
   }
 }
 ```
@@ -206,6 +239,13 @@ Tool 对象
 
 #### API 兼容性
 - **`QDrag.exec()` / `QMenu.exec()`**：PySide6 推荐使用 `exec()` 替代过时的 `exec_()`
+
+#### Notes 备注
+- **`_clamp_to_screen()` 统一处理定位**：所有弹出面板（编辑/查看）都调用此方法，避免重复代码
+- **`availableGeometry()` 排除任务栏**：不要用 `geometry()`，否则面板会被任务栏遮挡
+- **`_BOTTOM_MARGIN = 20`**：面板与屏幕底部保持 20px 间距，避免紧贴任务栏
+- **eventFilter 必须安装**：`_notes_panel.installEventFilter(self)` 是检测鼠标进出备注面板的关键
+- **延迟隐藏机制**：`leaveEvent` 不直接隐藏，而是 `QTimer.singleShot(150, _delayed_hide_notes)`，给鼠标移动到备注面板的时间窗口
 
 ## 开发约束
 

@@ -16,6 +16,12 @@ logger = logging.getLogger("MA")
 class ThumbnailWidget(QtWidgets.QWidget):
     """单个工具的缩略图控件，支持点击执行、拖拽放置、右键菜单。"""
 
+    # ── 常量 ──────────────────────────────────
+    _HORIZONTAL_GAP = 10    # 面板与缩略图水平间距
+    _BOTTOM_MARGIN = 20     # 面板与屏幕底部间距
+    _NOTES_EDIT_SIZE = (500, 700)   # 编辑备注窗口大小
+    _NOTES_VIEW_SIZE = (450, 600)   # 查看备注窗口大小
+
     def __init__(self, unique_id, display_name, size, parent=None, custom_name=None, custom_image_info=None):
         super().__init__(parent)
         self._unique_id = unique_id
@@ -28,6 +34,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._custom_image_path = None
         self._is_gif = False
         self._notes_panel = None
+        self._mouse_in_notes = False
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -68,6 +75,29 @@ class ThumbnailWidget(QtWidgets.QWidget):
         painter.drawRoundedRect(0, 0, size, size, radius, radius)
         painter.end()
         return pixmap
+
+    def _get_available_geometry(self):
+        """获取当前屏幕的可用区域（排除任务栏）。"""
+        screen = QtGui.QGuiApplication.screenAt(self.mapToGlobal(QtCore.QPoint(0, 0)))
+        if screen is None:
+            screen = QtGui.QGuiApplication.primaryScreen()
+        return screen.availableGeometry()
+
+    def _clamp_to_screen(self, pos, width, height):
+        """将面板位置约束在屏幕可用区域内，避免被任务栏或屏幕边缘裁剪。"""
+        available = self._get_available_geometry()
+
+        # 水平方向：优先右侧，超出则左侧
+        if pos.x() + width > available.right():
+            pos = self.mapToGlobal(QtCore.QPoint(-width - self._HORIZONTAL_GAP, 0))
+
+        # 垂直方向：底部超出则上移（留 _BOTTOM_MARGIN 间距），顶部超出则下移
+        if pos.y() + height > available.bottom():
+            pos.setY(available.bottom() - height - self._BOTTOM_MARGIN)
+        if pos.y() < available.y():
+            pos.setY(available.y())
+
+        return pos
 
     def updateSize(self, size):
         """更新控件大小。"""
@@ -117,6 +147,8 @@ class ThumbnailWidget(QtWidgets.QWidget):
                     execute_tool(self._unique_id)
                 except SystemExit:
                     pass
+        elif event.button() == QtCore.Qt.MiddleButton:
+            self._open_notes_window()
         self._drag_start = None
 
     # ─ 右键菜单 ──────────────────────────────────
@@ -166,10 +198,123 @@ class ThumbnailWidget(QtWidgets.QWidget):
     def _on_edit_notes(self):
         """弹出多行文本输入对话框，编辑备注。"""
         current_note = ShelfToolsCacheManager.get_note(self._unique_id) or ""
-        new_note, ok = QtWidgets.QInputDialog.getMultiLineText(
-            self, "Edit Notes", "Enter notes (markdown supported):", text=current_note)
-        if ok:
+        
+        # 创建自定义对话框以控制窗口大小
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("Edit Notes")
+        dialog.resize(500, 700)
+        
+        layout = QtWidgets.QVBoxLayout(dialog)
+        layout.setContentsMargins(12, 12, 12, 12)
+        
+        text_edit = QtWidgets.QTextEdit()
+        text_edit.setPlainText(current_note)
+        text_edit.setStyleSheet(
+            "QTextEdit { "
+            "  background-color: #1e1e1e; "
+            "  color: #ffffff; "
+            "  border: 1px solid #3d3d3d; "
+            "  border-radius: 4px; "
+            "  padding: 8px; "
+            "  font-family: Consolas, monospace; "
+            "  font-size: 13px; "
+            "}"
+        )
+        layout.addWidget(text_edit)
+        
+        button_layout = QtWidgets.QHBoxLayout()
+        button_layout.addStretch()
+        
+        cancel_btn = QtWidgets.QPushButton("Cancel")
+        ok_btn = QtWidgets.QPushButton("OK")
+        cancel_btn.setMinimumWidth(80)
+        ok_btn.setMinimumWidth(80)
+        cancel_btn.setStyleSheet(
+            "QPushButton { "
+            "  background-color: #2d2d2d; "
+            "  color: white; "
+            "  border: 1px solid #3d3d3d; "
+            "  border-radius: 4px; "
+            "  padding: 8px 16px; "
+            "}"
+            "QPushButton:hover { background-color: #3d3d3d; }"
+        )
+        ok_btn.setStyleSheet(
+            "QPushButton { "
+            "  background-color: #4CAF50; "
+            "  color: white; "
+            "  border: none; "
+            "  border-radius: 4px; "
+            "  padding: 8px 16px; "
+            "  font-weight: bold; "
+            "}"
+            "QPushButton:hover { background-color: #45a049; }"
+        )
+        
+        button_layout.addWidget(cancel_btn)
+        button_layout.addWidget(ok_btn)
+        layout.addLayout(button_layout)
+        
+        cancel_btn.clicked.connect(dialog.reject)
+        ok_btn.clicked.connect(dialog.accept)
+        
+        # 定位：约束在屏幕可用区域内
+        pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
+        pos = self._clamp_to_screen(pos, dialog.width(), dialog.height())
+        dialog.move(pos)
+        
+        if dialog.exec() == QtWidgets.QDialog.Accepted:
+            new_note = text_edit.toPlainText()
             ShelfToolsCacheManager.set_note(self._unique_id, new_note)
+    
+    def _open_notes_window(self):
+        """以悬浮窗口方式打开备注（只读，渲染 markdown，带标题栏）。"""
+        # 无备注则无事发生
+        current_note = ShelfToolsCacheManager.get_note(self._unique_id) or ""
+        if not current_note.strip():
+            return
+        
+        # 创建独立窗口（带标题栏）
+        notes_window = QtWidgets.QDialog(self)
+        notes_window.setWindowTitle(f"Notes - {self._display_name}")
+        notes_window.setWindowFlags(
+            QtCore.Qt.WindowType.Dialog 
+            | QtCore.Qt.WindowType.WindowCloseButtonHint
+            | QtCore.Qt.WindowType.WindowMaximizeButtonHint
+            | QtCore.Qt.WindowType.WindowStaysOnTopHint
+        )
+        notes_window.setAttribute(QtCore.Qt.WA_ShowWithoutActivating, False)
+        notes_window.resize(450, 600)
+        notes_window.setStyleSheet("background-color: #1e1e1e;")
+        
+        # 垂直布局
+        layout = QtWidgets.QVBoxLayout(notes_window)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(4)
+        
+        # 备注显示区（只读，渲染 markdown）
+        notes_display = QtWidgets.QTextBrowser()
+        notes_display.setReadOnly(True)
+        notes_display.setOpenExternalLinks(False)
+        notes_display.setMarkdown(current_note)
+        notes_display.setStyleSheet(
+            "QTextBrowser { "
+            "  background-color: #1e1e1e; "
+            "  color: #ffffff; "
+            "  border: none; "
+            "  padding: 8px; "
+            "  font-size: 13px; "
+            "}"
+        )
+        layout.addWidget(notes_display)
+        
+        # 定位：约束在屏幕可用区域内
+        pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
+        pos = self._clamp_to_screen(pos, notes_window.width(), notes_window.height())
+        notes_window.move(pos)
+        notes_window.show()
+        notes_window.raise_()
+        notes_window.activateWindow()
 
     def _load_custom_image(self):
         """加载自定义图片到 image_label。GIF 默认显示第一帧。"""
@@ -258,7 +403,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._notes_timer_id = self.startTimer(500)
 
     def leaveEvent(self, event):
-        """鼠标离开：停止定时器，停止 GIF 动画，隐藏备注面板。"""
+        """鼠标离开：停止定时器，停止 GIF 动画，检查是否移向备注面板。"""
         super().leaveEvent(event)
         if self._gif_timer_id is not None:
             self.killTimer(self._gif_timer_id)
@@ -267,7 +412,13 @@ class ThumbnailWidget(QtWidgets.QWidget):
         if self._notes_timer_id is not None:
             self.killTimer(self._notes_timer_id)
             self._notes_timer_id = None
-        self._hide_notes_panel()
+        
+        # 检查鼠标是否移向备注面板
+        if self._notes_panel and self._notes_panel.isVisible():
+            # 延迟隐藏，给鼠标移动到备注面板的时间
+            QtCore.QTimer.singleShot(150, self._delayed_hide_notes)
+        else:
+            self._hide_notes_panel()
 
     def timerEvent(self, event):
         """定时器触发：GIF 动画 / 备注面板显示。"""
@@ -317,6 +468,9 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._notes_panel.setMaximumHeight(200)
         self._notes_panel.setOpenExternalLinks(False)
         self._notes_panel.setVisible(False)
+        
+        # 安装事件过滤器以检测鼠标进入/离开备注面板
+        self._notes_panel.installEventFilter(self)
 
     def _show_notes_panel(self):
         """显示备注面板（如有备注内容）。"""
@@ -334,8 +488,24 @@ class ThumbnailWidget(QtWidgets.QWidget):
         max_width = max(self.width(), 200)
         self._notes_panel.setMaximumWidth(max_width)
         self._notes_panel.adjustSize()
-        # 定位在缩略图上方
-        pos = self.mapToGlobal(QtCore.QPoint(0, -self._notes_panel.height()))
+        
+        # 智能定位：优先上方显示，若超出屏幕则改为下方显示
+        panel_height = self._notes_panel.height()
+        pos_above = self.mapToGlobal(QtCore.QPoint(0, -panel_height))
+        
+        # 获取屏幕几何信息
+        screen = QtGui.QGuiApplication.screenAt(self.mapToGlobal(QtCore.QPoint(0, 0)))
+        if screen is None:
+            screen = QtGui.QGuiApplication.primaryScreen()
+        screen_geometry = screen.geometry()
+        
+        # 检查是否超出屏幕上边缘
+        if pos_above.y() < screen_geometry.y():
+            # 改为下方显示
+            pos = self.mapToGlobal(QtCore.QPoint(0, self.height()))
+        else:
+            pos = pos_above
+        
         self._notes_panel.move(pos)
         logger.debug("_show_notes_panel: showing at %s, size=%s", pos, self._notes_panel.size())
         self._notes_panel.show()
@@ -346,3 +516,20 @@ class ThumbnailWidget(QtWidgets.QWidget):
         """隐藏备注面板。"""
         if self._notes_panel:
             self._notes_panel.hide()
+    
+    def _delayed_hide_notes(self):
+        """延迟隐藏备注面板（检查鼠标是否在备注面板上）。"""
+        if self._notes_panel and self._notes_panel.isVisible():
+            if not self._mouse_in_notes:
+                self._notes_panel.hide()
+    
+    def eventFilter(self, obj, event):
+        """事件过滤器：检测鼠标进入/离开备注面板。"""
+        if obj == self._notes_panel:
+            if event.type() == QtCore.QEvent.Type.Enter:
+                self._mouse_in_notes = True
+            elif event.type() == QtCore.QEvent.Type.Leave:
+                self._mouse_in_notes = False
+                # 鼠标离开备注面板，立即隐藏
+                QtCore.QTimer.singleShot(100, self._hide_notes_panel)
+        return super().eventFilter(obj, event)
