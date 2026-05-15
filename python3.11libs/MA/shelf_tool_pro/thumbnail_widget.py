@@ -2,12 +2,15 @@
 
 import os
 import shutil
+import logging
 
 from PySide6 import QtWidgets, QtGui, QtCore
 
 from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
 from MA.shelf_tool_pro.shelf_loader import execute_tool, drop_at_cursor
 from MA.shelf_tool_pro.styles import TEXT_SECONDARY, CONTEXT_MENU_STYLE
+
+logger = logging.getLogger("MA")
 
 
 class ThumbnailWidget(QtWidgets.QWidget):
@@ -246,8 +249,12 @@ class ThumbnailWidget(QtWidgets.QWidget):
     def enterEvent(self, event):
         """鼠标进入：启动 500ms 延迟定时器（GIF 动画 + 备注面板）。"""
         super().enterEvent(event)
+        logger.debug("enterEvent: unique_id=%s, is_gif=%s, has_notes=%s", 
+                     self._unique_id, self._is_gif, 
+                     ShelfToolsCacheManager.get_note(self._unique_id))
         if self._is_gif and self._movie:
             self._gif_timer_id = self.startTimer(500)
+        # 始终启动 notes timer（无论是否有 GIF）
         self._notes_timer_id = self.startTimer(500)
 
     def leaveEvent(self, event):
@@ -264,11 +271,14 @@ class ThumbnailWidget(QtWidgets.QWidget):
 
     def timerEvent(self, event):
         """定时器触发：GIF 动画 / 备注面板显示。"""
-        if event.timerId() == self._gif_timer_id:
+        # 处理 GIF timer
+        if self._gif_timer_id is not None and event.timerId() == self._gif_timer_id:
             self._gif_timer_id = None
             self._start_gif_animation()
-        if event.timerId() == self._notes_timer_id:
+        # 处理 notes timer
+        if self._notes_timer_id is not None and event.timerId() == self._notes_timer_id:
             self._notes_timer_id = None
+            logger.debug("timerEvent: notes timer triggered for %s", self._unique_id)
             self._show_notes_panel()
         super().timerEvent(event)
 
@@ -287,22 +297,15 @@ class ThumbnailWidget(QtWidgets.QWidget):
             self._movie.jumpToFrame(0)
             self._on_gif_frame_changed()
 
-    def _init_notes_panel(self):
-        """初始化备注面板。"""
-        self._notes_panel = QtWidgets.QTextBrowser()
-        self._notes_panel.setReadOnly(True)
-        self._notes_panel.setWindowFlags(QtCore.Qt.WindowType.Popup | QtCore.Qt.WindowType.FramelessWindowHint)
-        self._notes_panel.setStyleSheet(
-            "background-color: #2d2d2d; color: #ffffff; border-radius: 4px;"
-        )
-        self._notes_panel.setMaximumHeight(200)
-        self._notes_panel.setOpenExternalLinks(False)
-        self._notes_panel.hide()
-
     def _show_notes_panel(self):
         """显示备注面板（如有备注内容）。"""
+        if not self._notes_panel:
+            logger.warning("_show_notes_panel: _notes_panel is None")
+            return
         note_text = ShelfToolsCacheManager.get_note(self._unique_id)
+        logger.debug("_show_notes_panel: unique_id=%s, note_text=%r", self._unique_id, note_text)
         if not note_text or not note_text.strip():
+            logger.debug("_show_notes_panel: no note text, skipping")
             return
         self._notes_panel.setMarkdown(note_text)
         self._notes_panel.adjustSize()
@@ -313,8 +316,10 @@ class ThumbnailWidget(QtWidgets.QWidget):
         # 定位在缩略图上方
         pos = self.mapToGlobal(QtCore.QPoint(0, -self._notes_panel.height()))
         self._notes_panel.move(pos)
+        logger.debug("_show_notes_panel: showing at %s, size=%s", pos, self._notes_panel.size())
         self._notes_panel.show()
         self._notes_panel.raise_()
+        self._notes_panel.activateWindow()  # 确保面板在最前
 
     def _hide_notes_panel(self):
         """隐藏备注面板。"""
