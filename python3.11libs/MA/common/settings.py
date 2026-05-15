@@ -3,7 +3,7 @@ import json
 import copy
 import logging
 
-from .constants import HDR_SETTINGS_FILE, HDR_CACHE_FILE, SHELFTOOLS_SETTINGS_FILE, SHELFTOOLS_CACHE_FILE
+from .constants import HDR_SETTINGS_FILE, HDR_CACHE_FILE, SHELFTOOLS_SETTINGS_FILE, SHELFTOOLS_CACHE_FILE, DEFAULT_SHELFTOOLS_THUMBNAIL_DIR
 
 logger = logging.getLogger("MA")
 
@@ -69,6 +69,46 @@ class CacheManager(BaseJsonManager):
 class ShelfToolsSettingsManager(BaseJsonManager):
     _file = SHELFTOOLS_SETTINGS_FILE
 
+    @classmethod
+    def get_thumbnail_directory(cls):
+        """获取自定义缩略图目录路径。"""
+        data = cls.load()
+        return data.get("thumbnail_directory", DEFAULT_SHELFTOOLS_THUMBNAIL_DIR)
+
+    @classmethod
+    def set_thumbnail_directory(cls, path):
+        """设置自定义缩略图目录，目录不存在时自动创建。"""
+        os.makedirs(path, exist_ok=True)
+        cls.update("thumbnail_directory", path)
+
 
 class ShelfToolsCacheManager(BaseJsonManager):
     _file = SHELFTOOLS_CACHE_FILE
+
+    @classmethod
+    def get_custom_image(cls, tool_name):
+        """获取工具的自定义图片信息，返回 {"path": "...", "is_gif": bool} 或 None。"""
+        data = cls.load()
+        return data.get("custom_images", {}).get(tool_name)
+
+    @classmethod
+    def set_custom_image(cls, tool_name, path, is_gif):
+        """设置工具的自定义图片。"""
+        data = cls.load()
+        images = data.setdefault("custom_images", {})
+        images[tool_name] = {"path": path, "is_gif": is_gif}
+        cls.save(data)
+
+    @classmethod
+    def get_custom_name(cls, tool_name):
+        """获取工具的自定义名称，未设置时返回 None。"""
+        data = cls.load()
+        return data.get("custom_names", {}).get(tool_name)
+
+    @classmethod
+    def set_custom_name(cls, tool_name, name):
+        """设置工具的自定义名称。"""
+        data = cls.load()
+        names = data.setdefault("custom_names", {})
+        names[tool_name] = name
+        cls.save(data)

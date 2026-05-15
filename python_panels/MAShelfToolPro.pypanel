@@ -5,19 +5,28 @@
 import os
 import glob
 import re
+import shutil
 import hou
 import MA
 from PySide6 import QtWidgets, QtGui, QtCore
+from PySide6.QtCore import QTimer
 from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
+from MA.common.animation_helper import elastic_resize
 
 ACCENT_BLUE = "#0d6399"
 ACCENT_PURPLE = "#8a5cf5"
 BG_PRIMARY = "#18181b"
 BG_SECONDARY = "#1D1D20"
 BG_INPUT = "#2d2d2d"
+BG_HOVER = "#3d3d3d"
 TEXT_PRIMARY = "#ffffff"
 TEXT_SECONDARY = "#cccccc"
 BORDER_COLOR = "#3d3d3d"
+
+SETTINGS_BUTTON_STYLE = (
+    f"QPushButton#settingsButton {{ background-color: {ACCENT_BLUE}; color: white; "
+    f"padding: 6px 8px; border-radius: 10px; min-width: 50px; }}"
+)
 
 THUMB_SLIDER_STYLE = f"""
     QSlider#thumbSizeSlider {{
@@ -90,11 +99,15 @@ def save_thumb_size(value):
 
 
 class ThumbnailWidget(QtWidgets.QWidget):
-    def __init__(self, tool_name, size, parent=None):
+    def __init__(self, tool_name, size, parent=None, custom_name=None, custom_image_info=None):
         super().__init__(parent)
         self._tool_name = tool_name
         self._drag_start = None
         self._size = 0
+        self._movie = None          # QMovie 对象（GIF 动画）
+        self._gif_timer_id = None   # QTimer 定时器 ID
+        self._custom_image_path = None  # 自定义图片路径
+        self._is_gif = False        # 是否为 GIF 图片
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -106,7 +119,9 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self.image_label.setStyleSheet("background-color: transparent;")
         layout.addWidget(self.image_label)
 
-        self.name_label = QtWidgets.QLabel(tool_name)
+        # 应用自定义名称
+        display_name = custom_name if custom_name else tool_name
+        self.name_label = QtWidgets.QLabel(display_name)
         self.name_label.setAlignment(QtCore.Qt.AlignCenter)
         self.name_label.setStyleSheet(
             f"color: {TEXT_SECONDARY}; background-color: transparent;")
@@ -115,6 +130,12 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self.setToolTip(tool_name)
         self.setCursor(QtCore.Qt.OpenHandCursor)
         self.updateSize(size)
+
+        # 应用自定义图片
+        if custom_image_info:
+            self._custom_image_path = custom_image_info.get("path")
+            self._is_gif = custom_image_info.get("is_gif", False)
+            self._load_custom_image()
 
     @staticmethod
     def _make_rounded_pixmap(size, radius, color):
@@ -196,6 +217,144 @@ class ThumbnailWidget(QtWidgets.QWidget):
         except SystemExit:
             pass
 
+    # ── 右键菜单 ──────────────────────────────────
+    def contextMenuEvent(self, event):
+        menu = QtWidgets.QMenu(self)
+        menu.setStyleSheet(
+            f"QMenu {{ background-color: {BG_INPUT}; color: {TEXT_PRIMARY}; border: 1px solid {BORDER_COLOR}; "
+            f"border-radius: 4px; padding: 4px; }}"
+            f"QMenu::item {{ padding: 6px 20px; }}"
+            f"QMenu::item:selected {{ background-color: {BG_HOVER}; }}"
+        )
+        rename_action = menu.addAction("Rename")
+        set_image_action = menu.addAction("Set Image")
+        rename_action.triggered.connect(self._on_rename)
+        set_image_action.triggered.connect(self._on_set_image)
+        menu.exec_(event.globalPos())
+
+    def _on_rename(self):
+        current_name = self.name_label.text()
+        new_name, ok = QtWidgets.QInputDialog.getText(
+            self, "改名", "输入新名称:", text=current_name)
+        if ok and new_name.strip():
+            self.name_label.setText(new_name.strip())
+            ShelfToolsCacheManager.set_custom_name(self._tool_name, new_name.strip())
+
+    def _on_set_image(self):
+        """弹出文件选择对话框，选择图片后复制到配置目录并更新显示。"""
+        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "选择缩略图图片", "", "Images (*.jpg *.jpeg *.png *.gif)")
+        if not file_path:
+            return
+
+        # 获取配置的缩略图目录
+        thumb_dir = ShelfToolsSettingsManager.get_thumbnail_directory()
+        os.makedirs(thumb_dir, exist_ok=True)
+
+        # 生成目标文件名
+        ext = os.path.splitext(file_path)[1].lower()
+        dest_filename = f"{self._tool_name}_custom{ext}"
+        dest_path = os.path.join(thumb_dir, dest_filename)
+
+        # 复制图片
+        shutil.copy2(file_path, dest_path)
+
+        # 保存缓存
+        is_gif = ext == ".gif"
+        ShelfToolsCacheManager.set_custom_image(self._tool_name, dest_path, is_gif)
+
+        # 更新显示
+        self._custom_image_path = dest_path
+        self._is_gif = is_gif
+        self._load_custom_image()
+
+    def _load_custom_image(self):
+        """加载自定义图片到 image_label。GIF 默认显示第一帧。"""
+        if not self._custom_image_path or not os.path.exists(self._custom_image_path):
+            return
+
+        size = self._size
+        if size <= 0:
+            return
+        radius = max(3, size // 8)
+
+        # 停止之前的动画
+        self._stop_gif_animation()
+
+        if self._is_gif:
+            # GIF: 使用 QMovie，但不启动（悬停时才播放）
+            self._movie = QtGui.QMovie(self._custom_image_path)
+            self._movie.setCacheMode(QtGui.QMovie.CacheAll)
+            # 获取第一帧
+            self._movie.jumpToFrame(0)
+            pixmap = self._movie.currentPixmap().scaled(
+                size, size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+            # 应用圆角
+            rounded = self._apply_rounded_mask(pixmap, radius)
+            self.image_label.setPixmap(rounded)
+        else:
+            # JPG/PNG: 使用 QPixmap
+            pixmap = QtGui.QPixmap(self._custom_image_path).scaled(
+                size, size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+            rounded = self._apply_rounded_mask(pixmap, radius)
+            self.image_label.setPixmap(rounded)
+
+    @staticmethod
+    def _apply_rounded_mask(pixmap, radius):
+        """对图片应用圆角遮罩。"""
+        rounded = QtGui.QPixmap(pixmap.size())
+        rounded.fill(QtCore.Qt.transparent)
+        painter = QtGui.QPainter(rounded)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        path = QtGui.QPainterPath()
+        path.addRoundedRect(0, 0, pixmap.width(), pixmap.height(), radius, radius)
+        painter.setClipPath(path)
+        painter.drawPixmap(0, 0, pixmap)
+        painter.end()
+        return rounded
+
+    def enterEvent(self, event):
+        """鼠标进入：如果是 GIF，启动 500ms 延迟定时器。"""
+        super().enterEvent(event)
+        if self._is_gif and self._movie and self._custom_image_path:
+            self._gif_timer_id = self.startTimer(500)
+
+    def leaveEvent(self, event):
+        """鼠标离开：停止定时器，停止 GIF 动画。"""
+        super().leaveEvent(event)
+        if self._gif_timer_id is not None:
+            self.killTimer(self._gif_timer_id)
+            self._gif_timer_id = None
+        self._stop_gif_animation()
+
+    def timerEvent(self, event):
+        """定时器触发：开始播放 GIF 动画。"""
+        if event.timerId() == self._gif_timer_id:
+            self._gif_timer_id = None
+            self._start_gif_animation()
+        super().timerEvent(event)
+
+    def _start_gif_animation(self):
+        """开始播放 GIF 动画。"""
+        if self._movie and self._is_gif:
+            self._movie.setPaused(False)
+            self.image_label.setMovie(self._movie)
+            if not self._movie.isPlaying():
+                self._movie.start()
+
+    def _stop_gif_animation(self):
+        """停止 GIF 动画，恢复显示第一帧。"""
+        if self._movie:
+            self._movie.stop()
+            self.image_label.setMovie(None)
+            # 恢复第一帧
+            if self._custom_image_path and self._is_gif:
+                self._movie.jumpToFrame(0)
+                pixmap = self._movie.currentPixmap().scaled(
+                    self._size, self._size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+                rounded = self._apply_rounded_mask(pixmap, max(3, self._size // 8))
+                self.image_label.setPixmap(rounded)
+
 
 class MAShelfToolProPanel(QtWidgets.QWidget):
     def __init__(self):
@@ -206,18 +365,47 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         # 加载保存的大小
         init_size = load_thumb_size()
 
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        main_layout = QtWidgets.QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
-        # ── 滑块行 ──
-        slider_row = QtWidgets.QHBoxLayout()
-        slider_row.setContentsMargins(8, 4, 8, 4)
-        slider_label = QtWidgets.QLabel("Size")
-        slider_label.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 11px; background-color: transparent;")
-        slider_row.addWidget(slider_label)
+        # ── 工具栏 ──
+        main_layout.addLayout(self._create_toolbar(init_size))
 
+        # ── 设置面板（默认隐藏） ──
+        main_layout.addWidget(self._create_settings_panel())
+
+        # ── 分隔线 ──
+        sep = QtWidgets.QFrame()
+        sep.setFrameShape(QtWidgets.QFrame.HLine)
+        sep.setStyleSheet(f"color: {BORDER_COLOR}; background-color: {BORDER_COLOR}; max-height: 1px;")
+        main_layout.addWidget(sep)
+
+        # ── 工具区域（顶对齐） ──
+        main_layout.addWidget(self._create_tools_area(init_size), 1)
+
+    def _create_toolbar(self, init_size):
+        layout = QtWidgets.QHBoxLayout()
+        layout.setContentsMargins(8, 4, 8, 4)
+
+        # Settings 按钮（最左边）
+        self.settings_btn = QtWidgets.QPushButton("Settings")
+        self.settings_btn.setObjectName("settingsButton")
+        self.settings_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self.settings_btn.setStyleSheet(SETTINGS_BUTTON_STYLE)
+        self.settings_btn.clicked.connect(self._toggle_settings)
+        layout.addWidget(self.settings_btn)
+
+        # 间隔
+        layout.addSpacing(10)
+
+        # Thumbnail Size 标签
+        lbl_thumb_size = QtWidgets.QLabel("Thumbnail Size")
+        lbl_thumb_size.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: 13px; font-weight: bold; background-color: transparent;")
+        layout.addWidget(lbl_thumb_size)
+
+        # 滑块
         self.thumb_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.thumb_slider.setObjectName("thumbSizeSlider")
         self.thumb_slider.setMinimum(70)
@@ -226,8 +414,10 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.thumb_slider.setStyleSheet(THUMB_SLIDER_STYLE)
         self.thumb_slider.setCursor(QtCore.Qt.PointingHandCursor)
         self.thumb_slider.valueChanged.connect(self._on_size_changed)
-        slider_row.addWidget(self.thumb_slider)
+        layout.addSpacing(10)
+        layout.addWidget(self.thumb_slider)
 
+        # 大小输入框
         self.size_label = QtWidgets.QLineEdit(str(init_size))
         self.size_label.setFixedWidth(40)
         self.size_label.setAlignment(QtCore.Qt.AlignCenter)
@@ -235,16 +425,41 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             f"background-color: {BG_INPUT}; color: white; border: 1px solid {BORDER_COLOR}; "
             f"border-radius: 4px; padding: 2px 4px; font-size: 11px;")
         self.size_label.returnPressed.connect(self._on_size_edit)
-        slider_row.addWidget(self.size_label)
-        layout.addLayout(slider_row)
+        layout.addSpacing(6)
+        layout.addWidget(self.size_label)
 
-        # ── 分隔线 ──
-        sep = QtWidgets.QFrame()
-        sep.setFrameShape(QtWidgets.QFrame.HLine)
-        sep.setStyleSheet(f"color: {BORDER_COLOR}; background-color: {BORDER_COLOR}; max-height: 1px;")
-        layout.addWidget(sep)
+        layout.addStretch()
+        return layout
 
-        # ── 工具区域（顶对齐） ──
+    def _create_settings_panel(self):
+        self.settings_widget = QtWidgets.QWidget()
+        self.settings_widget.setVisible(False)
+        settings_layout = QtWidgets.QVBoxLayout(self.settings_widget)
+        settings_layout.setContentsMargins(8, 4, 8, 4)
+        settings_layout.setSpacing(8)
+
+        # 缩略图目录设置
+        dir_row = QtWidgets.QHBoxLayout()
+        dir_row.addWidget(QtWidgets.QLabel("Thumbnail Path:"))
+        self.thumb_path_edit = QtWidgets.QLineEdit()
+        self.thumb_path_edit.setText(ShelfToolsSettingsManager.get_thumbnail_directory())
+        self.thumb_path_edit.setStyleSheet(
+            f"background-color: {BG_INPUT}; color: {TEXT_PRIMARY}; border: 1px solid {BORDER_COLOR}; "
+            f"border-radius: 4px; padding: 4px 8px; font-size: 11px;")
+        dir_row.addWidget(self.thumb_path_edit)
+
+        self.browse_btn = QtWidgets.QPushButton("Browse")
+        self.browse_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self.browse_btn.setStyleSheet(
+            f"background-color: {ACCENT_PURPLE}; color: white; border: none; "
+            f"border-radius: 10px; padding: 6px 16px; font-size: 11px;")
+        self.browse_btn.clicked.connect(self._browse_thumbnail_directory)
+        dir_row.addWidget(self.browse_btn)
+
+        settings_layout.addLayout(dir_row)
+        return self.settings_widget
+
+    def _create_tools_area(self, init_size):
         self._container = QtWidgets.QWidget()
         self._container.setStyleSheet(f"background-color: {BG_SECONDARY};")
         container_layout = QtWidgets.QVBoxLayout(self._container)
@@ -255,21 +470,35 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         tools_layout.setSpacing(0)
 
         if not _TOOL_NAMES:
-            info = QtWidgets.QLabel("⚠️ 未找到工具")
+            info = QtWidgets.QLabel("No tools found")
             info.setAlignment(QtCore.Qt.AlignCenter)
             info.setStyleSheet(f"color: #888888; font-size: 14px; padding: 20px; background: transparent;")
             tools_layout.addWidget(info)
         else:
             self._thumb_widgets = []
             for name in _TOOL_NAMES:
-                tw = ThumbnailWidget(name, init_size)
+                custom_name = ShelfToolsCacheManager.get_custom_name(name)
+                custom_image = ShelfToolsCacheManager.get_custom_image(name)
+                tw = ThumbnailWidget(name, init_size, custom_name=custom_name, custom_image_info=custom_image)
                 self._thumb_widgets.append(tw)
                 tools_layout.addWidget(tw)
             tools_layout.addStretch()
 
         container_layout.addLayout(tools_layout)
-        container_layout.addStretch()  # 顶对齐
-        layout.addWidget(self._container, 1)
+        container_layout.addStretch()
+        return self._container
+
+    def _toggle_settings(self):
+        is_visible = self.settings_widget.isVisible()
+        elastic_resize(self.settings_widget, not is_visible)
+
+    def _browse_thumbnail_directory(self):
+        current_dir = self.thumb_path_edit.text()
+        dir_path = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Select Thumbnail Directory", current_dir)
+        if dir_path:
+            self.thumb_path_edit.setText(dir_path)
+            ShelfToolsSettingsManager.set_thumbnail_directory(dir_path)
 
     def _on_size_changed(self, value):
         self.size_label.setText(str(value))
