@@ -1,0 +1,835 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shelfDocument>
+  <!-- This file contains definitions of shelves, toolbars, and tools.
+ It should not be hand-edited when it is being used by the application.
+ Note, that two definitions of the same element are not allowed in
+ a single file. -->
+
+  <toolshelf name="MA" label="MA">
+    <memberTool name="OpenHipPath"/>
+    <memberTool name="Cam images"/>
+    <memberTool name="Example Instancer "/>
+    <memberTool name="selected name"/>
+  </toolshelf>
+
+  <tool name="OpenHipPath" label="OpenHipPath" icon="hicon:/SVGIcons.index?BUTTONS_addassetdirectory.svg">
+    <script scriptType="python"><![CDATA[import hou
+import os
+import subprocess
+# è·åå½åHoudiniå·¥ç¨æä»¶çå®æ´è·¯å¾
+current_hip_path = hou.hipFile.path()
+# å¦æåªéè¦æä»¶å¤¹è·¯å¾èä¸åå«æä»¶åï¼å¯ä»¥ä½¿ç¨osæ¨¡åå¤ç
+current_directory = os.path.dirname(current_hip_path)
+#å°â/âå¤çæâ\âï¼è½¬åä¸ºwindowsç³»ç»ä¸­çè·¯å¾
+normalized_path = os.path.normpath(current_directory)
+
+folder_path = normalized_path
+subprocess.run(['explorer.exe', folder_path], shell=True)]]></script>
+  </tool>
+
+  <tool name="Cam images" label="Cam images" icon="hicon:/SVGIcons.index?BUTTONS_add_image.svg">
+    <script scriptType="python"><![CDATA[import sys
+import toolutils
+
+outputitem = None
+inputindex = -1
+inputitem = None
+outputindex = -1
+
+num_args = 1
+h_extra_args = ''
+pane = toolutils.activePane(kwargs)
+if not isinstance(pane, hou.NetworkEditor):
+    pane = hou.ui.paneTabOfType(hou.paneTabType.NetworkEditor)
+    if pane is None:
+       hou.ui.displayMessage(
+               'Cannot create node: cannot find any network pane')
+       sys.exit(0)
+else: # We're creating this tool from the TAB menu inside a network editor
+    pane_node = pane.pwd()
+    if "outputnodename" in kwargs and "inputindex" in kwargs:
+        outputitem = pane_node.item(kwargs["outputnodename"])
+        inputindex = kwargs["inputindex"]
+        h_extra_args += 'set arg4 = "' + kwargs["outputnodename"] + '"\n'
+        h_extra_args += 'set arg5 = "' + str(inputindex) + '"\n'
+        num_args = 6
+    if "inputnodename" in kwargs and "outputindex" in kwargs:
+        inputitem = pane_node.item(kwargs["inputnodename"])
+        outputindex = kwargs["outputindex"]
+        h_extra_args += 'set arg6 = "' + kwargs["inputnodename"] + '"\n'
+        h_extra_args += 'set arg9 = "' + str(outputindex) + '"\n'
+        num_args = 9
+    if "autoplace" in kwargs:
+        autoplace = kwargs["autoplace"]
+    else:
+        autoplace = False
+    # If shift-clicked we want to auto append to the current
+    # node
+    if "shiftclick" in kwargs and kwargs["shiftclick"]:
+        if inputitem is None:
+            inputitem = pane.currentNode()
+            outputindex = 0
+    if "nodepositionx" in kwargs and             "nodepositiony" in kwargs:
+        try:
+            pos = [ float( kwargs["nodepositionx"] ),
+                    float( kwargs["nodepositiony"] )]
+        except:
+            pos = None
+    else:
+        pos = None
+
+    if not autoplace and not pane.listMode():
+        if pos is not None:
+            pass
+        elif outputitem is None:
+            pos = pane.selectPosition(inputitem, outputindex, None, -1)
+        else:
+            pos = pane.selectPosition(inputitem, outputindex,
+                                      outputitem, inputindex)
+
+    if pos is not None:
+        if "node_bbox" in kwargs:
+            size = kwargs["node_bbox"]
+            pos[0] -= size[0] / 2
+            pos[1] -= size[1] / 2
+        else:
+            pos[0] -= 0.573625
+            pos[1] -= 0.220625
+        h_extra_args += 'set arg2 = "' + str(pos[0]) + '"\n'
+        h_extra_args += 'set arg3 = "' + str(pos[1]) + '"\n'
+h_extra_args += 'set argc = "' + str(num_args) + '"\n'
+
+pane_node = pane.pwd()
+child_type = pane_node.childTypeCategory().nodeTypes()
+
+if 'pythonscript' not in child_type:
+   hou.ui.displayMessage(
+           'Cannot create node: incompatible pane network type')
+   sys.exit(0)
+
+# First clear the node selection
+pane_node.setSelected(False, True)
+
+h_path = pane_node.path()
+h_preamble = 'set arg1 = "' + h_path + '"\n'
+h_cmd = r'''
+if ($argc < 2 || "$arg2" == "") then
+   set arg2 = 0
+endif
+if ($argc < 3 || "$arg3" == "") then
+   set arg3 = 0
+endif
+# Automatically generated script
+# $arg1 - the path to add this node
+# $arg2 - x position of the tile
+# $arg3 - y position of the tile
+# $arg4 - input node to wire to
+# $arg5 - which input to wire to
+# $arg6 - output node to wire to
+# $arg7 - the type of this node
+# $arg8 - the node is an indirect input
+# $arg9 - index of output from $arg6
+
+\set noalias = 1
+set saved_path = `execute("oppwf")`
+opcf $arg1
+
+# Node $_obj_topnet1_File (Top/filepattern)
+set _obj_topnet1_File = `run("opadd -e -n -v filepattern File")`
+oplocate -x `$arg2 + 0` -y `$arg3 + 0` $_obj_topnet1_File
+opparm -V 4 $_obj_topnet1_File folder0 ( 1 ) pattern ( '$HIP/../../cmp/xiaoyang/001/*.mov' ) folder1 ( 1 ) split ( off ) folder2 ( 1 ) overrideresultdatatag ( on ) resultdatatag ( file/video )
+opcolor -c 0.80000001192092896 0.016000000759959221 0.016000000759959221 $_obj_topnet1_File
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F off -c off -e on -b off $_obj_topnet1_File
+opexprlanguage -s hscript $_obj_topnet1_File
+opuserdata -n '___Version___' -v '4' $_obj_topnet1_File
+opset -p on $_obj_topnet1_File
+opcf $arg1
+
+# Node $_obj_topnet1_waitforall3 (Top/waitforall)
+set _obj_topnet1_waitforall3 = `run("opadd -e -n -v waitforall waitforall3")`
+oplocate -x `$arg2 + 0` -y `$arg3 + -8.8089603500353455` $_obj_topnet1_waitforall3
+opparm $_obj_topnet1_waitforall3  pdg_partitionmergeattributes ( 1 )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c off -e on -b off $_obj_topnet1_waitforall3
+opexprlanguage -s hscript $_obj_topnet1_waitforall3
+opuserdata -n '___Version___' -v '1' $_obj_topnet1_waitforall3
+opset -p on $_obj_topnet1_waitforall3
+opcf $arg1
+
+# Node $_obj_topnet1_waitforall1 (Top/waitforall)
+set _obj_topnet1_waitforall1 = `run("opadd -e -n -v waitforall waitforall1")`
+oplocate -x `$arg2 + 0` -y `$arg3 + -5.2642309716015578` $_obj_topnet1_waitforall1
+opparm $_obj_topnet1_waitforall1  pdg_partitionmergeattributes ( 1 )
+opparm -V 1 $_obj_topnet1_waitforall1 attributes ( 1 1 ) pdg_partitionignorefailures ( on )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c off -e on -b off $_obj_topnet1_waitforall1
+opexprlanguage -s hscript $_obj_topnet1_waitforall1
+opuserdata -n '___Version___' -v '1' $_obj_topnet1_waitforall1
+opset -p on $_obj_topnet1_waitforall1
+opcf $arg1
+
+# Node $_obj_topnet1_Background_application (Top/pythonscript)
+set _obj_topnet1_Background_application = `run("opadd -e -n -v pythonscript Background_application")`
+oplocate -x `$arg2 + 0` -y `$arg3 + -11.282412928655557` $_obj_topnet1_Background_application
+opparm $_obj_topnet1_Background_application  expectedoutputfiles ( 0 )
+opparm -V 4 $_obj_topnet1_Background_application evaluation ( 1 ) script ( '# å°èæ¯å¾åºç¨ç»ææç¸æº\nimport hou\ndef get_cameras_in_obj():\n    cameras = []\n    for node in hou.node("/").allSubChildren():\n        if node.type().name()=="cam":\n            cameras.append(node)\n    return cameras\nF_name=work_item.attribValue("F_name")\ncameras = get_cameras_in_obj()   \nfor camera in cameras:\n    camera.parm("vm_background").set(f"$HIP/images/{F_name}/cam.$F.jpg")\n    camera.parm("vm_bgenable").set(0)\n' )
+opcolor -c 0.45100000500679016 0.36899998784065247 0.79600000381469727 $_obj_topnet1_Background_application
+opset -d on -r off -h off -f off -y off -t off -l off -s off -u off -F off -c off -e on -b off $_obj_topnet1_Background_application
+opexprlanguage -s hscript $_obj_topnet1_Background_application
+opuserdata -n '___Version___' -v '4' $_obj_topnet1_Background_application
+opuserdata -n '___toolcount___' -v '1' $_obj_topnet1_Background_application
+opuserdata -n '___toolid___' -v 'object_cop2plane' $_obj_topnet1_Background_application
+opset -p on $_obj_topnet1_Background_application
+opcf $arg1
+
+# Node $_obj_topnet1_pythonscript (Top/pythonscript)
+set _obj_topnet1_pythonscript = `run("opadd -e -n -v pythonscript pythonscript")`
+oplocate -x `$arg2 + 0` -y `$arg3 + -2.8416128120039876` $_obj_topnet1_pythonscript
+opparm $_obj_topnet1_pythonscript  expectedoutputfiles ( 0 )
+opparm -V 4 $_obj_topnet1_pythonscript evaluation ( 1 ) script ( 'import os\nFile_output = work_item.expectedInputFiles[0][0]\nfilename = os.path.basename(File_output)\nname_without_extension = os.path.splitext(filename)[0]\nwork_item.setStringAttrib("F_name",f"{name_without_extension}")\n' )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c off -e on -b off $_obj_topnet1_pythonscript
+opexprlanguage -s hscript $_obj_topnet1_pythonscript
+opuserdata -n '___Version___' -v '4' $_obj_topnet1_pythonscript
+opuserdata -n '___toolcount___' -v '1' $_obj_topnet1_pythonscript
+opuserdata -n '___toolid___' -v 'object_cop2plane' $_obj_topnet1_pythonscript
+opset -p on $_obj_topnet1_pythonscript
+opcf $arg1
+
+# Node $_obj_topnet1_Notice (Top/pythonscript)
+set _obj_topnet1_Notice = `run("opadd -e -n -v pythonscript Notice")`
+oplocate -x `$arg2 + 0` -y `$arg3 + -9.9417776456482141` $_obj_topnet1_Notice
+opparm $_obj_topnet1_Notice  expectedoutputfiles ( 0 )
+opparm -V 4 $_obj_topnet1_Notice evaluation ( 1 ) script ( 'end=1000+work_item.attribValue("partitionsize")\nprint(f"å¸§èå´ï¼1001-{end}")\n' )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c off -e on -b off $_obj_topnet1_Notice
+opexprlanguage -s hscript $_obj_topnet1_Notice
+opuserdata -n '___Version___' -v '4' $_obj_topnet1_Notice
+opuserdata -n '___toolcount___' -v '1' $_obj_topnet1_Notice
+opuserdata -n '___toolid___' -v 'object_cop2plane' $_obj_topnet1_Notice
+opset -p on $_obj_topnet1_Notice
+opcf $arg1
+
+# Node $_obj_topnet1_ffmpegextractimages (Top/ffmpegextractimages)
+set _obj_topnet1_ffmpegextractimages = `run("opadd -e -n -v ffmpegextractimages ffmpegextractimages")`
+oplocate -x `$arg2 + 0` -y `$arg3 + -4.1438309827118633` $_obj_topnet1_ffmpegextractimages
+chblockbegin
+chadd -t 41.666666666666664 41.666666666666664 $_obj_topnet1_ffmpegextractimages fps
+chkey -t 41.666666666666664 -v 25 -m 0 -a 0 -A 0 -T a  -F '$FPS' $_obj_topnet1_ffmpegextractimages/fps
+chblockend
+opparm -V 1 $_obj_topnet1_ffmpegextractimages pdg_workitemgeneration ( 3 ) fps ( fps ) outputfilepattern ( '$HIP/images/`@F_name`/camold%04d.jpg' ) folder3 ( 1 ) ffmpegbinary ( 2 ) customffmpegbinary ( C:/CgTeamWork_v7/bin/base/app/ffmpeg.exe ) enablecustomcommand ( on ) ffmpegcommand ( '"`chs("customffmpegbinary")`" -i "`pdginput(0, file/video, 0)`" -vf fps=`$FPS` -q:v 1 "`chs("outputfilepattern")`"' )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c off -e on -b off $_obj_topnet1_ffmpegextractimages
+opexprlanguage -s hscript $_obj_topnet1_ffmpegextractimages
+opuserdata -n '___Version___' -v '1' $_obj_topnet1_ffmpegextractimages
+opset -p on $_obj_topnet1_ffmpegextractimages
+opcf $arg1
+
+# Node $_obj_topnet1_filepattern2 (Top/filepattern)
+set _obj_topnet1_filepattern2 = `run("opadd -e -n -v filepattern filepattern2")`
+oplocate -x `$arg2 + 0` -y `$arg3 + -6.3846309604912523` $_obj_topnet1_filepattern2
+opparm -V 4 $_obj_topnet1_filepattern2 folder0 ( 1 ) pdg_workitemgeneration ( 3 ) pattern ( '$HIP/images/`@F_name`/camold*' ) folder1 ( 1 ) includeextensions ( on ) folder2 ( 1 )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c off -e on -b off $_obj_topnet1_filepattern2
+opexprlanguage -s hscript $_obj_topnet1_filepattern2
+opuserdata -n '___Version___' -v '4' $_obj_topnet1_filepattern2
+opset -p on $_obj_topnet1_filepattern2
+opcf $arg1
+
+# Node $_obj_topnet1_waitforall (Top/waitforall)
+set _obj_topnet1_waitforall = `run("opadd -e -n -v waitforall waitforall")`
+oplocate -x `$arg2 + 0` -y `$arg3 + -1.5393946412961115` $_obj_topnet1_waitforall
+opparm $_obj_topnet1_waitforall  pdg_partitionmergeattributes ( 1 )
+opparm -V 1 $_obj_topnet1_waitforall attributes ( 1 1 ) pdg_partitionignorefailures ( on )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c off -e on -b off $_obj_topnet1_waitforall
+opexprlanguage -s hscript $_obj_topnet1_waitforall
+opuserdata -n '___Version___' -v '1' $_obj_topnet1_waitforall
+opset -p on $_obj_topnet1_waitforall
+opcf $arg1
+
+# Node $_obj_topnet1_pythonscript1 (Top/pythonscript)
+set _obj_topnet1_pythonscript1 = `run("opadd -e -n -v pythonscript pythonscript1")`
+oplocate -x `$arg2 + 0` -y `$arg3 + -7.5050309493809451` $_obj_topnet1_pythonscript1
+opparm $_obj_topnet1_pythonscript1  expectedoutputfiles ( 0 )
+opparm -V 4 $_obj_topnet1_pythonscript1 evaluation ( 1 ) script ( '# Script code that runs for each task in the node.\n#\n# The following variables are available:\n# work_item    - the work item currently running \n# graph        - the graph attributes for the current work item\n#\n# In addition to the above, in-process scripts can also access:\n# self         - the current PDG node\n# parent_item  - the parent work item, if it exists\nimport os\nfrom pathlib import Path\ndef rename_file(old_path,new_path):\n    if not os.path.exists(old_path):\n        #print("æä»¶ä¸å­å¨")\n        return False\n    # if os.path.exists(new_path):\n    #     #print("èæ¯å¾å·²ç»å­å¨")\n    #     return False\n    #os.rename(old_path,new_path)   #new_pathè¥å­å¨å°±æ¥é\n    os.replace(old_path,new_path) #new_pathè¥å­å¨å°±è¦ç\n    return True\n#    \nid=work_item.index\nid+=1001\nOut=work_item.attribValue("directory")\nfilename=work_item.attribValue("filename")\nold_path=f"{Out}"+"/"+f"{filename}"\npath_obj=Path(old_path)\nfilename=path_obj.stem\nextension=path_obj.suffix\nprefix="cam"\nnew_filename=f"{prefix}.{id}{extension}"\nnew_path=path_obj.with_name(new_filename)\nrename_file(old_path,new_path)\n#print(new_path)' )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c off -e on -b off $_obj_topnet1_pythonscript1
+opexprlanguage -s hscript $_obj_topnet1_pythonscript1
+opuserdata -n '___Version___' -v '4' $_obj_topnet1_pythonscript1
+opuserdata -n '___toolcount___' -v '1' $_obj_topnet1_pythonscript1
+opuserdata -n '___toolid___' -v 'object_cop2plane' $_obj_topnet1_pythonscript1
+opset -p on $_obj_topnet1_pythonscript1
+
+opcf $arg1
+opcf $arg1
+opwire -n $_obj_topnet1_pythonscript1 -0 $_obj_topnet1_waitforall3
+opcf $arg1
+opwire -n $_obj_topnet1_ffmpegextractimages -0 $_obj_topnet1_waitforall1
+opcf $arg1
+opwire -n $_obj_topnet1_Notice -0 $_obj_topnet1_Background_application
+opcf $arg1
+opwire -n $_obj_topnet1_waitforall -0 $_obj_topnet1_pythonscript
+opcf $arg1
+opwire -n $_obj_topnet1_waitforall3 -0 $_obj_topnet1_Notice
+opcf $arg1
+opwire -n $_obj_topnet1_pythonscript -0 $_obj_topnet1_ffmpegextractimages
+opcf $arg1
+opwire -n $_obj_topnet1_waitforall1 -0 $_obj_topnet1_filepattern2
+opcf $arg1
+opwire -n $_obj_topnet1_File -0 $_obj_topnet1_waitforall
+opcf $arg1
+opwire -n $_obj_topnet1_filepattern2 -0 $_obj_topnet1_pythonscript1
+
+set oidx = 0
+if ($argc >= 9 && "$arg9" != "") then
+    set oidx = $arg9
+endif
+
+if ($argc >= 5 && "$arg4" != "") then
+    set output = $_obj_topnet1_Background_application
+    opwire -n $output -$arg5 $arg4
+endif
+if ($argc >= 6 && "$arg6" != "") then
+    set input = $_obj_topnet1_File
+    if ($arg8) then
+        opwire -n -i $arg6 -0 $input
+    else
+        opwire -n -o $oidx $arg6 -0 $input
+    endif
+endif
+opcf $saved_path
+'''
+hou.hscript(h_preamble + h_extra_args + h_cmd)
+#-------------æ·»å NetworkBox-------------#
+import random
+text="å°movè½¬æ¢ä¸ºjpgåºåå¾"  #NetworkBoxæ é¢
+nodes = hou.selectedNodes()
+scene = nodes[0].parent()
+network_box = scene.createNetworkBox()
+mycolor = hou.Color()
+hue = random.uniform(0, 360)  # è²ç¸
+saturation = random.uniform(0, 1)  # é¥±ååº¦
+value = random.uniform(0.5, 1)       # äº®åº¦
+mycolor.setHSV((hue,saturation,value)) # ç¨HSVè®¾å®é¢è²
+for node in nodes:
+    network_box.addItem(node)
+network_box.fitAroundContents() # èªå¨è°æ´å¤§å°å°æç´§åç¶æ
+#box_pos = network_box.position()  # è¿å (x, y) åæ 
+box_size = network_box.size()     # è¿å (width, height)
+network_box.setSize([box_size[0]+2,box_size[1]])
+network_box.setColor(mycolor)
+network_box.setComment(text)]]></script>
+  </tool>
+
+  <tool name="Example Instancer " label="Example Instancer " icon="hicon:/SVGIcons.index?BUTTONS_light_solo.svg">
+    <script scriptType="python"><![CDATA[
+import sys
+import toolutils
+
+outputitem = None
+inputindex = -1
+inputitem = None
+outputindex = -1
+
+num_args = 1
+h_extra_args = ''
+pane = toolutils.activePane(kwargs)
+if not isinstance(pane, hou.NetworkEditor):
+    pane = hou.ui.paneTabOfType(hou.paneTabType.NetworkEditor)
+    if pane is None:
+       hou.ui.displayMessage(
+               'Cannot create node: cannot find any network pane')
+       sys.exit(0)
+else: # We're creating this tool from the TAB menu inside a network editor
+    pane_node = pane.pwd()
+    if "outputnodename" in kwargs and "inputindex" in kwargs:
+        outputitem = pane_node.item(kwargs["outputnodename"])
+        inputindex = kwargs["inputindex"]
+        h_extra_args += 'set arg4 = "' + kwargs["outputnodename"] + '"\n'
+        h_extra_args += 'set arg5 = "' + str(inputindex) + '"\n'
+        num_args = 6
+    if "inputnodename" in kwargs and "outputindex" in kwargs:
+        inputitem = pane_node.item(kwargs["inputnodename"])
+        outputindex = kwargs["outputindex"]
+        h_extra_args += 'set arg6 = "' + kwargs["inputnodename"] + '"\n'
+        h_extra_args += 'set arg9 = "' + str(outputindex) + '"\n'
+        num_args = 9
+    if "autoplace" in kwargs:
+        autoplace = kwargs["autoplace"]
+    else:
+        autoplace = False
+    # If shift-clicked we want to auto append to the current
+    # node
+    if "shiftclick" in kwargs and kwargs["shiftclick"]:
+        if inputitem is None:
+            inputitem = pane.currentNode()
+            outputindex = 0
+    if "nodepositionx" in kwargs and             "nodepositiony" in kwargs:
+        try:
+            pos = [ float( kwargs["nodepositionx"] ),
+                    float( kwargs["nodepositiony"] )]
+        except:
+            pos = None
+    else:
+        pos = None
+
+    if not autoplace and not pane.listMode():
+        if pos is not None:
+            pass
+        elif outputitem is None:
+            pos = pane.selectPosition(inputitem, outputindex, None, -1)
+        else:
+            pos = pane.selectPosition(inputitem, outputindex,
+                                      outputitem, inputindex)
+
+    if pos is not None:
+        if "node_bbox" in kwargs:
+            size = kwargs["node_bbox"]
+            pos[0] -= size[0] / 2
+            pos[1] -= size[1] / 2
+        else:
+            pos[0] -= 0.573625
+            pos[1] -= 0.220625
+        h_extra_args += 'set arg2 = "' + str(pos[0]) + '"\n'
+        h_extra_args += 'set arg3 = "' + str(pos[1]) + '"\n'
+h_extra_args += 'set argc = "' + str(num_args) + '"\n'
+
+pane_node = pane.pwd()
+child_type = pane_node.childTypeCategory().nodeTypes()
+
+if 'sopcreate' not in child_type:
+   hou.ui.displayMessage(
+           'Cannot create node: incompatible pane network type')
+   sys.exit(0)
+
+# First clear the node selection
+pane_node.setSelected(False, True)
+
+h_path = pane_node.path()
+h_preamble = 'set arg1 = "' + h_path + '"\n'
+h_cmd = r'''
+if ($argc < 2 || "$arg2" == "") then
+   set arg2 = 0
+endif
+if ($argc < 3 || "$arg3" == "") then
+   set arg3 = 0
+endif
+# Automatically generated script
+# $arg1 - the path to add this node
+# $arg2 - x position of the tile
+# $arg3 - y position of the tile
+# $arg4 - input node to wire to
+# $arg5 - which input to wire to
+# $arg6 - output node to wire to
+# $arg7 - the type of this node
+# $arg8 - the node is an indirect input
+# $arg9 - index of output from $arg6
+
+\set noalias = 1
+set saved_path = `execute("oppwf")`
+opcf $arg1
+
+# Node $_obj_geo1_lopnet1_instancer1 (Lop/instancer)
+set _obj_geo1_lopnet1_instancer1 = `run("opadd -e -n -v instancer instancer1")`
+oplocate -x `$arg2 + 0.10798167510406742` -y `$arg3 + -1.9721657037907878` $_obj_geo1_lopnet1_instancer1
+opparm -V 21.0.512 $_obj_geo1_lopnet1_instancer1 primpath ( /Geometry/shapes ) locgroup ( 1 ) transformsourcemode ( points ) locationpattern ( %type:Boundable ) protogroup ( 1 ) protopattern ( %type:Boundable ) protooptionsgroup ( 1 ) seed ( 2.74 )
+opset -d on -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -D off $_obj_geo1_lopnet1_instancer1
+opexprlanguage -s hscript $_obj_geo1_lopnet1_instancer1
+opuserdata -n '___Version___' -v '21.0.512' $_obj_geo1_lopnet1_instancer1
+opset -p on $_obj_geo1_lopnet1_instancer1
+opcf $arg1
+
+# Node $_obj_geo1_lopnet1_sphere1 (Lop/sphere)
+set _obj_geo1_lopnet1_sphere1 = `run("opadd -e -n -v sphere sphere1")`
+oplocate -x `$arg2 + 3.4478191788456627` -y `$arg3 + -0.096752999640349557` $_obj_geo1_lopnet1_sphere1
+chblockbegin
+chadd -t 0 0 $_obj_geo1_lopnet1_sphere1 sample_f1
+chkey -t 0 -v 1 -m 0 -a 0 -A 0 -T a  -F @fstart $_obj_geo1_lopnet1_sphere1/sample_f1
+chadd -t 0 0 $_obj_geo1_lopnet1_sphere1 sample_f2
+chkey -t 0 -v 240 -m 0 -a 0 -A 0 -T a  -F @fend $_obj_geo1_lopnet1_sphere1/sample_f2
+chadd -t 0 0 $_obj_geo1_lopnet1_sphere1 sample_f3
+chkey -t 0 -v 1 -m 0 -a 0 -A 0 -T a  -F @finc $_obj_geo1_lopnet1_sphere1/sample_f3
+chadd -t 0 0 $_obj_geo1_lopnet1_sphere1 computeextents
+chkey -t 0 -v 0 -m 0 -a 0 -A 0 -T a  -F 'if(!strcmp(chs("radius_control"), "none"), 0, 1)' $_obj_geo1_lopnet1_sphere1/computeextents
+chblockend
+opparm -V 1.0 $_obj_geo1_lopnet1_sphere1 primpath ( /Geometry/ball ) scale ( 0.13 )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -D off $_obj_geo1_lopnet1_sphere1
+opexprlanguage -s hscript $_obj_geo1_lopnet1_sphere1
+opuserdata -n '___Version___' -v '1.0' $_obj_geo1_lopnet1_sphere1
+opset -p on $_obj_geo1_lopnet1_sphere1
+opcf $arg1
+
+# Node $_obj_geo1_lopnet1_cone1 (Lop/cone)
+set _obj_geo1_lopnet1_cone1 = `run("opadd -e -n -v cone cone1")`
+oplocate -x `$arg2 + 3.4478191788456627` -y `$arg3 + -1.0967530115612796` $_obj_geo1_lopnet1_cone1
+chblockbegin
+chadd -t 0 0 $_obj_geo1_lopnet1_cone1 sample_f1
+chkey -t 0 -v 1 -m 0 -a 0 -A 0 -T a  -F @fstart $_obj_geo1_lopnet1_cone1/sample_f1
+chadd -t 0 0 $_obj_geo1_lopnet1_cone1 sample_f2
+chkey -t 0 -v 240 -m 0 -a 0 -A 0 -T a  -F @fend $_obj_geo1_lopnet1_cone1/sample_f2
+chadd -t 0 0 $_obj_geo1_lopnet1_cone1 sample_f3
+chkey -t 0 -v 1 -m 0 -a 0 -A 0 -T a  -F @finc $_obj_geo1_lopnet1_cone1/sample_f3
+chadd -t 0 0 $_obj_geo1_lopnet1_cone1 computeextents
+chkey -t 0 -v 0 -m 0 -a 0 -A 0 -T a  -F 'if(!strcmp(chs("axis_control"), "none") && !strcmp(chs("height_control"), "none") && !strcmp(chs("radius_control"), "none"), 0, 1)' $_obj_geo1_lopnet1_cone1/computeextents
+chblockend
+opparm -V 1.0 $_obj_geo1_lopnet1_cone1 primpath ( /Geometry/cone ) scale ( 0.1 )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -D off $_obj_geo1_lopnet1_cone1
+opexprlanguage -s hscript $_obj_geo1_lopnet1_cone1
+opuserdata -n '___Version___' -v '1.0' $_obj_geo1_lopnet1_cone1
+opset -p on $_obj_geo1_lopnet1_cone1
+opcf $arg1
+
+# Node $_obj_geo1_lopnet1_cylinder1 (Lop/cylinder::2.0)
+set _obj_geo1_lopnet1_cylinder1 = `run("opadd -e -n -v cylinder::2.0 cylinder1")`
+oplocate -x `$arg2 + 3.4478191788456627` -y `$arg3 + 0.90324701228057869` $_obj_geo1_lopnet1_cylinder1
+chblockbegin
+chadd -t 0 0 $_obj_geo1_lopnet1_cylinder1 sample_f1
+chkey -t 0 -v 1 -m 0 -a 0 -A 0 -T a  -F @fstart $_obj_geo1_lopnet1_cylinder1/sample_f1
+chadd -t 0 0 $_obj_geo1_lopnet1_cylinder1 sample_f2
+chkey -t 0 -v 240 -m 0 -a 0 -A 0 -T a  -F @fend $_obj_geo1_lopnet1_cylinder1/sample_f2
+chadd -t 0 0 $_obj_geo1_lopnet1_cylinder1 sample_f3
+chkey -t 0 -v 1 -m 0 -a 0 -A 0 -T a  -F @finc $_obj_geo1_lopnet1_cylinder1/sample_f3
+chadd -t 0 0 $_obj_geo1_lopnet1_cylinder1 computeextents
+chkey -t 0 -v 0 -m 0 -a 0 -A 0 -T a  -F 'if(!strcmp(chs("axis_control"), "none") && !strcmp(chs("height_control"), "none") && !strcmp(chs("radiusBottom_control"), "none")&& !strcmp(chs("radiusTop_control"), "none"), 0, 1)' $_obj_geo1_lopnet1_cylinder1/computeextents
+chblockend
+opparm -V 1.0 $_obj_geo1_lopnet1_cylinder1 primpath ( /Geometry/tube ) scale ( 0.1 )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -D off $_obj_geo1_lopnet1_cylinder1
+opexprlanguage -s hscript $_obj_geo1_lopnet1_cylinder1
+opuserdata -n '___Version___' -v '1.0' $_obj_geo1_lopnet1_cylinder1
+opset -p on $_obj_geo1_lopnet1_cylinder1
+opcf $arg1
+
+# Node $_obj_geo1_lopnet1_torus (Lop/sopcreate)
+set _obj_geo1_lopnet1_torus = `run("opadd -e -n -v sopcreate torus")`
+oplocate -x `$arg2 + 0` -y `$arg3 + 0` $_obj_geo1_lopnet1_torus
+opparm $_obj_geo1_lopnet1_torus  materials ( 0 )
+chblockbegin
+chadd -t 0 0 $_obj_geo1_lopnet1_torus ineditlayerblock
+chkey -t 0 -v 0 -m 0 -a 0 -A 0 -T a  -F 'hou.pwd().inputs()[0].inEditLayerBlock()' -l p $_obj_geo1_lopnet1_torus/ineditlayerblock
+chblockend
+opparm -V 2 $_obj_geo1_lopnet1_torus pathprefix ( /Geometry/torus ) parmgroup_pivotxform ( 1 )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off -D off $_obj_geo1_lopnet1_torus
+opexprlanguage -s hscript $_obj_geo1_lopnet1_torus
+opuserdata -n '___Version___' -v '2' $_obj_geo1_lopnet1_torus
+
+# Editable subnode
+opcf torus/sopnet
+
+# Node create (Sop/subnet)
+set reate = `run("opadd -e -n -v subnet create")`
+oplocate -x `$arg2 + 1.71309` -y `$arg3 + 4.7211299999999996` create
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off create
+opexprlanguage -s hscript create
+opuserdata -n '___Version___' -v '21.0.512' create
+opcf create
+
+# Node create_attribadjustfloat1 (Sop/attribadjustfloat)
+set reate_attribadjustfloat1 = `run("opadd -e -n -v attribadjustfloat attribadjustfloat1")`
+oplocate -x `$arg2 + 4.222072667751867` -y `$arg3 + 3.5095260897161449` create_attribadjustfloat1
+opparm create_attribadjustfloat1  remapramp ( 2 ) nvalues ( 1 )
+opparm create_attribadjustfloat1 valuetype ( noise ) singlevalue ( 0.5 ) outlierseed ( 90 ) randomseed ( 63 ) folder9 ( 1 ) animated ( on ) remapramp2pos ( 1 ) remapramp2value ( 1 )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off create_attribadjustfloat1
+opexprlanguage -s hscript create_attribadjustfloat1
+opuserdata -n '___Version___' -v '' create_attribadjustfloat1
+opuserdata -n '___toolcount___' -v '7' create_attribadjustfloat1
+opuserdata -n '___toolid___' -v 'generic_delete' create_attribadjustfloat1
+opcf ..
+
+# End of editable subnode
+opcf ../..
+
+
+# Editable subnode
+opcf torus/sopnet
+opcf create
+
+# Node create_torus2 (Sop/torus)
+set reate_torus2 = `run("opadd -e -n -v torus torus2")`
+oplocate -x `$arg2 + 4.222072667751867` -y `$arg3 + 5.327064609580745` create_torus2
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off create_torus2
+opexprlanguage -s hscript create_torus2
+opuserdata -n '___Version___' -v '21.0.512' create_torus2
+
+# Node create_scatter1 (Sop/scatter::2.0)
+set reate_scatter1 = `run("opadd -e -n -v scatter::2.0 scatter1")`
+oplocate -x `$arg2 + 4.222072667751867` -y `$arg3 + 4.327064609580745` create_scatter1
+opparm -V 21.0.512 create_scatter1 npts ( 690 )
+opset -d off -r off -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off create_scatter1
+opexprlanguage -s hscript create_scatter1
+opuserdata -n '___Version___' -v '21.0.512' create_scatter1
+
+# Node create_attribrandomize1 (Sop/attribrandomize)
+set reate_attribrandomize1 = `run("opadd -e -n -v attribrandomize attribrandomize1")`
+oplocate -x `$arg2 + 4.222072667751867` -y `$arg3 + 2.2889488388489765` create_attribrandomize1
+opparm create_attribrandomize1  ramp ( 3 ) values ( 4 )
+opparm create_attribrandomize1 name ( N ) folder0 ( 1 1 ) distribution ( uniformorient ) coneangle ( 180 ) seed ( 1.6 ) ramp2pos ( 0.5 ) ramp2value ( 0.5 ) ramp3pos ( 1 ) ramp3value ( 1 )
+opset -d on -r on -h off -f off -y off -t off -l off -s off -u off -F on -c on -e on -b off create_attribrandomize1
+opexprlanguage -s hscript create_attribrandomize1
+opuserdata -n '___Version___' -v '' create_attribrandomize1
+oporder -e torus2 scatter1 attribadjustfloat1 attribrandomize1 
+opcf ..
+
+# End of editable subnode
+opcf ../..
+
+opset -p on $_obj_geo1_lopnet1_torus
+
+opcf $arg1
+opwire -n $_obj_geo1_lopnet1_torus -0 $_obj_geo1_lopnet1_instancer1
+opwire -n $_obj_geo1_lopnet1_cone1 -1 $_obj_geo1_lopnet1_instancer1
+opcf $arg1
+opwire -n $_obj_geo1_lopnet1_cylinder1 -0 $_obj_geo1_lopnet1_sphere1
+opcf $arg1
+opwire -n $_obj_geo1_lopnet1_sphere1 -0 $_obj_geo1_lopnet1_cone1
+opcf $arg1
+opcf $arg1
+
+set oidx = 0
+if ($argc >= 9 && "$arg9" != "") then
+    set oidx = $arg9
+endif
+
+if ($argc >= 5 && "$arg4" != "") then
+    set output = $_obj_geo1_lopnet1_instancer1
+    opwire -n $output -$arg5 $arg4
+endif
+if ($argc >= 6 && "$arg6" != "") then
+    set input = $_obj_geo1_lopnet1_torus
+    if ($arg8) then
+        opwire -n -i $arg6 -0 $input
+    else
+        opwire -n -o $oidx $arg6 -0 $input
+    endif
+endif
+opcf $saved_path
+'''
+hou.hscript(h_preamble + h_extra_args + h_cmd)
+]]></script>
+  </tool>
+
+  <tool name="selected name" label="selected name" icon="hicon:/SVGIcons.index?BUTTONS_auto_save.svg">
+    <script scriptType="python"><![CDATA[import hou
+from PySide6 import QtWidgets, QtCore, QtGui
+
+def create_attribute_split_tool():
+    # æ£æ¥æ¯å¦éä¸­èç¹
+    selected_nodes = hou.selectedNodes()
+    if not selected_nodes:
+        hou.ui.displayMessage("è¯·åéæ©ä¸ä¸ªèç¹ï¼", severity=hou.severityType.Error)
+        return
+    
+    node = selected_nodes[0] #éä¸­çç¬¬ä¸ä¸ªèç¹
+    
+    # æ£æ¥æ¯å¦ä¸ºå ä½èç¹
+    if node.type().category().name() != "Sop":
+        hou.ui.displayMessage("è¯·éæ©å ä½èç¹ï¼", severity=hou.severityType.Error)
+        return
+    
+    # è·åå ä½ä½
+    geo = node.geometry()
+    if not geo:
+        hou.ui.displayMessage("èç¹æ²¡æå ä½ä½ï¼", severity=hou.severityType.Error)
+        return
+    
+    # èªå¨æ£æ¥å±çº§å±æ§å¯ç¨æ§
+    def has_valid_attributes(level):
+        try:
+            if level == "Point":
+                return any(attr.dataType().name() in ["Int", "String"] for attr in geo.pointAttribs())
+            elif level == "Primitive":
+                return any(attr.dataType().name() in ["Int", "String"] for attr in geo.primAttribs())
+            return False
+        except:
+            return False
+    
+    # èªå¨éæ©å¯ç¨çå±çº§
+    current_level = "Primitive"
+    if not has_valid_attributes(current_level):
+        # å°è¯åæ¢å°Pointå±çº§
+        current_level = "Point"
+        if not has_valid_attributes(current_level):
+            hou.ui.displayMessage("èç¹æ²¡æç¬¦åæ¡ä»¶çæ´æ°æå­ç¬¦ä¸²å±æ§ï¼", severity=hou.severityType.Error)
+            return
+    
+    # åå»ºå¯¹è¯æ¡
+    dialog = QtWidgets.QDialog(hou.qt.mainWindow())
+    dialog.setWindowTitle("Houdini å±æ§åç¦»å·¥å·")
+    dialog.setMinimumSize(400, 200)
+    
+    # åå»ºå¸å±
+    layout = QtWidgets.QVBoxLayout(dialog)
+    
+    # æ·»å èç¹ä¿¡æ¯
+    node_info = QtWidgets.QLabel(f"å½åèç¹: {node.name()}")
+    layout.addWidget(node_info)
+    
+    # æ·»å å±æ§å±çº§éæ©
+    level_label = QtWidgets.QLabel("è¯·éæ©å±æ§å±çº§:")
+    layout.addWidget(level_label)
+    
+    level_combo = QtWidgets.QComboBox()
+    level_combo.addItems(["Point", "Primitive"])
+    
+    # è®¾ç½®å½åå±çº§ï¼åºäºèªå¨æ£æµï¼
+    if current_level == "Point":
+        level_combo.setCurrentIndex(0)
+    else:
+        level_combo.setCurrentIndex(1)
+    
+    layout.addWidget(level_combo)
+    
+    # æ·»å å±æ§åéæ©
+    attr_label = QtWidgets.QLabel("è¯·éæ©å±æ§å:")
+    layout.addWidget(attr_label)
+    
+    attr_combo = QtWidgets.QComboBox()
+    layout.addWidget(attr_combo)
+    
+    # å½æ°ï¼æ´æ°å±æ§åè¡¨ï¼åªåå«æ´æ°åå­ç¬¦ä¸²ç±»åï¼
+    def update_attributes():
+        level = level_combo.currentText()
+        attr_combo.clear()
+        
+        try:
+            attributes = []
+            
+            if level == "Point":
+                # è·åç¹å±æ§
+                point_attribs = geo.pointAttribs()
+                for attr in point_attribs:
+                    # åªä¿çæ´æ°åå­ç¬¦ä¸²ç±»åå±æ§
+                    if attr.dataType().name() in ["Int", "String"]:
+                        attributes.append(attr.name())
+            
+            elif level == "Primitive":
+                # è·åå¾åå±æ§
+                prim_attribs = geo.primAttribs()
+                for attr in prim_attribs:
+                    # åªä¿çæ´æ°åå­ç¬¦ä¸²ç±»åå±æ§
+                    if attr.dataType().name() in ["Int", "String"]:
+                        attributes.append(attr.name())
+            
+            # æå­æ¯é¡ºåºæåº
+            attributes.sort()
+            attr_combo.addItems(attributes)
+            
+            # å¦ææ²¡æå±æ§ï¼å°è¯èªå¨åæ¢å±çº§
+            if not attributes:
+                new_level = "Point" if level == "Primitive" else "Primitive"
+                if new_level == "Point":
+                    level_combo.setCurrentIndex(0)
+                else:
+                    level_combo.setCurrentIndex(1)
+                
+                # éå½è°ç¨æ´æ°å±æ§
+                update_attributes()
+                
+        except Exception as e:
+            # æå°éè¯¯ä¿¡æ¯ï¼ä½ä¸ä¸­æ­æ§è¡
+            print(f"è·åå±æ§æ¶åºé: {str(e)}")
+    
+    # åå§æ´æ°åè¿æ¥ä¿¡å·
+    update_attributes()
+    level_combo.currentTextChanged.connect(update_attributes)
+    
+    # æ·»å æé®
+    button_box = QtWidgets.QDialogButtonBox(
+        QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+    )
+    button_box.accepted.connect(dialog.accept)
+    button_box.rejected.connect(dialog.reject)
+    layout.addWidget(button_box)
+    
+    # æ¾ç¤ºå¯¹è¯æ¡
+    if dialog.exec_():
+        level = level_combo.currentText()
+        attribute = attr_combo.currentText()
+        
+        # å¦æå±æ§åä¸ºç©ºï¼è¯´ææ²¡æç¬¦åæ¡ä»¶çå±æ§
+        if not attribute:
+            hou.ui.displayMessage("æ²¡ææ¾å°ç¬¦åæ¡ä»¶çå±æ§ï¼", severity=hou.severityType.Warning)
+            return
+        
+        # æ¶éå±æ§å¼
+        unique_values = set()
+        
+        try:
+            if level == "Point":
+                # ç¡®ä¿å±æ§å­å¨
+                if geo.findPointAttrib(attribute):
+                    for point in geo.points():
+                        try:
+                            value = point.attribValue(attribute)
+                            unique_values.add(value)
+                        except:
+                            print(f"æ æ³è·åç¹ {point.number()} çå±æ§ '{attribute}' å¼")
+            
+            elif level == "Primitive":
+                # ç¡®ä¿å±æ§å­å¨
+                if geo.findPrimAttrib(attribute):
+                    for prim in geo.prims():
+                        try:
+                            value = prim.attribValue(attribute)
+                            unique_values.add(value)
+                        except:
+                            print(f"æ æ³è·åå¾å {prim.number()} çå±æ§ '{attribute}' å¼")            
+        
+        except Exception as e:
+            hou.ui.displayMessage(f"è·åå±æ§å¼å¤±è´¥: {str(e)}", severity=hou.severityType.Warning)
+            return
+        
+        # å¦ææ²¡ææ¾å°ä»»ä½å±æ§å¼
+        if not unique_values:
+            hou.ui.displayMessage("æ²¡ææ¾å°ä»»ä½å±æ§å¼ï¼", severity=hou.severityType.Warning)
+            return
+        
+        # è·ååå§èç¹ä½ç½®ä½ä¸ºå¸å±åºå
+        base_position = node.position()
+        
+        # è®¡ç®æ°èç¹ä½ç½®ï¼åä¸åç§»2ä¸ªåä½
+        new_position = [
+            base_position[0],  # Xåæ ä¸å
+            base_position[1] - 2  # Yåæ åä¸ç§»å¨2ä¸ªåä½
+        ]
+        
+        # åå»ºæ¤éç»
+        with hou.undos.group("å±æ§åç¦»å·¥å·æä½"):
+            # åå»ºä¸ä¸ªå
+            mycolor = hou.Vector3(0.451,0.369,0.796)
+            parent_node = node.parent()
+            subnet = parent_node.createNode("subnet","Cryptomatte")
+            subnet.setPosition([node.position()[0],node.position()[1]-1])
+            subnet.setColor(hou.Color(mycolor))
+            subnet.setFirstInput(node)
+            subnet_0= subnet.indirectInputs()[0] # è·ååéé¢çç¬¬ä¸ä¸ªæ¥å£çèç¹
+            # åå»º blast èç¹
+            for i, value in enumerate(unique_values):
+                # åå»º blast èç¹
+                blast = subnet.createNode("blast", f"blast_{attribute}_{i}")
+                
+                # è®¾ç½®èç¹é¢è²ä¸ºçº¯é»è²
+                blast.setColor(hou.Color(0, 0, 0))
+                
+                # è¿æ¥å°åéé¢çç¬¬ä¸ä¸ªæ¥å£çèç¹
+                blast.setInput(0, subnet_0)
+                
+                # è®¾ç½®ä½ç½® - æ¨ªåæå
+                blast.setPosition([
+                    new_position[0] + i * 2,  # æ¨ªåé´é2ä¸ªåä½
+                    new_position[1] - i * 0.4 
+                ])
+                
+                # è®¾ç½® blast èç¹åæ°
+                blast.parm("group").set(f"@{attribute}={value}")
+                
+                # æ ¹æ®å±çº§è®¾ç½®åç»ç±»å
+                if level == "Point":
+                    blast.parm("grouptype").set(3)  # ç¹
+                elif level == "Primitive":
+                    blast.parm("grouptype").set(4)  # å¾å
+                
+                blast.parm("negate").set(1)  # åè½¬éæ©ï¼ä¿çå¹éçï¼
+                
+                # æ·»å æ³¨éè¯´æ
+                blast.setComment(f"ä¿ç {attribute} = {value}")
+            hou.ui.setStatusMessage(f"âåç¦»æåï¼å±{i}ä¸ªå¯¹è±¡", hou.severityType.ImportantMessage)
+            # èªå¨å¸å±èç¹
+            #parent.layoutChildren()
+
+# å¨Houdiniä¸­è°ç¨
+create_attribute_split_tool()]]></script>
+  </tool>
+</shelfDocument>
