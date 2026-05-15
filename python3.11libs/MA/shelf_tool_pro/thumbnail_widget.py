@@ -21,8 +21,10 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._size = 0
         self._movie = None
         self._gif_timer_id = None
+        self._notes_timer_id = None
         self._custom_image_path = None
         self._is_gif = False
+        self._notes_panel = None
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -48,6 +50,8 @@ class ThumbnailWidget(QtWidgets.QWidget):
             self._custom_image_path = custom_image_info.get("path")
             self._is_gif = custom_image_info.get("is_gif", False)
             self._load_custom_image()
+
+        self._init_notes_panel()
 
     @staticmethod
     def _make_rounded_pixmap(size, radius, color):
@@ -118,8 +122,10 @@ class ThumbnailWidget(QtWidgets.QWidget):
         menu.setStyleSheet(CONTEXT_MENU_STYLE)
         rename_action = menu.addAction("Rename")
         set_image_action = menu.addAction("Set Image")
+        notes_action = menu.addAction("Notes")
         rename_action.triggered.connect(self._on_rename)
         set_image_action.triggered.connect(self._on_set_image)
+        notes_action.triggered.connect(self._on_edit_notes)
         menu.exec(event.globalPos())
 
     def _on_rename(self):
@@ -153,6 +159,14 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._custom_image_path = dest_path
         self._is_gif = is_gif
         self._load_custom_image()
+
+    def _on_edit_notes(self):
+        """弹出多行文本输入对话框，编辑备注。"""
+        current_note = ShelfToolsCacheManager.get_note(self._unique_id) or ""
+        new_note, ok = QtWidgets.QInputDialog.getMultiLineText(
+            self, "Edit Notes", "Enter notes (markdown supported):", text=current_note)
+        if ok:
+            ShelfToolsCacheManager.set_note(self._unique_id, new_note)
 
     def _load_custom_image(self):
         """加载自定义图片到 image_label。GIF 默认显示第一帧。"""
@@ -230,24 +244,32 @@ class ThumbnailWidget(QtWidgets.QWidget):
         return result
 
     def enterEvent(self, event):
-        """鼠标进入：如果是 GIF，启动 500ms 延迟定时器。"""
+        """鼠标进入：启动 500ms 延迟定时器（GIF 动画 + 备注面板）。"""
         super().enterEvent(event)
         if self._is_gif and self._movie:
             self._gif_timer_id = self.startTimer(500)
+        self._notes_timer_id = self.startTimer(500)
 
     def leaveEvent(self, event):
-        """鼠标离开：停止定时器，停止 GIF 动画。"""
+        """鼠标离开：停止定时器，停止 GIF 动画，隐藏备注面板。"""
         super().leaveEvent(event)
         if self._gif_timer_id is not None:
             self.killTimer(self._gif_timer_id)
             self._gif_timer_id = None
         self._stop_gif_animation()
+        if self._notes_timer_id is not None:
+            self.killTimer(self._notes_timer_id)
+            self._notes_timer_id = None
+        self._hide_notes_panel()
 
     def timerEvent(self, event):
-        """定时器触发：开始播放 GIF 动画。"""
+        """定时器触发：GIF 动画 / 备注面板显示。"""
         if event.timerId() == self._gif_timer_id:
             self._gif_timer_id = None
             self._start_gif_animation()
+        if event.timerId() == self._notes_timer_id:
+            self._notes_timer_id = None
+            self._show_notes_panel()
         super().timerEvent(event)
 
     def _start_gif_animation(self):
@@ -264,3 +286,37 @@ class ThumbnailWidget(QtWidgets.QWidget):
             self._movie.stop()
             self._movie.jumpToFrame(0)
             self._on_gif_frame_changed()
+
+    def _init_notes_panel(self):
+        """初始化备注面板。"""
+        self._notes_panel = QtWidgets.QTextBrowser()
+        self._notes_panel.setReadOnly(True)
+        self._notes_panel.setWindowFlags(QtCore.Qt.WindowType.Popup | QtCore.Qt.WindowType.FramelessWindowHint)
+        self._notes_panel.setStyleSheet(
+            "background-color: #2d2d2d; color: #ffffff; border-radius: 4px;"
+        )
+        self._notes_panel.setMaximumHeight(200)
+        self._notes_panel.setOpenExternalLinks(False)
+        self._notes_panel.hide()
+
+    def _show_notes_panel(self):
+        """显示备注面板（如有备注内容）。"""
+        note_text = ShelfToolsCacheManager.get_note(self._unique_id)
+        if not note_text or not note_text.strip():
+            return
+        self._notes_panel.setMarkdown(note_text)
+        self._notes_panel.adjustSize()
+        # 限制最大宽度为缩略图宽度
+        max_width = max(self.width(), 200)
+        self._notes_panel.setMaximumWidth(max_width)
+        self._notes_panel.adjustSize()
+        # 定位在缩略图上方
+        pos = self.mapToGlobal(QtCore.QPoint(0, -self._notes_panel.height()))
+        self._notes_panel.move(pos)
+        self._notes_panel.show()
+        self._notes_panel.raise_()
+
+    def _hide_notes_panel(self):
+        """隐藏备注面板。"""
+        if self._notes_panel:
+            self._notes_panel.hide()

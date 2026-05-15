@@ -112,3 +112,17 @@ class ShelfToolsCacheManager(BaseJsonManager):
         names = data.setdefault("custom_names", {})
         names[tool_name] = name
         cls.save(data)
+
+    @classmethod
+    def get_note(cls, tool_name):
+        """获取工具的备注内容，未设置时返回 None。"""
+        data = cls.load()
+        return data.get("notes", {}).get(tool_name)
+
+    @classmethod
+    def set_note(cls, tool_name, note):
+        """设置工具的备注。"""
+        data = cls.load()
+        notes = data.setdefault("notes", {})
+        notes[tool_name] = note
+        cls.save(data)
