@@ -1,0 +1,283 @@
+{
+  "schema_version": 2,
+  "active_work_id": "shelftoolpro-notes-b0f9413e",
+  "works": {
+    "shelftoolpro-context-menu-ee52f174": {
+      "work_id": "shelftoolpro-context-menu-ee52f174",
+      "active_plan": "C:\\Users\\mahx_\\Documents\\houdini21.0\\MAHX_Tools\\.sisyphus\\plans\\shelftoolpro-context-menu.md",
+      "plan_name": "shelftoolpro-context-menu",
+      "status": "completed",
+      "started_at": "2026-05-15T06:57:03.991Z",
+      "updated_at": "2026-05-15T07:19:04.436Z",
+      "session_ids": [
+        "ses_1d5f71cb3ffeI2kbV7O1wYx72t",
+        "ses_1d582fa9bffer1BRTHVERxQJIt",
+        "ses_1d582bbf5ffeg7UWWm6YRSMfhR",
+        "ses_1d5826035ffe4nay3gl05v5irZ",
+        "ses_1d581f8c7ffeLMsCKmjCwbA564"
+      ],
+      "session_origins": {
+        "ses_1d5f71cb3ffeI2kbV7O1wYx72t": "direct",
+        "ses_1d582fa9bffer1BRTHVERxQJIt": "appended",
+        "ses_1d582bbf5ffeg7UWWm6YRSMfhR": "appended",
+        "ses_1d5826035ffe4nay3gl05v5irZ": "appended",
+        "ses_1d581f8c7ffeLMsCKmjCwbA564": "appended"
+      },
+      "agent": "atlas",
+      "task_sessions": {
+        "todo:1": {
+          "task_key": "todo:1",
+          "task_label": "1",
+          "task_title": "常量与缓存结构扩展",
+          "session_id": "ses_1d5923239ffeccz6Oav4brrxfb",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-05-15T07:01:02.730Z",
+          "started_at": "2026-05-15T07:00:21.479Z",
+          "status": "completed",
+          "ended_at": "2026-05-15T07:01:02.730Z",
+          "elapsed_ms": 41251
+        },
+        "todo:2": {
+          "task_key": "todo:2",
+          "task_label": "2",
+          "task_title": "ThumbnailWidget 右键菜单 + 改名功能",
+          "session_id": "ses_1d58efbbeffezviOWDjkg7eTk0",
+          "agent": "Sisyphus-Junior",
+          "category": "deep",
+          "updated_at": "2026-05-15T07:04:32.115Z",
+          "started_at": "2026-05-15T07:03:32.763Z",
+          "status": "completed",
+          "ended_at": "2026-05-15T07:04:32.115Z",
+          "elapsed_ms": 59352
+        },
+        "todo:3": {
+          "task_key": "todo:3",
+          "task_label": "3",
+          "task_title": "ThumbnailWidget 自定义图片 + GIF 动画",
+          "session_id": "ses_1d58b5432ffejOtAdJTeJsEEj5",
+          "agent": "Sisyphus-Junior",
+          "category": "deep",
+          "updated_at": "2026-05-15T07:08:54.128Z",
+          "started_at": "2026-05-15T07:08:16.525Z",
+          "status": "completed",
+          "ended_at": "2026-05-15T07:08:54.128Z",
+          "elapsed_ms": 37603
+        },
+        "todo:4": {
+          "task_key": "todo:4",
+          "task_label": "4",
+          "task_title": "设置按钮 + 设置对话框",
+          "session_id": "ses_1d5879866ffeAOptwuSN4oqToT",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-15T07:11:51.679Z",
+          "started_at": "2026-05-15T07:11:25.685Z",
+          "status": "completed",
+          "ended_at": "2026-05-15T07:11:51.679Z",
+          "elapsed_ms": 25994
+        },
+        "todo:5": {
+          "task_key": "todo:5",
+          "task_label": "5",
+          "task_title": "面板初始化集成 + 缓存恢复",
+          "session_id": "ses_1d58516f1ffemIZwNa3qQMd1pR",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-05-15T07:14:10.450Z",
+          "started_at": "2026-05-15T07:13:33.355Z",
+          "status": "completed",
+          "ended_at": "2026-05-15T07:14:10.450Z",
+          "elapsed_ms": 37095
+        },
+        "final-wave:f1": {
+          "task_key": "final-wave:f1",
+          "task_label": "F1",
+          "task_title": "**Plan Compliance Audit** — `oracle`",
+          "session_id": "ses_1d5826035ffe4nay3gl05v5irZ",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "started_at": "2026-05-15T07:16:15.646Z",
+          "status": "completed",
+          "updated_at": "2026-05-15T07:18:10.468Z",
+          "ended_at": "2026-05-15T07:18:10.468Z",
+          "elapsed_ms": 114822
+        },
+        "final-wave:f2": {
+          "task_key": "final-wave:f2",
+          "task_label": "F2",
+          "task_title": "Code Quality Review — 检查 Python 3.11 兼容性，PySide6 API 正确使用，无内存泄漏。",
+          "session_id": "ses_1d582bbf5ffeg7UWWm6YRSMfhR",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-15T07:18:10.468Z",
+          "ended_at": "2026-05-15T07:18:10.468Z",
+          "status": "completed"
+        },
+        "final-wave:f3": {
+          "task_key": "final-wave:f3",
+          "task_label": "F3",
+          "task_title": "Real Manual QA — 通过代码审查模拟实际测试所有功能。",
+          "session_id": "ses_1d5826035ffe4nay3gl05v5irZ",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-15T07:18:10.469Z",
+          "ended_at": "2026-05-15T07:18:10.469Z",
+          "status": "completed"
+        },
+        "final-wave:f4": {
+          "task_key": "final-wave:f4",
+          "task_label": "F4",
+          "task_title": "Scope Fidelity Check — 验证无超出范围的功能添加。",
+          "session_id": "ses_1d581f8c7ffeLMsCKmjCwbA564",
+          "agent": "Sisyphus-Junior",
+          "category": "deep",
+          "updated_at": "2026-05-15T07:18:10.470Z",
+          "ended_at": "2026-05-15T07:18:10.470Z",
+          "status": "completed"
+        }
+      },
+      "ended_at": "2026-05-15T07:19:04.436Z",
+      "elapsed_ms": 1320445
+    },
+    "shelftoolpro-notes-b0f9413e": {
+      "work_id": "shelftoolpro-notes-b0f9413e",
+      "active_plan": "C:\\Users\\mahx_\\Documents\\houdini21.0\\MAHX_Tools\\.sisyphus\\plans\\shelftoolpro-notes.md",
+      "plan_name": "shelftoolpro-notes",
+      "status": "completed",
+      "started_at": "2026-05-15T11:21:36.446Z",
+      "updated_at": "2026-05-15T11:30:35.289Z",
+      "ended_at": "2026-05-15T11:30:35.289Z",
+      "session_ids": [
+        "ses_1d4b25d87ffeKQ9zlNaAtqOFpJ",
+        "ses_1d49cf1dcffeqXW2CFll0b9sQ6",
+        "ses_1d49cbbadffe65XeCRYmp666C1",
+        "ses_1d49c77caffej1FWByOMnJac4o"
+      ],
+      "session_origins": {
+        "ses_1d4b25d87ffeKQ9zlNaAtqOFpJ": "direct",
+        "ses_1d49cf1dcffeqXW2CFll0b9sQ6": "appended",
+        "ses_1d49cbbadffe65XeCRYmp666C1": "appended",
+        "ses_1d49c77caffej1FWByOMnJac4o": "appended"
+      },
+      "agent": "atlas",
+      "task_sessions": {
+        "todo:2": {
+          "task_key": "todo:2",
+          "task_label": "2",
+          "task_title": "thumbnail_widget.py 右键菜单 + 备注面板 + 悬停逻辑",
+          "session_id": "ses_1d49fada5ffeZq9BblHCXddUZ8",
+          "agent": "Sisyphus-Junior",
+          "category": "deep",
+          "updated_at": "2026-05-15T11:25:50.979Z",
+          "started_at": "2026-05-15T11:25:15.682Z",
+          "status": "completed",
+          "ended_at": "2026-05-15T11:25:50.979Z",
+          "elapsed_ms": 35297
+        },
+        "final-wave:f2": {
+          "task_key": "final-wave:f2",
+          "task_label": "F2",
+          "task_title": "Code Quality Review - 检查 MAShelfToolPro 备注功能的代码质量。",
+          "session_id": "ses_1d49cf1dcffeqXW2CFll0b9sQ6",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-15T11:28:42.967Z",
+          "ended_at": "2026-05-15T11:28:42.967Z",
+          "status": "completed"
+        },
+        "final-wave:f3": {
+          "task_key": "final-wave:f3",
+          "task_label": "F3",
+          "task_title": "Scope Fidelity Check - 验证 MAShelfToolPro 备注功能的实现严格符合计划范围。",
+          "session_id": "ses_1d49cbbadffe65XeCRYmp666C1",
+          "agent": "Sisyphus-Junior",
+          "category": "deep",
+          "updated_at": "2026-05-15T11:28:42.968Z",
+          "ended_at": "2026-05-15T11:28:42.968Z",
+          "status": "completed"
+        },
+        "final-wave:f1": {
+          "task_key": "final-wave:f1",
+          "task_label": "F1",
+          "task_title": "Plan Compliance Audit - 审计 MAShelfToolPro 备注功能是否符合计划要求。",
+          "session_id": "ses_1d49c77caffej1FWByOMnJac4o",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-15T11:28:42.966Z",
+          "ended_at": "2026-05-15T11:28:42.965Z",
+          "status": "completed"
+        }
+      },
+      "elapsed_ms": 538843
+    }
+  },
+  "active_plan": "C:\\Users\\mahx_\\Documents\\houdini21.0\\MAHX_Tools\\.sisyphus\\plans\\shelftoolpro-notes.md",
+  "started_at": "2026-05-15T11:21:36.446Z",
+  "status": "completed",
+  "updated_at": "2026-05-15T11:30:35.289Z",
+  "ended_at": "2026-05-15T11:30:35.289Z",
+  "session_ids": [
+    "ses_1d4b25d87ffeKQ9zlNaAtqOFpJ",
+    "ses_1d49cf1dcffeqXW2CFll0b9sQ6",
+    "ses_1d49cbbadffe65XeCRYmp666C1",
+    "ses_1d49c77caffej1FWByOMnJac4o"
+  ],
+  "session_origins": {
+    "ses_1d4b25d87ffeKQ9zlNaAtqOFpJ": "direct",
+    "ses_1d49cf1dcffeqXW2CFll0b9sQ6": "appended",
+    "ses_1d49cbbadffe65XeCRYmp666C1": "appended",
+    "ses_1d49c77caffej1FWByOMnJac4o": "appended"
+  },
+  "plan_name": "shelftoolpro-notes",
+  "task_sessions": {
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "thumbnail_widget.py 右键菜单 + 备注面板 + 悬停逻辑",
+      "session_id": "ses_1d49fada5ffeZq9BblHCXddUZ8",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-15T11:25:50.979Z",
+      "started_at": "2026-05-15T11:25:15.682Z",
+      "status": "completed",
+      "ended_at": "2026-05-15T11:25:50.979Z",
+      "elapsed_ms": 35297
+    },
+    "final-wave:f2": {
+      "task_key": "final-wave:f2",
+      "task_label": "F2",
+      "task_title": "Code Quality Review - 检查 MAShelfToolPro 备注功能的代码质量。",
+      "session_id": "ses_1d49cf1dcffeqXW2CFll0b9sQ6",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-15T11:28:42.967Z",
+      "ended_at": "2026-05-15T11:28:42.967Z",
+      "status": "completed"
+    },
+    "final-wave:f3": {
+      "task_key": "final-wave:f3",
+      "task_label": "F3",
+      "task_title": "Scope Fidelity Check - 验证 MAShelfToolPro 备注功能的实现严格符合计划范围。",
+      "session_id": "ses_1d49cbbadffe65XeCRYmp666C1",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-15T11:28:42.968Z",
+      "ended_at": "2026-05-15T11:28:42.968Z",
+      "status": "completed"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan Compliance Audit - 审计 MAShelfToolPro 备注功能是否符合计划要求。",
+      "session_id": "ses_1d49c77caffej1FWByOMnJac4o",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-15T11:28:42.966Z",
+      "ended_at": "2026-05-15T11:28:42.965Z",
+      "status": "completed"
+    }
+  },
+  "agent": "atlas",
+  "elapsed_ms": 538843
+}

@@ -6,9 +6,9 @@ MA_HDR_Library_Cache.json
 python_panels/test.pypanel
 toolbar/test.shelf
 toolbar/Houdini_Shelf_Tool_Trigger_Guide.md
-.sisyphus/
 .uploads/
 toolbar/mahx.shelf
 MA_ShelfTools_Pro_Settings.json
 MA_ShelfTools_Pro_Cache.json
 custom_shelf_thumbnails/
+.trae/
