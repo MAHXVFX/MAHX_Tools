@@ -146,12 +146,16 @@ Tool 对象
 
 ### 缩略图显示
 - 正方形 1:1，圆角 `size // 8`，默认灰色占位图
+- **圆角通过代码绘制**：使用 `_apply_rounded_mask` / `_apply_rounded_mask_with_bg` 方法，不依赖样式表 `border-radius`
 - 支持自定义图片（.jpg/.png/.gif），通过右键菜单设置
 - GIF 默认显示第一帧，鼠标悬停 500ms 后播放动画，离开后停止
+- **GIF 动画实现**：连接 `QMovie.frameChanged` 信号，每帧手动缩放、居中、应用圆角遮罩，避免 `QLabel.setMovie()` 的拉伸填充
 - 滑块可调大小（70~250px），实时保存到 `ShelfToolsSettingsManager`
 - 名称在缩略图下方，字号随大小缩放
 - `updateSize()` 时检查 `_custom_image_path`，有则重新加载自定义图片，无则显示默认占位图
 - **工具区使用 `QScrollArea` 包裹**：缩略图大小调整不影响面板大小，仅改变滚动区域内布局（参考 HDR 面板架构）
+- **布局细节**：`image_label` 大小为 `size + 2`（右边缘缓冲防裁剪），缩略图间距 `12px`
+- **HDR 面板同步**：`hdr_library/thumbnail_widget.py` 同样使用代码绘制圆角，保持视觉一致
 
 ### 缓存结构扩展
 
@@ -185,6 +189,23 @@ Tool 对象
 - **`cursorPosition()` 直接获取网络坐标**：不要自己算 `visibleBounds` + `screenPosition` 映射
 - **`sys.exit()` 捕获 `SystemExit`**：脚本中的 `sys.exit()` 抛出 `SystemExit`，不被 `except Exception` 捕获，需单独处理
 - **点击触发时必须查找当前 NetworkEditor**：`pane.isCurrentTab()` 优先，回退到任意 NetworkEditor
+
+### 关键陷阱（UI 渲染）
+
+#### 圆角绘制
+- **不使用样式表 `border-radius`**：Qt 样式表圆角在某些 DPI 设置下会出现不对称裁剪
+- **使用 `QPainterPath` + `setClipPath`**：确保圆角精确对称
+- **`image_label` 尺寸 `size + 2`**：右边缘 1px 缓冲防止圆角被相邻控件遮挡
+- **缩略图间距 `12px`**：确保圆角有足够空间不被裁剪
+
+#### GIF 动画
+- **不使用 `QLabel.setMovie()`**：会导致图片拉伸填充，失去圆角和居中效果
+- **使用 `frameChanged` 信号**：每帧手动获取 `QPixmap`，经过缩放、居中、圆角遮罩后显示
+- **旧 `QMovie` 清理**：重新加载时调用 `deleteLater()` 防止内存泄漏
+- **PySide6 API**：使用 `movie.state()` 和 `movie.paused()` 检查状态，`isPlaying()` 不存在
+
+#### API 兼容性
+- **`QDrag.exec()` / `QMenu.exec()`**：PySide6 推荐使用 `exec()` 替代过时的 `exec_()`
 
 ## 开发约束
 
