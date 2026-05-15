@@ -297,6 +297,27 @@ class ThumbnailWidget(QtWidgets.QWidget):
             self._movie.jumpToFrame(0)
             self._on_gif_frame_changed()
 
+    def _init_notes_panel(self):
+        """初始化备注面板。"""
+        self._notes_panel = QtWidgets.QTextBrowser(None)  # 无父控件，作为独立窗口
+        self._notes_panel.setReadOnly(True)
+        self._notes_panel.setWindowFlags(
+            QtCore.Qt.WindowType.Tool | QtCore.Qt.WindowType.FramelessWindowHint
+        )
+        self._notes_panel.setAttribute(QtCore.Qt.WA_TranslucentBackground, False)
+        self._notes_panel.setStyleSheet(
+            "QTextBrowser { "
+            "  background-color: #2d2d2d; "
+            "  color: #ffffff; "
+            "  border: 1px solid #3d3d3d; "
+            "  border-radius: 4px; "
+            "  padding: 4px; "
+            "}"
+        )
+        self._notes_panel.setMaximumHeight(200)
+        self._notes_panel.setOpenExternalLinks(False)
+        self._notes_panel.setVisible(False)
+
     def _show_notes_panel(self):
         """显示备注面板（如有备注内容）。"""
         if not self._notes_panel:
