@@ -4,11 +4,11 @@ import logging
 from PySide6 import QtWidgets, QtCore
 from PySide6.QtCore import Qt
 
-from .library_panel import HDRLibraryPanel
-from MAHX.common import SettingsManager, CacheManager
-from MAHX.common.styles import DIALOG_BG_STYLE
+from MA.hdr_library import HDRLibraryPanel
+from MA.common import SettingsManager, CacheManager
+from MA.common.styles import DIALOG_BG_STYLE
 
-logger = logging.getLogger("MAHX")
+logger = logging.getLogger("MA")
 
 _panel_window = None
 
@@ -87,7 +87,7 @@ def _apply_window_flags(window):
         style = GetWindowLong(hwnd, GWL_EXSTYLE)
         style |= WS_EX_APPWINDOW
         SetWindowLong(hwnd, GWL_EXSTYLE, style)
-        windll.shell32.SetCurrentProcessExplicitAppUserModelID('MAHX.HDRLibrary.1')
+        windll.shell32.SetCurrentProcessExplicitAppUserModelID('MA.HDRLibrary.1')
     except Exception:
         pass
 
@@ -110,7 +110,7 @@ def Panel():
 
     _panel_window = SavedSizeDialog(parent_window)
     _panel_window.panel_widget = panel_widget
-    _panel_window.setWindowTitle("HDR Asset Library - MAHX Tools")
+    _panel_window.setWindowTitle("MA HDR Asset Library")
     _panel_window.setMinimumSize(500, 360)
     _panel_window.setWindowFlags(
         Qt.Window | Qt.WindowMinimizeButtonHint |
@@ -119,7 +119,7 @@ def Panel():
     _panel_window.setStyleSheet(DIALOG_BG_STYLE)
     _apply_window_flags(_panel_window)
 
-    from MAHX.common.constants import DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT
+    from MA.common.constants import DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT
     settings = SettingsManager.load()
     w = settings.get('window_width', DEFAULT_WINDOW_WIDTH)
     h = settings.get('window_height', DEFAULT_WINDOW_HEIGHT)

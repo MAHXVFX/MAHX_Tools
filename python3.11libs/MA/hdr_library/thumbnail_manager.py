@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QGridLayout
 
 from .thumbnail_widget import HDRThumbnailWidget
 
-logger = logging.getLogger("MAHX")
+logger = logging.getLogger("MA")
 
 
 class ThumbnailManager:

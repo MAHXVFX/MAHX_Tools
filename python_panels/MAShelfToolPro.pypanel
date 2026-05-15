@@ -6,9 +6,9 @@ import os
 import glob
 import re
 import hou
-import MAHX
+import MA
 from PySide6 import QtWidgets, QtGui, QtCore
-from MAHX.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
+from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
 
 ACCENT_BLUE = "#0d6399"
 ACCENT_PURPLE = "#8a5cf5"
@@ -41,7 +41,7 @@ _DEFAULT_SIZE = 130
 
 
 def project_root():
-    return os.path.dirname(os.path.dirname(os.path.dirname(MAHX.__file__)))
+    return os.path.dirname(os.path.dirname(os.path.dirname(MA.__file__)))
 
 
 def scan_tool_names():
@@ -156,7 +156,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
             return
         drag = QtGui.QDrag(self)
         mime = QtCore.QMimeData()
-        mime.setText(f"mahx_tool:{self._tool_name}")
+        mime.setText(f"ma_tool:{self._tool_name}")
         drag.setMimeData(mime)
         drag.setPixmap(
             self.image_label.pixmap().scaled(64, 64, QtCore.Qt.KeepAspectRatio,

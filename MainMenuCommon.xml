@@ -4,7 +4,7 @@
     <subMenu id="my_tools_menu">
       <!-- 建议将 insertBefore 放在 label 之前 -->
       <insertBefore>help_menu</insertBefore>
-      <label>MAHX_Tools</label>
+      <label>MA_Tools</label>
       
       <scriptItem id="my_tools.hello_world">
         <label>Hello</label>
@@ -18,10 +18,10 @@ hou.ui.displayMessage("Hello, Houdini!")
       <separatorItem/>
       
       <scriptItem id="my_tools.run_script">
-        <label>HDR Library</label>
+        <label>MA HDR Asset Library</label>
         <scriptCode><![CDATA[
 
-from MAHX import Panel
+from MA import Panel
 Panel()
 
         ]]></scriptCode>

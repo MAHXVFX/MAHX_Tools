@@ -4,7 +4,7 @@
 # ============================================================
 # common - 公共模块（所有功能共享）
 # ============================================================
-from MAHX.common import (
+from MA.common import (
     HDR_EXTENSIONS, HDR_PARAMETER_NAMES,
     SettingsManager, CacheManager,
     ShelfToolsSettingsManager, ShelfToolsCacheManager,
@@ -22,7 +22,7 @@ from MAHX.common import (
 # ============================================================
 # hdr_library - HDR 材质库面板
 # ============================================================
-from MAHX.hdr_library import HDRLibraryPanel, Panel
+from MA.hdr_library import HDRLibraryPanel, Panel
 
 # HDRLibraryPanel - HDR 面板主类
 # Panel           - 打开 HDR 面板的入口函数

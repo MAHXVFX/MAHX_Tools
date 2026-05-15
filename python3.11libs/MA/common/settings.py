@@ -5,7 +5,7 @@ import logging
 
 from .constants import HDR_SETTINGS_FILE, HDR_CACHE_FILE, SHELFTOOLS_SETTINGS_FILE, SHELFTOOLS_CACHE_FILE
 
-logger = logging.getLogger("MAHX")
+logger = logging.getLogger("MA")
 
 
 class BaseJsonManager:

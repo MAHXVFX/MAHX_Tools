@@ -5,8 +5,8 @@ from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtCore import Qt
 
-from MAHX.common import HDR_EXTENSIONS
-from MAHX.common import find_ffmpeg, _collect_hdr_files
+from MA.common import HDR_EXTENSIONS
+from MA.common import find_ffmpeg, _collect_hdr_files
 
 
 SHARED_PLACEHOLDER_FILENAME = "_placeholder_gray.jpg"

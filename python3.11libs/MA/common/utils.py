@@ -1,11 +1,11 @@
 import os
 import shutil
 
-from .constants import _MAHX_TOOLS_DIR, HDR_EXTENSIONS
+from .constants import _MA_TOOLS_DIR, HDR_EXTENSIONS
 
 
 def find_ffmpeg():
-    bundled_ffmpeg = os.path.join(_MAHX_TOOLS_DIR, 'ffmpeg.exe')
+    bundled_ffmpeg = os.path.join(_MA_TOOLS_DIR, 'ffmpeg.exe')
     if os.path.exists(bundled_ffmpeg):
         return bundled_ffmpeg
     hfs = os.environ.get('HFS', '')

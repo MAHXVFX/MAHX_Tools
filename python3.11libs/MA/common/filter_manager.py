@@ -3,7 +3,7 @@ import logging
 
 from .constants import MAX_RECENT_HDRS, FAVORITE_NOT_FOUND, HDR_EXTENSIONS
 
-logger = logging.getLogger("MAHX")
+logger = logging.getLogger("MA")
 
 
 class FilterManager:

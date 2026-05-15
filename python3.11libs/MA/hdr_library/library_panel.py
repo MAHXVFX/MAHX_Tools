@@ -6,13 +6,13 @@ from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 from PySide6.QtGui import QCursor
 
-from MAHX.common import HDR_EXTENSIONS, HDR_PARAMETER_NAMES
-from MAHX.common import SettingsManager, CacheManager, _collect_hdr_files
-from MAHX.common.constants import (
+from MA.common import HDR_EXTENSIONS, HDR_PARAMETER_NAMES
+from MA.common import SettingsManager, CacheManager, _collect_hdr_files
+from MA.common.constants import (
     LAYOUT_MARGIN, RESIZE_DELAY_MS, DEFAULT_THUMBNAIL_SIZE,
     DEFAULT_THUMBNAIL_IMAGE_SIZE, THUMBNAIL_GRID_SPACING,
 )
-from MAHX.common.styles import (
+from MA.common.styles import (
     STYLE_SHEET, SETTINGS_BUTTON_STYLE, THUMB_SLIDER_STYLE,
     THUMB_SIZE_LABEL_STYLE, BROWSE_BUTTON_STYLE, ACTION_BUTTON_STYLE,
     COMBO_BOX_STYLE, FILTER_LABEL_STYLE, THUMB_SIZE_TITLE_STYLE,
@@ -21,14 +21,14 @@ from MAHX.common.styles import (
     STATUS_SUCCESS, STATUS_WARNING, TEXT_STATUS, ACCENT_BLUE, ACCENT_BLUE_LIGHT,
     BTN_PADDING, BTN_BORDER_RADIUS,
 )
-from MAHX.common.filter_manager import FilterManager
-from MAHX.common.animation_helper import (
+from MA.common.filter_manager import FilterManager
+from MA.common.animation_helper import (
     elastic_resize, animate_button_width, pulse_button,
 )
 from .thumbnail_manager import ThumbnailManager
 from .thumbnail_worker import ThumbnailWorker
 
-logger = logging.getLogger("MAHX")
+logger = logging.getLogger("MA")
 
 try:
     import hou
@@ -211,7 +211,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.status_label = QtWidgets.QLabel("No HDR files loaded")
         self.status_label.setStyleSheet(f"color: {TEXT_STATUS}; {STATUS_STYLE}")
         self.status_label.setFixedHeight(20)
-        self.version_label = QtWidgets.QLabel("MAHX Tools 1.0.0")
+        self.version_label = QtWidgets.QLabel("MA Tools 1.0.0")
         self.version_label.setStyleSheet(VERSION_STYLE)
         layout.addWidget(self.status_label, 1)
         layout.addWidget(self.version_label)

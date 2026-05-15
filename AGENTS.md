@@ -10,21 +10,21 @@ Houdini PySide6 工具包，主要功能：
 
 | 面板 | 打开方式 |
 |---|---|
-| HDR 环境光库 | 菜单栏 `MainMenuCommon.xml` → `MAHX.Panel()`；内嵌面板 `MAHDR.pypanel` |
+| HDR 环境光库 | 菜单栏 `MainMenuCommon.xml` → `MA.Panel()`；内嵌面板 `MAHDR.pypanel` |
 | MA ShelfTools Pro | 内嵌面板 `MAShelfToolPro.pypanel`（Pane Tab 菜单 → MA ShelfTools Pro） |
 
 ## 架构
 
 ```
-MAHX_Tools/
-├── MainMenuCommon.xml             # 菜单栏入口（HDR Library 菜单项）
+MA_Tools/
+├── MainMenuCommon.xml             # 菜单栏入口（MA HDR Asset Library 菜单项）
 ├── toolbar/
 │   ├── mahx.shelf                 # 工具架定义文件
 │   └── Houdini_Shelf_Tool_Trigger_Guide.md
 ├── python_panels/
 │   ├── MAHDR.pypanel              # HDR 环境光库面板
 │   └── MAShelfToolPro.pypanel     # 工具架缩略图面板
-└── python3.11libs/MAHX/
+└── python3.11libs/MA/
     ├── __init__.py                # 导出所有公共接口
     ├── common/
     │   ├── __init__.py            # 公共模块导出（SettingsManager, CacheManager 等）
@@ -48,10 +48,10 @@ MAHX_Tools/
 
 | 文件 | 管理类 | 内容 | 保存时机 |
 |---|---|---|---|
-| `MAHX_HDR_Library_Settings.json` | `SettingsManager` | hdr_directory, cache_directory, thumbnail_size, current_filter, recent_hdrs, favorite_hdrs, print_path, hide_gray, window_* | **实时**（改即写） |
-| `MAHX_HDR_Library_Cache.json` | `CacheManager` | thumbnails 路径字典, subfolders, mtime 快照 | **关闭时**（closeEvent） |
-| `MAHX_ShelfTools_Pro_Settings.json` | `ShelfToolsSettingsManager` | thumb_size | **实时**（滑块拖动） |
-| `MAHX_ShelfTools_Pro_Cache.json` | `ShelfToolsCacheManager` | 预留（后续缩略图路径缓存） | 预留 |
+| `MA_HDR_Library_Settings.json` | `SettingsManager` | hdr_directory, cache_directory, thumbnail_size, current_filter, recent_hdrs, favorite_hdrs, print_path, hide_gray, window_* | **实时**（改即写） |
+| `MA_HDR_Library_Cache.json` | `CacheManager` | thumbnails 路径字典, subfolders, mtime 快照 | **关闭时**（closeEvent） |
+| `MA_ShelfTools_Pro_Settings.json` | `ShelfToolsSettingsManager` | thumb_size | **实时**（滑块拖动） |
+| `MA_ShelfTools_Pro_Cache.json` | `ShelfToolsCacheManager` | 预留（后续缩略图路径缓存） | 预留 |
 
 ### 类层次
 
