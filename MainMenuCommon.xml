@@ -4,7 +4,7 @@
     <subMenu id="my_tools_menu">
       <!-- 建议将 insertBefore 放在 label 之前 -->
       <insertBefore>help_menu</insertBefore>
-      <label>MA_Tools</label>
+      <label>MATools</label>
       
       <scriptItem id="my_tools.hello_world">
         <label>Hello</label>

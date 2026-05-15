@@ -16,7 +16,7 @@ Houdini PySide6 工具包，主要功能：
 ## 架构
 
 ```
-MA_Tools/
+MATools/
 ├── MainMenuCommon.xml             # 菜单栏入口（MA HDR Asset Library 菜单项）
 ├── toolbar/
 │   ├── mahx.shelf                 # 工具架定义文件
