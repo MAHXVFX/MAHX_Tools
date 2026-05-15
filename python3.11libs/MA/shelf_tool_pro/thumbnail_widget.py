@@ -100,7 +100,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
             self.image_label.pixmap().scaled(64, 64, QtCore.Qt.KeepAspectRatio,
                                              QtCore.Qt.SmoothTransformation)
         )
-        drag.exec_(QtCore.Qt.CopyAction)
+        drag.exec(QtCore.Qt.CopyAction)
         drop_at_cursor(self._unique_id)
 
     def mouseReleaseEvent(self, event):
@@ -120,7 +120,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         set_image_action = menu.addAction("Set Image")
         rename_action.triggered.connect(self._on_rename)
         set_image_action.triggered.connect(self._on_set_image)
-        menu.exec_(event.globalPos())
+        menu.exec(event.globalPos())
 
     def _on_rename(self):
         """弹出改名对话框。"""
@@ -160,16 +160,28 @@ class ThumbnailWidget(QtWidgets.QWidget):
             return
 
         self._stop_gif_animation()
+        # 清理旧 QMovie 对象
+        if self._movie:
+            self._movie.deleteLater()
+            self._movie = None
 
         if self._is_gif:
             self._movie = QtGui.QMovie(self._custom_image_path)
             self._movie.setCacheMode(QtGui.QMovie.CacheAll)
             self._movie.jumpToFrame(0)
-            src_pixmap = self._movie.currentPixmap()
+            self._movie.frameChanged.connect(self._on_gif_frame_changed)
+            self._on_gif_frame_changed()
         else:
             src_pixmap = QtGui.QPixmap(self._custom_image_path)
+            self._render_to_label(src_pixmap)
 
-        self._render_to_label(src_pixmap)
+    def _on_gif_frame_changed(self):
+        """GIF 帧变化时更新显示。"""
+        if not self._movie:
+            return
+        pixmap = self._movie.currentPixmap()
+        if not pixmap.isNull():
+            self._render_to_label(pixmap)
 
     def _render_to_label(self, src_pixmap):
         """将源图片缩放、居中、圆角化后显示在 image_label 上。"""
@@ -220,7 +232,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
     def enterEvent(self, event):
         """鼠标进入：如果是 GIF，启动 500ms 延迟定时器。"""
         super().enterEvent(event)
-        if self._is_gif and self._movie and self._custom_image_path:
+        if self._is_gif and self._movie:
             self._gif_timer_id = self.startTimer(500)
 
     def leaveEvent(self, event):
@@ -241,16 +253,14 @@ class ThumbnailWidget(QtWidgets.QWidget):
     def _start_gif_animation(self):
         """开始播放 GIF 动画。"""
         if self._movie and self._is_gif:
-            self._movie.setPaused(False)
-            self.image_label.setMovie(self._movie)
-            if not self._movie.isPlaying():
+            if self._movie.state() == QtGui.QMovie.NotRunning:
                 self._movie.start()
+            elif self._movie.paused():
+                self._movie.setPaused(False)
 
     def _stop_gif_animation(self):
         """停止 GIF 动画，恢复显示第一帧。"""
         if self._movie:
             self._movie.stop()
-            self.image_label.setMovie(None)
-            if self._custom_image_path and self._is_gif and os.path.exists(self._custom_image_path):
-                self._movie.jumpToFrame(0)
-                self._render_to_label(self._movie.currentPixmap())
+            self._movie.jumpToFrame(0)
+            self._on_gif_frame_changed()
