@@ -9,10 +9,9 @@ from PySide6 import QtWidgets, QtGui, QtCore
 from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
 from MA.shelf_tool_pro.shelf_loader import execute_tool, drop_at_cursor
 from MA.shelf_tool_pro.styles import TEXT_SECONDARY, CONTEXT_MENU_STYLE
-from MA.shelf_tool_pro.markdown_renderer import render_markdown
+from MA.shelf_tool_pro.web_renderer import WebRenderer
 
 logger = logging.getLogger("MA")
-
 
 class ThumbnailWidget(QtWidgets.QWidget):
     """单个工具的缩略图控件，支持点击执行、拖拽放置、右键菜单。"""
@@ -20,6 +19,9 @@ class ThumbnailWidget(QtWidgets.QWidget):
     # ── 常量 ──────────────────────────────────
     _HORIZONTAL_GAP = 10    # 面板与缩略图水平间距
     _BOTTOM_MARGIN = 20     # 面板与屏幕底部间距
+    _NOTES_PANEL_WIDTH = 450
+    _NOTES_PANEL_HEIGHT = 600
+    _NOTES_HIDE_DELAY = 100  # 鼠标离开备注面板后的延迟隐藏时间（ms）
 
     def __init__(self, unique_id, display_name, size, parent=None, custom_name=None, custom_image_info=None):
         super().__init__(parent)
@@ -33,6 +35,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._custom_image_path = None
         self._is_gif = False
         self._notes_panel = None
+        self._web_renderer = None
         self._mouse_in_notes = False
 
         layout = QtWidgets.QVBoxLayout(self)
@@ -215,6 +218,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         
         # 左侧：编辑器（局部变量，避免实例引用泄漏）
         text_edit = QtWidgets.QTextEdit()
+        text_edit.setAcceptRichText(False)  # 粘贴为纯文本
         text_edit.setPlainText(current_note)
         text_edit.setStyleSheet(
             "QTextEdit { "
@@ -230,24 +234,18 @@ class ThumbnailWidget(QtWidgets.QWidget):
         splitter.addWidget(text_edit)
         
         # 右侧：实时预览（局部变量）
-        preview_browser = QtWidgets.QTextBrowser()
-        preview_browser.setReadOnly(True)
-        preview_browser.setOpenExternalLinks(False)
+        preview_renderer = WebRenderer()
+        preview_browser = preview_renderer.get_widget()
         preview_browser.setStyleSheet(
-            "QTextBrowser { "
+            "QWebEngineView { "
             "  background-color: #1e1e1e; "
-            "  color: #ffffff; "
             "  border: 1px solid #3d3d3d; "
             "  border-radius: 4px; "
-            "  padding: 8px; "
-            "  font-size: 13px; "
             "}"
         )
-        splitter.addWidget(preview_browser)
-        
         # 初始预览
-        html = render_markdown(current_note)
-        preview_browser.setHtml(html)
+        preview_renderer.render(current_note)
+        splitter.addWidget(preview_browser)
         
         # 设置分割比例（50:50）
         splitter.setSizes([450, 450])
@@ -263,7 +261,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         
         def _update_preview():
             markdown_text = text_edit.toPlainText()
-            preview_browser.setHtml(render_markdown(markdown_text))
+            preview_renderer.render(markdown_text)
         
         preview_timer.timeout.connect(_update_preview)
         text_edit.textChanged.connect(_on_text_changed)
@@ -338,25 +336,19 @@ class ThumbnailWidget(QtWidgets.QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(4)
         
-        # 备注显示区（只读，渲染 markdown）
-        notes_display = QtWidgets.QTextBrowser()
-        notes_display.setReadOnly(True)
-        notes_display.setOpenExternalLinks(False)
-        
-        # 渲染 markdown 并注入样式
-        html = render_markdown(current_note)
-        notes_display.setHtml(html)
-        
+        # 备注显示区（只读）
+        notes_renderer = WebRenderer()
+        notes_window._notes_renderer = notes_renderer  # 绑定到窗口防止 GC
+        notes_display = notes_renderer.get_widget()
         notes_display.setStyleSheet(
-            "QTextBrowser { "
+            "QWebEngineView { "
             "  background-color: #1e1e1e; "
-            "  color: #ffffff; "
             "  border: none; "
-            "  padding: 8px; "
-            "  font-size: 13px; "
             "}"
         )
         layout.addWidget(notes_display)
+        # 渲染 markdown
+        notes_renderer.render(current_note)
         
         # 定位：约束在屏幕可用区域内
         pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
@@ -500,43 +492,28 @@ class ThumbnailWidget(QtWidgets.QWidget):
 
     def _init_notes_panel(self):
         """初始化备注面板。"""
-        self._notes_panel = QtWidgets.QTextBrowser(None)  # 无父控件，作为独立窗口
-        self._notes_panel.setReadOnly(True)
+        self._web_renderer = WebRenderer()
+        self._notes_panel = self._web_renderer.get_widget()
         self._notes_panel.setWindowFlags(
             QtCore.Qt.WindowType.Tool | QtCore.Qt.WindowType.FramelessWindowHint
         )
         self._notes_panel.setAttribute(QtCore.Qt.WA_TranslucentBackground, False)
-        self._notes_panel.setStyleSheet(
-            "QTextBrowser { "
-            "  background-color: #2d2d2d; "
-            "  color: #ffffff; "
-            "  border: 1px solid #3d3d3d; "
-            "  border-radius: 4px; "
-            "  padding: 4px; "
-            "}"
-        )
-        self._notes_panel.setMaximumHeight(600)
-        self._notes_panel.setOpenExternalLinks(False)
+        self._notes_panel.resize(self._NOTES_PANEL_WIDTH, self._NOTES_PANEL_HEIGHT)
         self._notes_panel.setVisible(False)
-        
+
         # 安装事件过滤器以检测鼠标进入/离开备注面板
         self._notes_panel.installEventFilter(self)
 
     def _show_notes_panel(self):
         """显示备注面板（如有备注内容）。"""
-        if not self._notes_panel:
-            logger.warning("_show_notes_panel: _notes_panel is None")
-            return
         note_text = ShelfToolsCacheManager.get_note(self._unique_id)
         logger.debug("_show_notes_panel: unique_id=%s, note_text=%r", self._unique_id, note_text)
         if not note_text or not note_text.strip():
             logger.debug("_show_notes_panel: no note text, skipping")
             return
-        html = render_markdown(note_text)
-        self._notes_panel.setHtml(html)
-        
-        self._notes_panel.resize(450, 600)
-        
+
+        self._web_renderer.render(note_text)
+
         # 智能定位：优先上方显示，若超出屏幕则改为下方显示
         panel_height = self._notes_panel.height()
         panel_width = self._notes_panel.width()
@@ -579,5 +556,5 @@ class ThumbnailWidget(QtWidgets.QWidget):
             elif event.type() == QtCore.QEvent.Type.Leave:
                 self._mouse_in_notes = False
                 # 鼠标离开备注面板，立即隐藏
-                QtCore.QTimer.singleShot(100, self._hide_notes_panel)
+                QtCore.QTimer.singleShot(self._NOTES_HIDE_DELAY, self._hide_notes_panel)
         return super().eventFilter(obj, event)

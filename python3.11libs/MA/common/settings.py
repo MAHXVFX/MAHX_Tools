@@ -3,7 +3,7 @@ import json
 import copy
 import logging
 
-from .constants import HDR_SETTINGS_FILE, HDR_CACHE_FILE, SHELFTOOLS_SETTINGS_FILE, SHELFTOOLS_CACHE_FILE, DEFAULT_SHELFTOOLS_THUMBNAIL_DIR
+from .constants import HDR_SETTINGS_FILE, HDR_CACHE_FILE, SHELFTOOLS_SETTINGS_FILE, SHELFTOOLS_CACHE_FILE, SHELFTOOLS_NOTES_DIR, DEFAULT_SHELFTOOLS_THUMBNAIL_DIR
 
 logger = logging.getLogger("MA")
 
@@ -116,13 +116,16 @@ class ShelfToolsCacheManager(BaseJsonManager):
     @classmethod
     def get_note(cls, tool_name):
         """获取工具的备注内容，未设置时返回 None。"""
-        data = cls.load()
-        return data.get("notes", {}).get(tool_name)
+        note_path = os.path.join(SHELFTOOLS_NOTES_DIR, f"{tool_name}.md")
+        if not os.path.exists(note_path):
+            return None
+        with open(note_path, "r", encoding="utf-8") as f:
+            return f.read()
 
     @classmethod
     def set_note(cls, tool_name, note):
-        """设置工具的备注。"""
-        data = cls.load()
-        notes = data.setdefault("notes", {})
-        notes[tool_name] = note
-        cls.save(data)
+        """设置工具的备注，保存为独立 .md 文件。"""
+        os.makedirs(SHELFTOOLS_NOTES_DIR, exist_ok=True)
+        note_path = os.path.join(SHELFTOOLS_NOTES_DIR, f"{tool_name}.md")
+        with open(note_path, "w", encoding="utf-8") as f:
+            f.write(note)

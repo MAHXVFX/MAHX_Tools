@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Markdown Preview</title>
+    <script src="./marked.min.js"></script>
+    <script src="./highlight.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            padding: 12px;
+            overflow-y: auto;
+        }
+
+        /* Headings */
+        h1, h2, h3, h4, h5, h6 {
+            color: #e0e0e0;
+            margin-top: 16px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        h1 { font-size: 1.8em; border-bottom: 1px solid #3d3d3d; padding-bottom: 6px; }
+        h2 { font-size: 1.5em; border-bottom: 1px solid #3d3d3d; padding-bottom: 4px; }
+        h3 { font-size: 1.25em; }
+        h4 { font-size: 1.1em; }
+
+        /* Links */
+        a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* Inline code */
+        code {
+            background-color: #2d2d2d;
+            color: #e06c75;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+            font-size: 0.9em;
+        }
+
+        /* Code blocks - VitePress style */
+        pre {
+            background-color: #2E2E32;
+            border: 1px solid #3d3d3d;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 12px 0;
+            overflow-x: auto;
+            position: relative;
+        }
+
+        pre code {
+            background: none;
+            color: inherit;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.875em;
+            line-height: 1.5;
+        }
+
+        /* Language label */
+        pre::before {
+            content: attr(data-lang);
+            position: absolute;
+            top: 4px;
+            right: 8px;
+            font-size: 0.75em;
+            color: #888;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            text-transform: uppercase;
+            pointer-events: none;
+        }
+
+        /* Blockquotes */
+        blockquote {
+            border-left: 4px solid #58a6ff;
+            padding: 8px 16px;
+            margin: 12px 0;
+            background-color: #252526;
+            border-radius: 0 4px 4px 0;
+            color: #b0b0b0;
+        }
+
+        /* Lists */
+        ul, ol {
+            padding-left: 24px;
+            margin: 8px 0;
+        }
+
+        li {
+            margin: 4px 0;
+        }
+
+        li::marker {
+            color: #888;
+        }
+
+        /* Tables */
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 12px 0;
+        }
+
+        th, td {
+            border: 1px solid #3d3d3d;
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #2d2d2d;
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+
+        tr:nth-child(even) {
+            background-color: #252526;
+        }
+
+        /* Horizontal rule */
+        hr {
+            border: none;
+            border-top: 1px solid #3d3d3d;
+            margin: 16px 0;
+        }
+
+        /* Images */
+        img {
+            max-width: 100%;
+            border-radius: 4px;
+        }
+
+        /* Task lists */
+        input[type="checkbox"] {
+            margin-right: 6px;
+            accent-color: #58a6ff;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #3d3d3d;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4d4d4d;
+        }
+
+        /* Highlight.js overrides for VitePress-like colors */
+        .hljs {
+            background: transparent !important;
+            padding: 0 !important;
+        }
+
+        .hljs-keyword { color: #c678dd; }
+        .hljs-built_in { color: #e5c07b; }
+        .hljs-type { color: #e5c07b; }
+        .hljs-literal { color: #56b6c2; }
+        .hljs-number { color: #d19a66; }
+        .hljs-string { color: #98c379; }
+        .hljs-comment { color: #7f848e; font-style: italic; }
+        .hljs-doctag { color: #c678dd; }
+        .hljs-function { color: #61afef; }
+        .hljs-title { color: #61afef; }
+        .hljs-params { color: #d4d4d4; }
+        .hljs-meta { color: #c678dd; }
+        .hljs-operator { color: #56b6c2; }
+        .hljs-punctuation { color: #d4d4d4; }
+        .hljs-tag { color: #e06c75; }
+        .hljs-attr { color: #d19a66; }
+        .hljs-attribute { color: #d19a66; }
+        .hljs-selector-class { color: #e5c07b; }
+        .hljs-selector-id { color: #61afef; }
+        .hljs-selector-tag { color: #e06c75; }
+        .hljs-variable { color: #d4d4d4; }
+        .hljs-subst { color: #d4d4d4; }
+        .hljs-section { color: #61afef; }
+        .hljs-bullet { color: #d4d4d4; }
+        .hljs-emphasis { font-style: italic; }
+        .hljs-strong { font-weight: bold; }
+        .hljs-addition { color: #98c379; }
+        .hljs-deletion { color: #e06c75; }
+    </style>
+</head>
+<body>
+    <div id="content"></div>
+
+    <script>
+        // Render markdown text and update the content div
+        window.renderMarkdown = function(text) {
+            // Parse markdown to HTML (marked handles escaping internally)
+            var html = marked.parse(text, {
+                gfm: true,
+                breaks: false
+            });
+
+            // Update content
+            document.getElementById('content').innerHTML = html;
+
+            // Apply syntax highlighting to all code blocks
+            // First, extract language from class and set data-lang attribute
+            var codeBlocks = document.querySelectorAll('pre code');
+            for (var i = 0; i < codeBlocks.length; i++) {
+                var codeEl = codeBlocks[i];
+                var preEl = codeEl.parentElement;
+                var lang = '';
+
+                // Extract language from class (e.g., "language-python" -> "python")
+                var classes = codeEl.className.split(' ');
+                for (var j = 0; j < classes.length; j++) {
+                    if (classes[j].startsWith('language-')) {
+                        lang = classes[j].substring(9);
+                        break;
+                    }
+                }
+
+                // Set data-lang attribute for the CSS ::before pseudo-element
+                if (lang) {
+                    preEl.setAttribute('data-lang', lang);
+                }
+
+                // Highlight the code block
+                hljs.highlightElement(codeEl);
+            }
+        };
+    </script>
+</body>
+</html>

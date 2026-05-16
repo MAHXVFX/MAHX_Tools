@@ -6,6 +6,7 @@ HDR_SETTINGS_FILE = os.path.join(_MA_TOOLS_DIR, "MA_HDR_Library_Settings.json")
 HDR_CACHE_FILE = os.path.join(_MA_TOOLS_DIR, "MA_HDR_Library_Cache.json")
 SHELFTOOLS_SETTINGS_FILE = os.path.join(_MA_TOOLS_DIR, "MA_ShelfTools_Pro_Settings.json")
 SHELFTOOLS_CACHE_FILE = os.path.join(_MA_TOOLS_DIR, "MA_ShelfTools_Pro_Cache.json")
+SHELFTOOLS_NOTES_DIR = os.path.join(_MA_TOOLS_DIR, "MA_ShelfTools_Pro_Notes")
 DEFAULT_SHELFTOOLS_THUMBNAIL_DIR = os.path.join(_MA_TOOLS_DIR, "custom_shelf_thumbnails")
 
 HDR_EXTENSIONS = ['.hdr', '.exr', '.hdri', '.tif', '.tiff', '.png', '.jpg', '.jpeg', '.tga', '.bmp']

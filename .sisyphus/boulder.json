@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "active_work_id": "markdown-vendoring-6dfe770b",
+  "active_work_id": "markdown-rendering-upgrade-5b4a6b3d",
   "works": {
     "shelftoolpro-context-menu-ee52f174": {
       "work_id": "shelftoolpro-context-menu-ee52f174",
@@ -280,73 +280,291 @@
       },
       "ended_at": "2026-05-16T12:32:13.555Z",
       "elapsed_ms": 1657706
+    },
+    "markdown-rendering-upgrade-5b4a6b3d": {
+      "work_id": "markdown-rendering-upgrade-5b4a6b3d",
+      "active_plan": "D:\\Users\\pc\\Documents\\houdini21.0\\MAHX_Tools\\.sisyphus\\plans\\markdown-rendering-upgrade.md",
+      "plan_name": "markdown-rendering-upgrade",
+      "status": "completed",
+      "started_at": "2026-05-16T14:49:36.500Z",
+      "updated_at": "2026-05-16T15:52:09.829Z",
+      "session_ids": [
+        "ses_1cf1aca36ffeqWOMxvMAMW7lxw",
+        "ses_1ce9abbf9ffeoYkLmLp1KW9Ikw",
+        "ses_1ce9a4912ffeojCe32FFem684O",
+        "ses_1ce9a0072ffeag6Hser1Wo26eT",
+        "ses_1ce999900ffezKqmfrzZUoHbFs"
+      ],
+      "session_origins": {
+        "ses_1cf1aca36ffeqWOMxvMAMW7lxw": "direct",
+        "ses_1ce9abbf9ffeoYkLmLp1KW9Ikw": "appended",
+        "ses_1ce9a4912ffeojCe32FFem684O": "appended",
+        "ses_1ce9a0072ffeag6Hser1Wo26eT": "appended",
+        "ses_1ce999900ffezKqmfrzZUoHbFs": "appended"
+      },
+      "agent": "atlas",
+      "task_sessions": {
+        "todo:1": {
+          "task_key": "todo:1",
+          "task_label": "1",
+          "task_title": "Download and vendor frontend libraries",
+          "session_id": "ses_1cebac587ffewRM3viK7PGb753",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-05-16T15:02:39.420Z",
+          "started_at": "2026-05-16T15:01:49.648Z",
+          "status": "completed",
+          "ended_at": "2026-05-16T15:02:39.420Z",
+          "elapsed_ms": 49772
+        },
+        "todo:2": {
+          "task_key": "todo:2",
+          "task_label": "2",
+          "task_title": "Create HTML template with VitePress-style CSS",
+          "session_id": "ses_1ceb01d8bffe1MfUW4y69s0QL5",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-05-16T15:07:43.551Z",
+          "started_at": "2026-05-16T15:04:50.890Z",
+          "status": "completed",
+          "ended_at": "2026-05-16T15:07:43.551Z",
+          "elapsed_ms": 172661
+        },
+        "todo:3": {
+          "task_key": "todo:3",
+          "task_label": "3",
+          "task_title": "Create web_renderer.py module",
+          "session_id": "ses_1ceab5cf1ffeayXYqhGH0CcuOr",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-16T15:10:00.230Z",
+          "started_at": "2026-05-16T15:09:45.061Z",
+          "status": "completed",
+          "ended_at": "2026-05-16T15:10:00.230Z",
+          "elapsed_ms": 15169
+        },
+        "todo:4": {
+          "task_key": "todo:4",
+          "task_label": "4",
+          "task_title": "Replace hover preview panel (QTextBrowser → QWebEngineView)",
+          "session_id": "ses_1cea935d8ffeV61L4K2Po0Jypt",
+          "agent": "Sisyphus-Junior",
+          "category": "deep",
+          "updated_at": "2026-05-16T15:13:40.076Z",
+          "started_at": "2026-05-16T15:12:59.597Z",
+          "status": "completed",
+          "ended_at": "2026-05-16T15:13:40.076Z",
+          "elapsed_ms": 40479
+        },
+        "todo:5": {
+          "task_key": "todo:5",
+          "task_label": "5",
+          "task_title": "Replace edit dialog preview pane",
+          "session_id": "ses_1cea5ff97ffeZdBtiiTze1WJbk",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-16T15:15:53.578Z",
+          "started_at": "2026-05-16T15:15:33.456Z",
+          "status": "completed",
+          "ended_at": "2026-05-16T15:15:53.578Z",
+          "elapsed_ms": 20122
+        },
+        "todo:6": {
+          "task_key": "todo:6",
+          "task_label": "6",
+          "task_title": "Replace middle-click notes window",
+          "session_id": "ses_1cea402c4ffeuoNUHJNd2XYndq",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-16T15:18:30.641Z",
+          "started_at": "2026-05-16T15:18:08.143Z",
+          "status": "completed",
+          "ended_at": "2026-05-16T15:18:30.641Z",
+          "elapsed_ms": 22498
+        },
+        "todo:7": {
+          "task_key": "todo:7",
+          "task_label": "7",
+          "task_title": "Add QWebEngineView availability check + fallback",
+          "session_id": "ses_1cea17bbbffemiNmyKYxlseD0s",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-05-16T15:24:01.811Z",
+          "started_at": "2026-05-16T15:22:55.115Z",
+          "status": "completed",
+          "ended_at": "2026-05-16T15:24:01.811Z",
+          "elapsed_ms": 66696
+        },
+        "todo:8": {
+          "task_key": "todo:8",
+          "task_label": "8",
+          "task_title": "Final integration test + cleanup",
+          "session_id": "ses_1ce9c8f8affeFG3qxkWENlhq09",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-05-16T15:26:00.655Z",
+          "started_at": "2026-05-16T15:25:53.182Z",
+          "status": "completed",
+          "ended_at": "2026-05-16T15:26:00.655Z",
+          "elapsed_ms": 7473
+        },
+        "final-wave:f1": {
+          "task_key": "final-wave:f1",
+          "task_label": "F1",
+          "task_title": "**Plan Compliance Audit** — `oracle`",
+          "session_id": "ses_1ce89b7a2ffe11gLDocIGGQC0n",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-16T15:50:02.675Z",
+          "started_at": "2026-05-16T15:47:03.759Z",
+          "status": "completed",
+          "ended_at": "2026-05-16T15:50:02.675Z",
+          "elapsed_ms": 178916
+        }
+      },
+      "ended_at": "2026-05-16T15:52:09.829Z",
+      "elapsed_ms": 3753329
     }
   },
-  "active_plan": "D:\\Users\\pc\\Documents\\houdini21.0\\MAHX_Tools\\.sisyphus\\plans\\markdown-vendoring.md",
-  "started_at": "2026-05-16T12:04:35.849Z",
+  "active_plan": "D:\\Users\\pc\\Documents\\houdini21.0\\MAHX_Tools\\.sisyphus\\plans\\markdown-rendering-upgrade.md",
+  "started_at": "2026-05-16T14:49:36.500Z",
   "status": "completed",
-  "updated_at": "2026-05-16T12:32:13.555Z",
+  "updated_at": "2026-05-16T15:52:09.829Z",
   "session_ids": [
-    "ses_1d30dc0e4ffegMryeLlmKmuQx4"
+    "ses_1cf1aca36ffeqWOMxvMAMW7lxw",
+    "ses_1ce9abbf9ffeoYkLmLp1KW9Ikw",
+    "ses_1ce9a4912ffeojCe32FFem684O",
+    "ses_1ce9a0072ffeag6Hser1Wo26eT",
+    "ses_1ce999900ffezKqmfrzZUoHbFs"
   ],
   "session_origins": {
-    "ses_1d30dc0e4ffegMryeLlmKmuQx4": "direct"
+    "ses_1cf1aca36ffeqWOMxvMAMW7lxw": "direct",
+    "ses_1ce9abbf9ffeoYkLmLp1KW9Ikw": "appended",
+    "ses_1ce9a4912ffeojCe32FFem684O": "appended",
+    "ses_1ce9a0072ffeag6Hser1Wo26eT": "appended",
+    "ses_1ce999900ffezKqmfrzZUoHbFs": "appended"
   },
-  "plan_name": "markdown-vendoring",
+  "plan_name": "markdown-rendering-upgrade",
   "task_sessions": {
     "todo:1": {
       "task_key": "todo:1",
       "task_label": "1",
-      "task_title": "Vendoring `python-markdown` 库",
-      "session_id": "ses_1cf502388ffeitompj8HaCb26r",
+      "task_title": "Download and vendor frontend libraries",
+      "session_id": "ses_1cebac587ffewRM3viK7PGb753",
       "agent": "Sisyphus-Junior",
       "category": "quick",
-      "started_at": "2026-05-16T12:07:18.462Z",
+      "updated_at": "2026-05-16T15:02:39.420Z",
+      "started_at": "2026-05-16T15:01:49.648Z",
       "status": "completed",
-      "updated_at": "2026-05-16T12:11:31.522Z",
-      "ended_at": "2026-05-16T12:11:31.522Z",
-      "elapsed_ms": 253060
+      "ended_at": "2026-05-16T15:02:39.420Z",
+      "elapsed_ms": 49772
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Create HTML template with VitePress-style CSS",
+      "session_id": "ses_1ceb01d8bffe1MfUW4y69s0QL5",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-16T15:07:43.551Z",
+      "started_at": "2026-05-16T15:04:50.890Z",
+      "status": "completed",
+      "ended_at": "2026-05-16T15:07:43.551Z",
+      "elapsed_ms": 172661
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Create web_renderer.py module",
+      "session_id": "ses_1ceab5cf1ffeayXYqhGH0CcuOr",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-16T15:10:00.230Z",
+      "started_at": "2026-05-16T15:09:45.061Z",
+      "status": "completed",
+      "ended_at": "2026-05-16T15:10:00.230Z",
+      "elapsed_ms": 15169
     },
     "todo:4": {
       "task_key": "todo:4",
       "task_label": "4",
-      "task_title": "创建 `markdown_renderer.py` 渲染器模块",
-      "session_id": "ses_1cf4acb0bffekUQWNw6GNGbrtw",
+      "task_title": "Replace hover preview panel (QTextBrowser → QWebEngineView)",
+      "session_id": "ses_1cea935d8ffeV61L4K2Po0Jypt",
       "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "updated_at": "2026-05-16T12:17:19.294Z",
-      "started_at": "2026-05-16T12:16:27.933Z",
+      "category": "deep",
+      "updated_at": "2026-05-16T15:13:40.076Z",
+      "started_at": "2026-05-16T15:12:59.597Z",
       "status": "completed",
-      "ended_at": "2026-05-16T12:17:19.294Z",
-      "elapsed_ms": 51361
+      "ended_at": "2026-05-16T15:13:40.076Z",
+      "elapsed_ms": 40479
     },
     "todo:5": {
       "task_key": "todo:5",
       "task_label": "5",
-      "task_title": "重构 `_apply_styles_to_document` 适配新 HTML",
-      "session_id": "ses_1cf46f771ffeOidUVEcSwpnrQQ",
+      "task_title": "Replace edit dialog preview pane",
+      "session_id": "ses_1cea5ff97ffeZdBtiiTze1WJbk",
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
-      "updated_at": "2026-05-16T12:21:42.766Z",
-      "started_at": "2026-05-16T12:21:21.089Z",
+      "updated_at": "2026-05-16T15:15:53.578Z",
+      "started_at": "2026-05-16T15:15:33.456Z",
       "status": "completed",
-      "ended_at": "2026-05-16T12:21:42.766Z",
-      "elapsed_ms": 21677
+      "ended_at": "2026-05-16T15:15:53.578Z",
+      "elapsed_ms": 20122
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Replace middle-click notes window",
+      "session_id": "ses_1cea402c4ffeuoNUHJNd2XYndq",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-16T15:18:30.641Z",
+      "started_at": "2026-05-16T15:18:08.143Z",
+      "status": "completed",
+      "ended_at": "2026-05-16T15:18:30.641Z",
+      "elapsed_ms": 22498
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "Add QWebEngineView availability check + fallback",
+      "session_id": "ses_1cea17bbbffemiNmyKYxlseD0s",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-16T15:24:01.811Z",
+      "started_at": "2026-05-16T15:22:55.115Z",
+      "status": "completed",
+      "ended_at": "2026-05-16T15:24:01.811Z",
+      "elapsed_ms": 66696
+    },
+    "todo:8": {
+      "task_key": "todo:8",
+      "task_label": "8",
+      "task_title": "Final integration test + cleanup",
+      "session_id": "ses_1ce9c8f8affeFG3qxkWENlhq09",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-16T15:26:00.655Z",
+      "started_at": "2026-05-16T15:25:53.182Z",
+      "status": "completed",
+      "ended_at": "2026-05-16T15:26:00.655Z",
+      "elapsed_ms": 7473
     },
     "final-wave:f1": {
       "task_key": "final-wave:f1",
       "task_label": "F1",
       "task_title": "**Plan Compliance Audit** — `oracle`",
-      "session_id": "ses_1cf414c9efferg34AKfzUmI9eP",
-      "agent": "oracle",
-      "updated_at": "2026-05-16T12:31:15.293Z",
-      "started_at": "2026-05-16T12:25:23.378Z",
+      "session_id": "ses_1ce89b7a2ffe11gLDocIGGQC0n",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-16T15:50:02.675Z",
+      "started_at": "2026-05-16T15:47:03.759Z",
       "status": "completed",
-      "ended_at": "2026-05-16T12:31:15.293Z",
-      "elapsed_ms": 351915
+      "ended_at": "2026-05-16T15:50:02.675Z",
+      "elapsed_ms": 178916
     }
   },
   "agent": "atlas",
-  "ended_at": "2026-05-16T12:32:13.555Z",
-  "elapsed_ms": 1657706
+  "ended_at": "2026-05-16T15:52:09.829Z",
+  "elapsed_ms": 3753329
 }
