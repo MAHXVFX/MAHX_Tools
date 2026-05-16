@@ -515,7 +515,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
             "  padding: 4px; "
             "}"
         )
-        self._notes_panel.setMaximumHeight(200)
+        self._notes_panel.setMaximumHeight(600)
         self._notes_panel.setOpenExternalLinks(False)
         self._notes_panel.setVisible(False)
         
@@ -535,28 +535,20 @@ class ThumbnailWidget(QtWidgets.QWidget):
         html = render_markdown(note_text)
         self._notes_panel.setHtml(html)
         
-        self._notes_panel.adjustSize()
-        # 限制最大宽度为缩略图宽度
-        max_width = max(self.width(), 200)
-        self._notes_panel.setMaximumWidth(max_width)
-        self._notes_panel.adjustSize()
+        self._notes_panel.resize(450, 600)
         
         # 智能定位：优先上方显示，若超出屏幕则改为下方显示
         panel_height = self._notes_panel.height()
         panel_width = self._notes_panel.width()
         pos_above = self.mapToGlobal(QtCore.QPoint(0, -panel_height))
         
-        # 获取屏幕几何信息
         available = self._get_available_geometry()
         
-        # 检查是否超出屏幕上边缘
         if pos_above.y() < available.y():
-            # 改为下方显示
             pos = self.mapToGlobal(QtCore.QPoint(0, self.height()))
         else:
             pos = pos_above
         
-        # 水平边界检查
         if pos.x() + panel_width > available.right():
             pos.setX(available.right() - panel_width)
         if pos.x() < available.left():
@@ -566,7 +558,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         logger.debug("_show_notes_panel: showing at %s, size=%s", pos, self._notes_panel.size())
         self._notes_panel.show()
         self._notes_panel.raise_()
-        self._notes_panel.activateWindow()  # 确保面板在最前
+        self._notes_panel.activateWindow()
 
     def _hide_notes_panel(self):
         """隐藏备注面板。"""
