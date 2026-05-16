@@ -10,6 +10,7 @@ from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
 from MA.shelf_tool_pro.shelf_loader import execute_tool, drop_at_cursor
 from MA.shelf_tool_pro.styles import TEXT_SECONDARY, CONTEXT_MENU_STYLE
 from MA.shelf_tool_pro.web_renderer import WebRenderer
+from MA.shelf_tool_pro.markdown_text_edit import MarkdownTextEdit
 
 logger = logging.getLogger("MA")
 
@@ -216,9 +217,8 @@ class ThumbnailWidget(QtWidgets.QWidget):
         # 分屏布局：左侧编辑，右侧预览
         splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
         
-        # 左侧：编辑器（局部变量，避免实例引用泄漏）
-        text_edit = QtWidgets.QTextEdit()
-        text_edit.setAcceptRichText(False)  # 粘贴为纯文本
+        # 左侧：Markdown-aware 编辑器（局部变量，避免实例引用泄漏）
+        text_edit = MarkdownTextEdit()
         text_edit.setPlainText(current_note)
         text_edit.setStyleSheet(
             "QTextEdit { "
@@ -317,12 +317,12 @@ class ThumbnailWidget(QtWidgets.QWidget):
         current_note = ShelfToolsCacheManager.get_note(self._unique_id) or ""
         if not current_note.strip():
             return
-        
+
         # 创建独立窗口（带标题栏）
         notes_window = QtWidgets.QDialog(self)
         notes_window.setWindowTitle(f"Notes - {self.name_label.text()}")
         notes_window.setWindowFlags(
-            QtCore.Qt.WindowType.Dialog 
+            QtCore.Qt.WindowType.Dialog
             | QtCore.Qt.WindowType.WindowCloseButtonHint
             | QtCore.Qt.WindowType.WindowMaximizeButtonHint
             | QtCore.Qt.WindowType.WindowStaysOnTopHint
@@ -330,19 +330,19 @@ class ThumbnailWidget(QtWidgets.QWidget):
         notes_window.setAttribute(QtCore.Qt.WA_ShowWithoutActivating, False)
         notes_window.resize(450, 600)
         notes_window.setStyleSheet("background-color: #1F1F24;")
-        
+
         # 垂直布局
         layout = QtWidgets.QVBoxLayout(notes_window)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(4)
-        
+
         # 备注显示区（只读）
         notes_renderer = WebRenderer()
         notes_window._notes_renderer = notes_renderer  # 绑定到窗口防止 GC
         notes_display = notes_renderer.get_widget()
         notes_display.setStyleSheet(
             "QWebEngineView { "
-            "  background-color: #1e1e1e; "
+            "  background-color: #1F1F24; "
             "  border: none; "
             "}"
         )
@@ -526,10 +526,8 @@ class ThumbnailWidget(QtWidgets.QWidget):
         else:
             pos = pos_above
         
-        if pos.x() + panel_width > available.right():
-            pos.setX(available.right() - panel_width)
-        if pos.x() < available.left():
-            pos.setX(available.left())
+        # 复用 _clamp_to_screen 处理水平约束
+        pos = self._clamp_to_screen(pos, panel_width, panel_height)
         
         self._notes_panel.move(pos)
         logger.debug("_show_notes_panel: showing at %s, size=%s", pos, self._notes_panel.size())

@@ -80,17 +80,27 @@
             line-height: 1.5;
         }
 
-        /* Language label */
-        pre::before {
-            content: attr(data-lang);
+        /* Language label (clickable for copy) */
+        .lang-label {
             position: absolute;
-            top: 4px;
-            right: 8px;
+            top: 8px;
+            right: 12px;
             font-size: 0.75em;
             color: #888;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             text-transform: uppercase;
-            pointer-events: none;
+            cursor: pointer;
+            user-select: none;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: color 0.2s, background-color 0.2s;
+        }
+        .lang-label:hover {
+            color: #d4d4d4;
+            background-color: #3d3d3d;
+        }
+        .lang-label.copied {
+            color: #3fb950;
         }
 
         /* Blockquotes */
@@ -102,6 +112,33 @@
             border-radius: 0 4px 4px 0;
             color: #b0b0b0;
         }
+
+        /* Callout / Admonition Blocks */
+        .callout {
+            padding: 12px 16px;
+            margin: 12px 0;
+            border-radius: 8px;
+            border: 1px solid;
+            white-space: pre-line;
+        }
+        .callout-title {
+            font-weight: 600;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: normal;
+        }
+        .callout-note { border-color: #58a6ff; background-color: #1a2332; }
+        .callout-note .callout-title { color: #58a6ff; }
+        .callout-tip { border-color: #3fb950; background-color: #1a2e1a; }
+        .callout-tip .callout-title { color: #3fb950; }
+        .callout-warning { border-color: #d29922; background-color: #2e251a; }
+        .callout-warning .callout-title { color: #d29922; }
+        .callout-caution { border-color: #f85149; background-color: #2e1a1a; }
+        .callout-caution .callout-title { color: #f85149; }
+        .callout-quote { border-color: #8b949e; background-color: #252526; }
+        .callout-quote .callout-title { color: #8b949e; }
 
         /* Lists */
         ul, ol {
@@ -154,8 +191,14 @@
         }
 
         /* Task lists */
-        input[type="checkbox"] {
+        li:has(input[type="checkbox"]) {
+            list-style: none;
+            padding-left: 0;
+        }
+        li:has(input[type="checkbox"]) input[type="checkbox"] {
+            margin-left: -22px;
             margin-right: 6px;
+            vertical-align: middle;
             accent-color: #58a6ff;
         }
 
@@ -166,7 +209,7 @@
         }
 
         ::-webkit-scrollbar-track {
-            background: #1e1e1e;
+            background: #1F1F24;
         }
 
         ::-webkit-scrollbar-thumb {
@@ -229,30 +272,101 @@
             // Update content
             document.getElementById('content').innerHTML = html;
 
-            // Apply syntax highlighting to all code blocks
-            // First, extract language from class and set data-lang attribute
+            // Apply syntax highlighting and add clickable language labels
             var codeBlocks = document.querySelectorAll('pre code');
             for (var i = 0; i < codeBlocks.length; i++) {
-                var codeEl = codeBlocks[i];
-                var preEl = codeEl.parentElement;
-                var lang = '';
+                (function() {
+                    var codeEl = codeBlocks[i];
+                    var preEl = codeEl.parentElement;
+                    var lang = '';
 
-                // Extract language from class (e.g., "language-python" -> "python")
-                var classes = codeEl.className.split(' ');
-                for (var j = 0; j < classes.length; j++) {
-                    if (classes[j].startsWith('language-')) {
-                        lang = classes[j].substring(9);
-                        break;
+                    // Extract language from class
+                    var classes = codeEl.className.split(' ');
+                    for (var j = 0; j < classes.length; j++) {
+                        if (classes[j].startsWith('language-')) {
+                            lang = classes[j].substring(9);
+                            break;
+                        }
                     }
+
+                    // Add clickable language label for copy
+                    if (lang) {
+                        var label = document.createElement('span');
+                        label.className = 'lang-label';
+                        label.textContent = lang;
+                        label.addEventListener('click', function() {
+                            var code = codeEl.textContent;
+                            // Use execCommand for QWebEngineView compatibility
+                            var ta = document.createElement('textarea');
+                            ta.value = code;
+                            ta.style.position = 'fixed';
+                            ta.style.left = '-9999px';
+                            document.body.appendChild(ta);
+                            ta.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(ta);
+                            
+                            label.textContent = '复制成功';
+                            label.classList.add('copied');
+                            setTimeout(function() {
+                                label.textContent = lang;
+                                label.classList.remove('copied');
+                            }, 2000);
+                        });
+                        preEl.appendChild(label);
+                    }
+
+                    hljs.highlightElement(codeEl);
+                })();
+            }
+
+            // Process callout/admonition blocks
+            var blockquotes = document.querySelectorAll('blockquote');
+            for (var i = blockquotes.length - 1; i >= 0; i--) {
+                var bq = blockquotes[i];
+                var firstP = bq.querySelector('p');
+                if (!firstP) continue;
+
+                var text = firstP.textContent;
+                var match = text.match(/^\[!(note|tip|warning|caution|quote)\]\s*/i);
+                if (!match) continue;
+
+                var type = match[1].toLowerCase();
+                var titles = {
+                    'note': 'Note',
+                    'tip': 'Tip',
+                    'warning': 'Warning',
+                    'caution': 'Caution',
+                    'quote': 'Quote'
+                };
+
+                // Create callout container
+                var callout = document.createElement('div');
+                callout.className = 'callout callout-' + type;
+
+                var titleDiv = document.createElement('div');
+                titleDiv.className = 'callout-title';
+                titleDiv.textContent = titles[type];
+                callout.appendChild(titleDiv);
+
+                // Remove the [!type] prefix from first paragraph
+                var remainingText = text.substring(match[0].length).trim();
+                if (remainingText) {
+                    firstP.textContent = remainingText;
+                    callout.appendChild(firstP);
                 }
 
-                // Set data-lang attribute for the CSS ::before pseudo-element
-                if (lang) {
-                    preEl.setAttribute('data-lang', lang);
+                // Move remaining sibling elements from blockquote to callout
+                var next;
+                var child = firstP.nextSibling;
+                while (child) {
+                    next = child.nextSibling;
+                    callout.appendChild(child);
+                    child = next;
                 }
 
-                // Highlight the code block
-                hljs.highlightElement(codeEl);
+                // Replace blockquote with callout
+                bq.parentNode.replaceChild(callout, bq);
             }
         };
     </script>

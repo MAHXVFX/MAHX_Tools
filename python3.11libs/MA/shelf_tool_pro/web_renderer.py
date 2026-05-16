@@ -30,7 +30,7 @@ class WebRenderer(QObject):
         super().__init__()
         self._view = QWebEngineView()
         self._ready = False
-        self._pending_render: list[str] = []
+        self._pending_render: str | None = None
 
         # Load HTML template
         template_path = os.path.join(os.path.dirname(__file__), "vendor", "template.html")
@@ -49,7 +49,7 @@ class WebRenderer(QObject):
         vendor_dir = os.path.join(os.path.dirname(__file__), "vendor")
         self._view.setHtml(
             self._html_template,
-            baseUrl=QUrl.fromLocalFile(vendor_dir + os.sep),
+            baseUrl=QUrl.fromLocalFile(vendor_dir + "/"),
         )
 
     def render(self, markdown_text: str) -> None:
@@ -65,7 +65,7 @@ class WebRenderer(QObject):
             self._inject_markdown(markdown_text)
         else:
             logger.debug("WebRenderer: page not ready, queuing render")
-            self._pending_render.append(markdown_text)
+            self._pending_render = markdown_text
 
     def get_widget(self) -> QWebEngineView:
         """Return the QWebEngineView instance for embedding in UI."""
@@ -80,10 +80,10 @@ class WebRenderer(QObject):
         if ok:
             logger.debug("WebRenderer: page loaded successfully")
             self._ready = True
-            # Process any queued render calls
-            pending = self._pending_render[:]
-            self._pending_render.clear()
-            for text in pending:
+            # Process the last queued render (earlier ones are obsolete)
+            if self._pending_render is not None:
+                text = self._pending_render
+                self._pending_render = None
                 self._inject_markdown(text)
         else:
             logger.error("WebRenderer: page failed to load")
@@ -105,10 +105,6 @@ class WebRenderer(QObject):
         js_code = f"window.renderMarkdown({js_safe_text});"
 
         try:
-            self._view.page().runJavaScript(js_code, 0, self._on_js_result)
+            self._view.page().runJavaScript(js_code)
         except Exception as e:
             logger.error("WebRenderer: JS injection failed: %s", e)
-
-    def _on_js_result(self, result) -> None:
-        """Callback for runJavaScript execution."""
-        logger.debug("WebRenderer: JS execution result: %s", result)
