@@ -320,7 +320,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         
         # 创建独立窗口（带标题栏）
         notes_window = QtWidgets.QDialog(self)
-        notes_window.setWindowTitle(f"Notes - {self._display_name}")
+        notes_window.setWindowTitle(f"Notes - {self.name_label.text()}")
         notes_window.setWindowFlags(
             QtCore.Qt.WindowType.Dialog 
             | QtCore.Qt.WindowType.WindowCloseButtonHint
@@ -329,7 +329,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         )
         notes_window.setAttribute(QtCore.Qt.WA_ShowWithoutActivating, False)
         notes_window.resize(450, 600)
-        notes_window.setStyleSheet("background-color: #1e1e1e;")
+        notes_window.setStyleSheet("background-color: #1F1F24;")
         
         # 垂直布局
         layout = QtWidgets.QVBoxLayout(notes_window)
