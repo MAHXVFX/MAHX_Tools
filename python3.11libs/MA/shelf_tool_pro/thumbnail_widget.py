@@ -9,6 +9,7 @@ from PySide6 import QtWidgets, QtGui, QtCore
 from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
 from MA.shelf_tool_pro.shelf_loader import execute_tool, drop_at_cursor
 from MA.shelf_tool_pro.styles import TEXT_SECONDARY, CONTEXT_MENU_STYLE
+from MA.shelf_tool_pro.markdown_renderer import render_markdown
 
 logger = logging.getLogger("MA")
 
@@ -19,8 +20,6 @@ class ThumbnailWidget(QtWidgets.QWidget):
     # ── 常量 ──────────────────────────────────
     _HORIZONTAL_GAP = 10    # 面板与缩略图水平间距
     _BOTTOM_MARGIN = 20     # 面板与屏幕底部间距
-    _NOTES_EDIT_SIZE = (500, 700)   # 编辑备注窗口大小
-    _NOTES_VIEW_SIZE = (450, 600)   # 查看备注窗口大小
 
     def __init__(self, unique_id, display_name, size, parent=None, custom_name=None, custom_image_info=None):
         super().__init__(parent)
@@ -87,9 +86,13 @@ class ThumbnailWidget(QtWidgets.QWidget):
         """将面板位置约束在屏幕可用区域内，避免被任务栏或屏幕边缘裁剪。"""
         available = self._get_available_geometry()
 
-        # 水平方向：优先右侧，超出则左侧
+        # 水平方向：优先右侧，超出则左侧；若左侧也超出则贴右边界
         if pos.x() + width > available.right():
             pos = self.mapToGlobal(QtCore.QPoint(-width - self._HORIZONTAL_GAP, 0))
+        if pos.x() < available.left():
+            pos.setX(available.left())
+        if pos.x() + width > available.right():
+            pos.setX(available.right() - width)
 
         # 垂直方向：底部超出则上移（留 _BOTTOM_MARGIN 间距），顶部超出则下移
         if pos.y() + height > available.bottom():
@@ -196,17 +199,21 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._load_custom_image()
 
     def _on_edit_notes(self):
-        """弹出多行文本输入对话框，编辑备注。"""
+        """弹出分屏对话框：左侧编辑，右侧实时预览。"""
         current_note = ShelfToolsCacheManager.get_note(self._unique_id) or ""
         
         # 创建自定义对话框以控制窗口大小
         dialog = QtWidgets.QDialog(self)
         dialog.setWindowTitle("Edit Notes")
-        dialog.resize(500, 700)
+        dialog.resize(900, 700)
         
         layout = QtWidgets.QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)
         
+        # 分屏布局：左侧编辑，右侧预览
+        splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        
+        # 左侧：编辑器（局部变量，避免实例引用泄漏）
         text_edit = QtWidgets.QTextEdit()
         text_edit.setPlainText(current_note)
         text_edit.setStyleSheet(
@@ -220,7 +227,46 @@ class ThumbnailWidget(QtWidgets.QWidget):
             "  font-size: 13px; "
             "}"
         )
-        layout.addWidget(text_edit)
+        splitter.addWidget(text_edit)
+        
+        # 右侧：实时预览（局部变量）
+        preview_browser = QtWidgets.QTextBrowser()
+        preview_browser.setReadOnly(True)
+        preview_browser.setOpenExternalLinks(False)
+        preview_browser.setStyleSheet(
+            "QTextBrowser { "
+            "  background-color: #1e1e1e; "
+            "  color: #ffffff; "
+            "  border: 1px solid #3d3d3d; "
+            "  border-radius: 4px; "
+            "  padding: 8px; "
+            "  font-size: 13px; "
+            "}"
+        )
+        splitter.addWidget(preview_browser)
+        
+        # 初始预览
+        html = render_markdown(current_note)
+        preview_browser.setHtml(html)
+        
+        # 设置分割比例（50:50）
+        splitter.setSizes([450, 450])
+        
+        layout.addWidget(splitter)
+        
+        # 防抖定时器：300ms 延迟更新预览（局部变量）
+        preview_timer = QtCore.QTimer()
+        preview_timer.setSingleShot(True)
+        
+        def _on_text_changed():
+            preview_timer.start(300)  # 300ms debounce
+        
+        def _update_preview():
+            markdown_text = text_edit.toPlainText()
+            preview_browser.setHtml(render_markdown(markdown_text))
+        
+        preview_timer.timeout.connect(_update_preview)
+        text_edit.textChanged.connect(_on_text_changed)
         
         button_layout = QtWidgets.QHBoxLayout()
         button_layout.addStretch()
@@ -296,7 +342,11 @@ class ThumbnailWidget(QtWidgets.QWidget):
         notes_display = QtWidgets.QTextBrowser()
         notes_display.setReadOnly(True)
         notes_display.setOpenExternalLinks(False)
-        notes_display.setMarkdown(current_note)
+        
+        # 渲染 markdown 并注入样式
+        html = render_markdown(current_note)
+        notes_display.setHtml(html)
+        
         notes_display.setStyleSheet(
             "QTextBrowser { "
             "  background-color: #1e1e1e; "
@@ -482,7 +532,9 @@ class ThumbnailWidget(QtWidgets.QWidget):
         if not note_text or not note_text.strip():
             logger.debug("_show_notes_panel: no note text, skipping")
             return
-        self._notes_panel.setMarkdown(note_text)
+        html = render_markdown(note_text)
+        self._notes_panel.setHtml(html)
+        
         self._notes_panel.adjustSize()
         # 限制最大宽度为缩略图宽度
         max_width = max(self.width(), 200)
@@ -491,20 +543,24 @@ class ThumbnailWidget(QtWidgets.QWidget):
         
         # 智能定位：优先上方显示，若超出屏幕则改为下方显示
         panel_height = self._notes_panel.height()
+        panel_width = self._notes_panel.width()
         pos_above = self.mapToGlobal(QtCore.QPoint(0, -panel_height))
         
         # 获取屏幕几何信息
-        screen = QtGui.QGuiApplication.screenAt(self.mapToGlobal(QtCore.QPoint(0, 0)))
-        if screen is None:
-            screen = QtGui.QGuiApplication.primaryScreen()
-        screen_geometry = screen.geometry()
+        available = self._get_available_geometry()
         
         # 检查是否超出屏幕上边缘
-        if pos_above.y() < screen_geometry.y():
+        if pos_above.y() < available.y():
             # 改为下方显示
             pos = self.mapToGlobal(QtCore.QPoint(0, self.height()))
         else:
             pos = pos_above
+        
+        # 水平边界检查
+        if pos.x() + panel_width > available.right():
+            pos.setX(available.right() - panel_width)
+        if pos.x() < available.left():
+            pos.setX(available.left())
         
         self._notes_panel.move(pos)
         logger.debug("_show_notes_panel: showing at %s, size=%s", pos, self._notes_panel.size())

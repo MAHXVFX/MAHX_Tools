@@ -24,28 +24,34 @@ MATools/
 ├── python_panels/
 │   ├── MAHDR.pypanel              # HDR 环境光库面板
 │   └── MAShelfToolPro.pypanel     # 工具架缩略图面板（薄层入口，仅 12 行）
-└── python3.11libs/MA/
-    ├── __init__.py                # 导出所有公共接口
-    ├── common/
-    │   ├── __init__.py            # 公共模块导出（SettingsManager, CacheManager 等）
-    │   ├── constants.py           # 路径常量、HDR_EXTENSIONS、UI 常量、DEFAULT_SHELFTOOLS_THUMBNAIL_DIR
-    │   ├── settings.py            # BaseJsonManager + 4 个子类（详见下方）
-    │   ├── filter_manager.py      # FilterManager（筛选/收藏/最近/占位图过滤）
-    │   ├── styles.py              # Qt 样式表
-    │   ├── animation_helper.py    # UI 动画（elastic_resize 等）
-    │   └── utils.py               # find_ffmpeg(), _collect_hdr_files()
-    ├── hdr_library/
-    │   ├── main.py                # Panel() 入口, SavedSizeDialog（弹窗模式下 closeEvent 保存）
-    │   ├── library_panel.py       # HDRLibraryPanel 主 UI 类
-    │   ├── thumbnail_worker.py    # ThumbnailWorker QThread（ffmpeg 生成缩略图）
-    │   ├── thumbnail_manager.py   # ThumbnailManager（网格布局/懒加载/虚拟滚动）
-    │   └── thumbnail_widget.py    # HDRThumbnailWidget 单个缩略图控件
-    └── shelf_tool_pro/            # MA ShelfTools Pro 业务模块（拆分架构）
-        ├── __init__.py            # 导出 MAShelfToolProPanel
-        ├── panel.py               # MAShelfToolProPanel（UI 组装：工具栏/设置面板/工具区）
-        ├── thumbnail_widget.py    # ThumbnailWidget（缩略图控件：点击/拖拽/右键/GIF）
-        ├── shelf_loader.py        # shelf 加载与执行（scan_tool_names, ensure_shelves, execute_tool, drop_at_cursor）
-        └── styles.py              # 样式常量（颜色、QSS）
+└── python3.11libs/
+    ├── markdown/                    # Vendored: python-markdown 3.5.2 (BSD 3-Clause)
+    │   └── extensions/extra.py      # 已修改：相对导入→绝对导入（vendoring 兼容）
+    ├── pygments/                    # Vendored: Pygments 2.17.2 精简版 (BSD 2-Clause)
+    │   └── lexers/                  # 仅保留：python, c_cpp, shells, haxe, text, special
+    └── MA/
+        ├── __init__.py                # 导出所有公共接口
+        ├── common/
+        │   ├── __init__.py            # 公共模块导出（SettingsManager, CacheManager 等）
+        │   ├── constants.py           # 路径常量、HDR_EXTENSIONS、UI 常量、DEFAULT_SHELFTOOLS_THUMBNAIL_DIR
+        │   ├── settings.py            # BaseJsonManager + 4 个子类（详见下方）
+        │   ├── filter_manager.py      # FilterManager（筛选/收藏/最近/占位图过滤）
+        │   ├── styles.py              # Qt 样式表
+        │   ├── animation_helper.py    # UI 动画（elastic_resize 等）
+        │   └── utils.py               # find_ffmpeg(), _collect_hdr_files()
+        ├── hdr_library/
+        │   ├── main.py                # Panel() 入口, SavedSizeDialog（弹窗模式下 closeEvent 保存）
+        │   ├── library_panel.py       # HDRLibraryPanel 主 UI 类
+        │   ├── thumbnail_worker.py    # ThumbnailWorker QThread（ffmpeg 生成缩略图）
+        │   ├── thumbnail_manager.py   # ThumbnailManager（网格布局/懒加载/虚拟滚动）
+        │   └── thumbnail_widget.py    # HDRThumbnailWidget 单个缩略图控件
+        └── shelf_tool_pro/            # MA ShelfTools Pro 业务模块（拆分架构）
+            ├── __init__.py            # 导出 MAShelfToolProPanel
+            ├── panel.py               # MAShelfToolProPanel（UI 组装：工具栏/设置面板/工具区）
+            ├── thumbnail_widget.py    # ThumbnailWidget（缩略图控件：点击/拖拽/右键/GIF/Notes）
+            ├── markdown_renderer.py   # Markdown 渲染器（vendored markdown + pygments）
+            ├── shelf_loader.py        # shelf 加载与执行（scan_tool_names, ensure_shelves, execute_tool, drop_at_cursor）
+            └── styles.py              # 样式常量（颜色、QSS）
 ```
 
 ## 配置文件架构
@@ -167,7 +173,14 @@ Tool 对象
 |---|---|---|
 | 悬停 500ms | 显示小型浮动备注（只读，markdown 渲染） | 无边框 QTextBrowser，最大高度 200px |
 | 中键点击 | 打开独立备注窗口（只读，markdown 渲染） | 带标题栏 QDialog (450x600)，无备注则无事发生 |
-| 右键 → Notes | 打开备注编辑窗口 | 自定义 QDialog (500x700)，QTextEdit 可编辑 |
+| 右键 → Notes | 打开备注编辑窗口（分屏实时预览） | 自定义 QDialog (900x700)，QTextEdit + QTextBrowser 分屏 |
+
+#### Markdown 渲染管线
+- **渲染器**：`markdown_renderer.py` 使用 vendored `markdown` + `pygments` 库
+- **输出**：完整 HTML（含 `<style>` 块），直接用于 `QTextBrowser.setHtml()`
+- **代码高亮**：VS Code Dark+ 主题色，支持 Python/C++/Shell/Hscript
+- **样式配置**：`_BASE_STYLES` 定义标题颜色/大小、粗体/斜体颜色
+- **扩展支持**：`markdown.extensions.extra` + `markdown.extensions.codehilite`
 
 #### 悬停备注智能定位
 - **优先上方显示**：若超出屏幕上边缘 → 改为下方显示
@@ -185,7 +198,7 @@ Tool 对象
 - **`_mouse_in_notes` 标志**：跟踪鼠标是否在备注面板上，决定延迟隐藏行为
 - **`_delayed_hide_notes()`**：150ms 延迟检查，给鼠标移动到备注面板的时间窗口
 - **中键窗口**：无备注时直接 return，不显示任何内容
-- **编辑窗口**：OK/Cancel 按钮，保存后写入 `ShelfToolsCacheManager.set_note()`
+- **编辑窗口**：分屏布局（左编辑/右预览），300ms 防抖实时更新，闭包避免实例引用泄漏
 
 ### 缓存结构扩展
 
@@ -247,6 +260,14 @@ Tool 对象
 - **eventFilter 必须安装**：`_notes_panel.installEventFilter(self)` 是检测鼠标进出备注面板的关键
 - **延迟隐藏机制**：`leaveEvent` 不直接隐藏，而是 `QTimer.singleShot(150, _delayed_hide_notes)`，给鼠标移动到备注面板的时间窗口
 
+#### Vendored 依赖
+- **`python3.11libs/markdown/`**：python-markdown 3.5.2（BSD 3-Clause）
+  - `extensions/extra.py` 已修改：相对导入→绝对导入（vendoring 兼容）
+- **`python3.11libs/pygments/`**：Pygments 2.17.2 精简版（BSD 2-Clause）
+  - 仅保留 lexers：python, c_cpp, shells, haxe, text, special
+- **许可证合规**：两个 LICENSE 文件必须保留在项目根目录
+- **Houdini 自动加载**：`python3.11libs/` 自动加入 `sys.path`，无需额外配置
+
 ## 开发约束
 
 - **无独立测试**：依赖 Houdini 运行时（`import hou`），无法在外部运行
@@ -257,3 +278,5 @@ Tool 对象
 - **`_collect_hdr_files`** 只扫描两层（根目录 + 一级子目录）
 - **ShelfToolPro 模块拆分**：业务逻辑在 `python3.11libs/MA/shelf_tool_pro/`，`.pypanel` 仅为薄层入口
 - **`updateSize()` 必须保留自定义图片**：调整大小时检查 `_custom_image_path`，有则重新加载，无则显示默认占位图
+- **Vendored 依赖**：`markdown` 和 `pygments` 库 vendored 到 `python3.11libs/`，确保零外部依赖部署
+- **许可证合规**：`markdown/LICENSE.md` 和 `pygments/LICENSE` 必须保留在项目根目录

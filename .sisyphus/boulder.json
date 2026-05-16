@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "active_work_id": "shelftoolpro-notes-b0f9413e",
+  "active_work_id": "markdown-vendoring-6dfe770b",
   "works": {
     "shelftoolpro-context-menu-ee52f174": {
       "work_id": "shelftoolpro-context-menu-ee52f174",
@@ -210,74 +210,143 @@
         }
       },
       "elapsed_ms": 538843
+    },
+    "markdown-vendoring-6dfe770b": {
+      "work_id": "markdown-vendoring-6dfe770b",
+      "active_plan": "D:\\Users\\pc\\Documents\\houdini21.0\\MAHX_Tools\\.sisyphus\\plans\\markdown-vendoring.md",
+      "plan_name": "markdown-vendoring",
+      "status": "completed",
+      "started_at": "2026-05-16T12:04:35.849Z",
+      "updated_at": "2026-05-16T12:32:13.555Z",
+      "session_ids": [
+        "ses_1d30dc0e4ffegMryeLlmKmuQx4"
+      ],
+      "session_origins": {
+        "ses_1d30dc0e4ffegMryeLlmKmuQx4": "direct"
+      },
+      "agent": "atlas",
+      "task_sessions": {
+        "todo:1": {
+          "task_key": "todo:1",
+          "task_label": "1",
+          "task_title": "Vendoring `python-markdown` 库",
+          "session_id": "ses_1cf502388ffeitompj8HaCb26r",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "started_at": "2026-05-16T12:07:18.462Z",
+          "status": "completed",
+          "updated_at": "2026-05-16T12:11:31.522Z",
+          "ended_at": "2026-05-16T12:11:31.522Z",
+          "elapsed_ms": 253060
+        },
+        "todo:4": {
+          "task_key": "todo:4",
+          "task_label": "4",
+          "task_title": "创建 `markdown_renderer.py` 渲染器模块",
+          "session_id": "ses_1cf4acb0bffekUQWNw6GNGbrtw",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-16T12:17:19.294Z",
+          "started_at": "2026-05-16T12:16:27.933Z",
+          "status": "completed",
+          "ended_at": "2026-05-16T12:17:19.294Z",
+          "elapsed_ms": 51361
+        },
+        "todo:5": {
+          "task_key": "todo:5",
+          "task_label": "5",
+          "task_title": "重构 `_apply_styles_to_document` 适配新 HTML",
+          "session_id": "ses_1cf46f771ffeOidUVEcSwpnrQQ",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-16T12:21:42.766Z",
+          "started_at": "2026-05-16T12:21:21.089Z",
+          "status": "completed",
+          "ended_at": "2026-05-16T12:21:42.766Z",
+          "elapsed_ms": 21677
+        },
+        "final-wave:f1": {
+          "task_key": "final-wave:f1",
+          "task_label": "F1",
+          "task_title": "**Plan Compliance Audit** — `oracle`",
+          "session_id": "ses_1cf414c9efferg34AKfzUmI9eP",
+          "agent": "oracle",
+          "updated_at": "2026-05-16T12:31:15.293Z",
+          "started_at": "2026-05-16T12:25:23.378Z",
+          "status": "completed",
+          "ended_at": "2026-05-16T12:31:15.293Z",
+          "elapsed_ms": 351915
+        }
+      },
+      "ended_at": "2026-05-16T12:32:13.555Z",
+      "elapsed_ms": 1657706
     }
   },
-  "active_plan": "C:\\Users\\mahx_\\Documents\\houdini21.0\\MAHX_Tools\\.sisyphus\\plans\\shelftoolpro-notes.md",
-  "started_at": "2026-05-15T11:21:36.446Z",
+  "active_plan": "D:\\Users\\pc\\Documents\\houdini21.0\\MAHX_Tools\\.sisyphus\\plans\\markdown-vendoring.md",
+  "started_at": "2026-05-16T12:04:35.849Z",
   "status": "completed",
-  "updated_at": "2026-05-15T11:30:35.289Z",
-  "ended_at": "2026-05-15T11:30:35.289Z",
+  "updated_at": "2026-05-16T12:32:13.555Z",
   "session_ids": [
-    "ses_1d4b25d87ffeKQ9zlNaAtqOFpJ",
-    "ses_1d49cf1dcffeqXW2CFll0b9sQ6",
-    "ses_1d49cbbadffe65XeCRYmp666C1",
-    "ses_1d49c77caffej1FWByOMnJac4o"
+    "ses_1d30dc0e4ffegMryeLlmKmuQx4"
   ],
   "session_origins": {
-    "ses_1d4b25d87ffeKQ9zlNaAtqOFpJ": "direct",
-    "ses_1d49cf1dcffeqXW2CFll0b9sQ6": "appended",
-    "ses_1d49cbbadffe65XeCRYmp666C1": "appended",
-    "ses_1d49c77caffej1FWByOMnJac4o": "appended"
+    "ses_1d30dc0e4ffegMryeLlmKmuQx4": "direct"
   },
-  "plan_name": "shelftoolpro-notes",
+  "plan_name": "markdown-vendoring",
   "task_sessions": {
-    "todo:2": {
-      "task_key": "todo:2",
-      "task_label": "2",
-      "task_title": "thumbnail_widget.py 右键菜单 + 备注面板 + 悬停逻辑",
-      "session_id": "ses_1d49fada5ffeZq9BblHCXddUZ8",
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Vendoring `python-markdown` 库",
+      "session_id": "ses_1cf502388ffeitompj8HaCb26r",
       "agent": "Sisyphus-Junior",
-      "category": "deep",
-      "updated_at": "2026-05-15T11:25:50.979Z",
-      "started_at": "2026-05-15T11:25:15.682Z",
+      "category": "quick",
+      "started_at": "2026-05-16T12:07:18.462Z",
       "status": "completed",
-      "ended_at": "2026-05-15T11:25:50.979Z",
-      "elapsed_ms": 35297
+      "updated_at": "2026-05-16T12:11:31.522Z",
+      "ended_at": "2026-05-16T12:11:31.522Z",
+      "elapsed_ms": 253060
     },
-    "final-wave:f2": {
-      "task_key": "final-wave:f2",
-      "task_label": "F2",
-      "task_title": "Code Quality Review - 检查 MAShelfToolPro 备注功能的代码质量。",
-      "session_id": "ses_1d49cf1dcffeqXW2CFll0b9sQ6",
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "创建 `markdown_renderer.py` 渲染器模块",
+      "session_id": "ses_1cf4acb0bffekUQWNw6GNGbrtw",
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
-      "updated_at": "2026-05-15T11:28:42.967Z",
-      "ended_at": "2026-05-15T11:28:42.967Z",
-      "status": "completed"
+      "updated_at": "2026-05-16T12:17:19.294Z",
+      "started_at": "2026-05-16T12:16:27.933Z",
+      "status": "completed",
+      "ended_at": "2026-05-16T12:17:19.294Z",
+      "elapsed_ms": 51361
     },
-    "final-wave:f3": {
-      "task_key": "final-wave:f3",
-      "task_label": "F3",
-      "task_title": "Scope Fidelity Check - 验证 MAShelfToolPro 备注功能的实现严格符合计划范围。",
-      "session_id": "ses_1d49cbbadffe65XeCRYmp666C1",
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "重构 `_apply_styles_to_document` 适配新 HTML",
+      "session_id": "ses_1cf46f771ffeOidUVEcSwpnrQQ",
       "agent": "Sisyphus-Junior",
-      "category": "deep",
-      "updated_at": "2026-05-15T11:28:42.968Z",
-      "ended_at": "2026-05-15T11:28:42.968Z",
-      "status": "completed"
+      "category": "unspecified-high",
+      "updated_at": "2026-05-16T12:21:42.766Z",
+      "started_at": "2026-05-16T12:21:21.089Z",
+      "status": "completed",
+      "ended_at": "2026-05-16T12:21:42.766Z",
+      "elapsed_ms": 21677
     },
     "final-wave:f1": {
       "task_key": "final-wave:f1",
       "task_label": "F1",
-      "task_title": "Plan Compliance Audit - 审计 MAShelfToolPro 备注功能是否符合计划要求。",
-      "session_id": "ses_1d49c77caffej1FWByOMnJac4o",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "updated_at": "2026-05-15T11:28:42.966Z",
-      "ended_at": "2026-05-15T11:28:42.965Z",
-      "status": "completed"
+      "task_title": "**Plan Compliance Audit** — `oracle`",
+      "session_id": "ses_1cf414c9efferg34AKfzUmI9eP",
+      "agent": "oracle",
+      "updated_at": "2026-05-16T12:31:15.293Z",
+      "started_at": "2026-05-16T12:25:23.378Z",
+      "status": "completed",
+      "ended_at": "2026-05-16T12:31:15.293Z",
+      "elapsed_ms": 351915
     }
   },
   "agent": "atlas",
-  "elapsed_ms": 538843
+  "ended_at": "2026-05-16T12:32:13.555Z",
+  "elapsed_ms": 1657706
 }
