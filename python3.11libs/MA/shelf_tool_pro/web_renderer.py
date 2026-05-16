@@ -1,8 +1,7 @@
 """Web-based Markdown renderer using QWebEngineView.
 
 Uses vendored marked.js + highlight.js via an HTML template to render
-Markdown with proper syntax highlighting, replacing the QTextBrowser-based
-fallback renderer for environments where QWebEngine is available.
+Markdown with proper syntax highlighting and VitePress-style code blocks.
 """
 
 import json

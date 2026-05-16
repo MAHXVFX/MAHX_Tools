@@ -25,10 +25,6 @@ MATools/
 │   ├── MAHDR.pypanel              # HDR 环境光库面板
 │   └── MAShelfToolPro.pypanel     # 工具架缩略图面板（薄层入口，仅 12 行）
 └── python3.11libs/
-    ├── markdown/                    # Vendored: python-markdown 3.5.2 (BSD 3-Clause)
-    │   └── extensions/extra.py      # 已修改：相对导入→绝对导入（vendoring 兼容）
-    ├── pygments/                    # Vendored: Pygments 2.17.2 精简版 (BSD 2-Clause)
-    │   └── lexers/                  # 仅保留：python, c_cpp, shells, haxe, text, special
     └── MA/
         ├── __init__.py                # 导出所有公共接口
         ├── common/
@@ -49,7 +45,11 @@ MATools/
             ├── __init__.py            # 导出 MAShelfToolProPanel
             ├── panel.py               # MAShelfToolProPanel（UI 组装：工具栏/设置面板/工具区）
             ├── thumbnail_widget.py    # ThumbnailWidget（缩略图控件：点击/拖拽/右键/GIF/Notes）
-            ├── markdown_renderer.py   # Markdown 渲染器（vendored markdown + pygments）
+            ├── web_renderer.py        # Markdown 渲染器（QWebEngineView + marked.js + highlight.js）
+            ├── vendor/                # Vendored 前端库
+            │   ├── marked.min.js      # marked.js v15.0.12（MIT）
+            │   ├── highlight.min.js   # highlight.js v11.11.1（BSD 3-Clause）
+            │   └── template.html      # HTML 模板（VitePress 风格 CSS + renderMarkdown 函数）
             ├── shelf_loader.py        # shelf 加载与执行（scan_tool_names, ensure_shelves, execute_tool, drop_at_cursor）
             └── styles.py              # 样式常量（颜色、QSS）
 ```
@@ -122,6 +122,8 @@ python_panels/MAShelfToolPro.pypanel  ← 薄层入口（from MA.shelf_tool_pro 
 python3.11libs/MA/shelf_tool_pro/
     ├── panel.py                ← MAShelfToolProPanel（UI 组装）
     ├── thumbnail_widget.py     ← ThumbnailWidget（缩略图控件）
+    ├── web_renderer.py         ← WebRenderer（QWebEngineView + marked.js + highlight.js）
+    ├── vendor/                 ← Vendored 前端库（marked.min.js, highlight.min.js, template.html）
     ├── shelf_loader.py         ← shelf 加载与执行逻辑
     └── styles.py               ← 样式常量
 ```
@@ -149,9 +151,9 @@ Tool 对象
 7. **右键设置图片流**：`QFileDialog.getOpenFileName()` → `shutil.copy2()` 到配置目录 → `ShelfToolsCacheManager.set_custom_image(unique_id)` → `_load_custom_image()`
 8. **GIF 悬停动画流**：`enterEvent` → `startTimer(500)` → `timerEvent` → `_start_gif_animation()` → `leaveEvent` → `killTimer()` + `_stop_gif_animation()`
 9. **设置面板流**：Settings 按钮 → `elastic_resize()` 展开/收起 → 路径输入框 + Browse 按钮 → `ShelfToolsSettingsManager.set_thumbnail_directory()`
-10. **右键编辑备注流**：`contextMenuEvent` → `_on_edit_notes()` → 自定义 QDialog (500x700) → `ShelfToolsCacheManager.set_note(unique_id)`
-11. **中键查看备注流**：`mouseReleaseEvent(MiddleButton)` → `_open_notes_window()` → 只读 QTextBrowser 渲染 markdown → 无备注则无事发生
-12. **悬停显示备注流**：`enterEvent` → 500ms 延迟 → `_show_notes_panel()` → 无边框 QTextBrowser 显示在缩略图上方/下方 → 鼠标移向备注时通过 `eventFilter` 保持显示
+10. **右键编辑备注流**：`contextMenuEvent` → `_on_edit_notes()` → 自定义 QDialog (900x700) → `ShelfToolsCacheManager.set_note(unique_id)`
+11. **中键查看备注流**：`mouseReleaseEvent(MiddleButton)` → `_open_notes_window()` → QWebEngineView 渲染 markdown → 无备注则无事发生
+12. **悬停显示备注流**：`enterEvent` → 500ms 延迟 → `_show_notes_panel()` → 无边框 QWebEngineView 显示在缩略图上方/下方 → 鼠标移向备注时通过 `eventFilter` 保持显示
 
 ### 缩略图显示
 - 正方形 1:1，圆角 `size // 8`，默认灰色占位图
@@ -171,16 +173,18 @@ Tool 对象
 #### 三种交互方式
 | 触发方式 | 行为 | 面板类型 |
 |---|---|---|
-| 悬停 500ms | 显示小型浮动备注（只读，markdown 渲染） | 无边框 QTextBrowser，最大高度 200px |
+| 悬停 500ms | 显示小型浮动备注（只读，markdown 渲染） | 无边框 QWebEngineView，固定 450x600 |
 | 中键点击 | 打开独立备注窗口（只读，markdown 渲染） | 带标题栏 QDialog (450x600)，无备注则无事发生 |
-| 右键 → Notes | 打开备注编辑窗口（分屏实时预览） | 自定义 QDialog (900x700)，QTextEdit + QTextBrowser 分屏 |
+| 右键 → Notes | 打开备注编辑窗口（分屏实时预览） | 自定义 QDialog (900x700)，QTextEdit + QWebEngineView 分屏 |
 
 #### Markdown 渲染管线
-- **渲染器**：`markdown_renderer.py` 使用 vendored `markdown` + `pygments` 库
-- **输出**：完整 HTML（含 `<style>` 块），直接用于 `QTextBrowser.setHtml()`
-- **代码高亮**：VS Code Dark+ 主题色，支持 Python/C++/Shell/Hscript
-- **样式配置**：`_BASE_STYLES` 定义标题颜色/大小、粗体/斜体颜色
-- **扩展支持**：`markdown.extensions.extra` + `markdown.extensions.codehilite`
+- **渲染器**：`web_renderer.py` 使用 vendored `marked.js` + `highlight.js` 通过 QWebEngineView 渲染
+- **模板**：`vendor/template.html` 包含 VitePress 风格 CSS 和 `window.renderMarkdown()` 函数
+- **代码高亮**：VitePress 风格（`#2E2E32` 背景、圆角容器、语言标签、语法高亮）
+- **JS 注入**：`json.dumps()` 安全转义 → `runJavaScript()` 调用 `window.renderMarkdown()`
+- **异步处理**：`setHtml()` → `loadFinished` → 队列渲染 → `runJavaScript()`
+- **关键陷阱**：`setHtml()` 必须传 `baseUrl` 参数，否则相对路径 JS 脚本无法加载
+- **GC 防护**：中键窗口和编辑对话框中的 `WebRenderer` 实例必须绑定到窗口对象，防止被 GC 回收
 
 #### 悬停备注智能定位
 - **优先上方显示**：若超出屏幕上边缘 → 改为下方显示
@@ -259,13 +263,15 @@ Tool 对象
 - **`_BOTTOM_MARGIN = 20`**：面板与屏幕底部保持 20px 间距，避免紧贴任务栏
 - **eventFilter 必须安装**：`_notes_panel.installEventFilter(self)` 是检测鼠标进出备注面板的关键
 - **延迟隐藏机制**：`leaveEvent` 不直接隐藏，而是 `QTimer.singleShot(150, _delayed_hide_notes)`，给鼠标移动到备注面板的时间窗口
+- **GC 防护**：中键窗口和编辑对话框中的 `WebRenderer` 实例必须绑定到窗口对象（如 `notes_window._notes_renderer = renderer`），防止被 GC 回收
+- **`setHtml()` 必须传 `baseUrl`**：否则 `./marked.min.js` 等相对路径脚本无法加载
 
 #### Vendored 依赖
-- **`python3.11libs/markdown/`**：python-markdown 3.5.2（BSD 3-Clause）
-  - `extensions/extra.py` 已修改：相对导入→绝对导入（vendoring 兼容）
-- **`python3.11libs/pygments/`**：Pygments 2.17.2 精简版（BSD 2-Clause）
-  - 仅保留 lexers：python, c_cpp, shells, haxe, text, special
-- **许可证合规**：两个 LICENSE 文件必须保留在项目根目录
+- **`python3.11libs/MA/shelf_tool_pro/vendor/`**：前端渲染库
+  - `marked.min.js` — marked.js v15.0.12（MIT）
+  - `highlight.min.js` — highlight.js v11.11.1（BSD 3-Clause）
+  - `template.html` — HTML 模板（VitePress 风格 CSS + `renderMarkdown` 函数）
+- **许可证合规**：`marked/LICENSE.md` 和 `highlight.js/LICENSE` 必须保留在项目根目录
 - **Houdini 自动加载**：`python3.11libs/` 自动加入 `sys.path`，无需额外配置
 
 ## 开发约束
@@ -273,10 +279,11 @@ Tool 对象
 - **无独立测试**：依赖 Houdini 运行时（`import hou`），无法在外部运行
 - **Python 3.11**：Houdini 21.0 内置
 - **PySide6**：Qt 绑定，信号/槽机制
+- **PySide6-Addons**：QWebEngineView 属于 PySide6-Addons，需确认 Houdini 21.0 是否包含
 - **ffmpeg**：缩略图生成依赖 ffmpeg，优先级：打包的 `ffmpeg.exe` → Houdini 的 `hffmpeg` → PATH
 - **配置文件均已 `.gitignore`**：4 个 JSON（settings × 2 + cache × 2），不要手动提交
 - **`_collect_hdr_files`** 只扫描两层（根目录 + 一级子目录）
 - **ShelfToolPro 模块拆分**：业务逻辑在 `python3.11libs/MA/shelf_tool_pro/`，`.pypanel` 仅为薄层入口
 - **`updateSize()` 必须保留自定义图片**：调整大小时检查 `_custom_image_path`，有则重新加载，无则显示默认占位图
-- **Vendored 依赖**：`markdown` 和 `pygments` 库 vendored 到 `python3.11libs/`，确保零外部依赖部署
-- **许可证合规**：`markdown/LICENSE.md` 和 `pygments/LICENSE` 必须保留在项目根目录
+- **Vendored 依赖**：`marked.min.js` 和 `highlight.min.js` vendored 到 `python3.11libs/MA/shelf_tool_pro/vendor/`，确保零外部网络依赖部署
+- **许可证合规**：`marked/LICENSE.md` 和 `highlight.js/LICENSE` 必须保留在项目根目录
