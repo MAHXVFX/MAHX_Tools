@@ -32,8 +32,11 @@ class WebRenderer(QObject):
         self._ready = False
         self._pending_render: str | None = None
 
+        # Vendor directory for template and JS libraries
+        vendor_dir = os.path.join(os.path.dirname(__file__), "vendor")
+
         # Load HTML template
-        template_path = os.path.join(os.path.dirname(__file__), "vendor", "template.html")
+        template_path = os.path.join(vendor_dir, "template.html")
         try:
             with open(template_path, "r", encoding="utf-8") as f:
                 self._html_template = f.read()
@@ -46,7 +49,6 @@ class WebRenderer(QObject):
         self._view.loadFinished.connect(self._on_load_finished)
 
         # Load the HTML template into the view with baseUrl for relative script paths
-        vendor_dir = os.path.join(os.path.dirname(__file__), "vendor")
         self._view.setHtml(
             self._html_template,
             baseUrl=QUrl.fromLocalFile(vendor_dir + "/"),
