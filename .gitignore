@@ -2,7 +2,7 @@ ffmpeg.exe
 __pycache__/
 MA_HDR_Library_Settings.json
 MA_HDR_Library_Cache.json
-.trae/documents/MAHX项目代码优化计划.md
+.trae/
 python_panels/test.pypanel
 toolbar/test.shelf
 toolbar/Houdini_Shelf_Tool_Trigger_Guide.md
