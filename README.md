@@ -30,7 +30,7 @@
 <div align="center">
   <img src="assets/HDR面板.png" alt="HDR Library Panel" width="500"/>
   <br/>
-  <em>HDR 库面板：缩略图网格、大小调节、文件夹筛选、收藏管理</em>
+  <em>HDR 库面板：缩略图网格、大小调节、文件夹筛选、收藏管理、双击快速应用</em>
 </div>
 
 ### MA ShelfTools Pro
