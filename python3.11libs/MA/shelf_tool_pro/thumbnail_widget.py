@@ -203,7 +203,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         
         # 创建自定义对话框以控制窗口大小
         dialog = QtWidgets.QDialog(self)
-        dialog.setWindowTitle("Edit Notes")
+        dialog.setWindowTitle(f"Edit Notes — {self.name_label.text()}")
         dialog.resize(900, 700)
         
         layout = QtWidgets.QVBoxLayout(dialog)

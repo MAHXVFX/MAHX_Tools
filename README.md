@@ -24,43 +24,49 @@
 
 ##  功能预览
 
-### MA ShelfTools Pro
-工具架工具以缩略图形式展示，支持点击执行、拖拽定位、GIF 动画、Markdown 备注系统。
-
-<div align="center">
-  <img src="assets/shelftools-overview.png" alt="ShelfTools Pro Overview" width="800"/>
-  <br/>
-  <em>主面板：缩略图网格、大小调节、GIF 悬停动画</em>
-</div>
-
-<div align="center">
-  <img src="assets/shelftools-notes.png" alt="ShelfTools Pro Notes" width="800"/>
-  <br/>
-  <em>备注系统：Callout 提示块、代码高亮、嵌套引用</em>
-</div>
-
-<div align="center">
-  <img src="assets/shelftools-code.png" alt="ShelfTools Pro Code" width="800"/>
-  <br/>
-  <em>代码块：VitePress 风格语法高亮、一键复制</em>
-</div>
-
 ### HDR 环境光库
 扫描目录自动生成缩略图，一键加载 HDR 到场景环境光节点。
 
 <div align="center">
-  <img src="assets/hdr-library.png" alt="HDR Library" width="800"/>
+  <img src="assets/HDR面板.png" alt="HDR Library Panel" width="500"/>
   <br/>
-  <em>HDR 库面板：缩略图网格、文件夹筛选、收藏管理</em>
+  <em>HDR 库面板：缩略图网格、大小调节、文件夹筛选、收藏管理</em>
 </div>
 
-### 备注编辑器
-分屏实时预览，支持 Markdown 语法、媒体文件链接、GIF/视频渲染。
+### MA ShelfTools Pro
+工具架工具以缩略图形式展示，支持点击执行、拖拽定位、GIF 动画、Markdown 备注系统。
+
+#### 备注样式展示
 
 <div align="center">
-  <img src="assets/edit-notes-dialog.png" alt="Edit Notes Dialog" width="800"/>
+  <table>
+    <tr>
+      <td align="center">
+        <img src="assets/备注样式01.png" alt="Markdown Basic Styles" width="380"/>
+        <br/>
+        <em>基础样式：标题、列表、代码块</em>
+      </td>
+      <td align="center">
+        <img src="assets/备注样式02.png" alt="Callout Blocks" width="380"/>
+        <br/>
+        <em>代码高亮：VEX 语法高亮、一键复制、VitePress 风格</em>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div align="center">
+  <img src="assets/备注样式03.png" alt="Code Highlight" width="380"/>
   <br/>
-  <em>编辑窗口：左编辑 / 右预览，支持图片、视频、GIF</em>
+  <em>Callout 提示块：Note / Caution / Tip / Quote</em>
+</div>
+
+#### 备注编辑器
+
+<div align="center">
+  <img src="assets/备注编辑.png" alt="Edit Notes Dialog" width="500"/>
+  <br/>
+  <em>编辑窗口：左编辑 / 右预览，支持 GIF、图片、视频链接实时渲染</em>
 </div>
 
 ---
@@ -95,15 +101,9 @@
 ## 📦 安装
 
 ### 1. 添加路径
-将本目录路径添加到 Houdini 的 `HOUDINI_PATH` 环境变量中。
+将MAHX_Tools文件夹放置与Houdini环境变量目录下（位于 `Documents/houdini21.0/`）：
 
-编辑 `houdini.env` 文件（位于 `Documents/houdini21.0/`）：
-
-```env
-HOUDINI_PATH = "D:/Users/pc/Documents/houdini21.0/MAHX_Tools;&"
-```
-
->  提示：确保路径使用正斜杠 `/`，末尾添加 `;&` 以保留默认路径。
+并将其中的MAHX_Tools.json文件拷贝到packages下（没有则创建）
 
 ### 2. 依赖检查
 | 依赖 | 说明 | 状态 |
@@ -111,7 +111,7 @@ HOUDINI_PATH = "D:/Users/pc/Documents/houdini21.0/MAHX_Tools;&"
 | **Houdini 21.0+** | Python 3.11 运行时 | ✅ 必需 |
 | **PySide6** | Qt 绑定 | ✅ Houdini 内置 |
 | **PySide6-Addons** | QWebEngineView | ✅ Houdini 内置 |
-| **ffmpeg** | HDR 缩略图生成 | ✅ 项目内置 |
+| **ffmpeg** | HDR 缩略图生成 | ❌ 需要自行下载 |
 
 ---
 
@@ -183,7 +183,7 @@ MAHX_Tools/
 │               ├── marked.min.js  # marked.js v15.0.12
 │               ├── highlight.min.js # highlight.js v11.11.1
 │               └── template.html  # HTML 渲染模板
-├── ffmpeg.exe                     # 内置 ffmpeg
+├── ffmpeg.exe                     # 自行下载 ffmpeg
 └── assets/                        # 文档图片
 ```
 
@@ -229,7 +229,6 @@ MAHX_Tools/
 | `MA_ShelfTools_Pro_Settings.json` | 缩略图大小、目录路径 | 实时写入 |
 | `MA_ShelfTools_Pro_Cache.json` | 自定义图片、名称 | 实时写入 |
 
-> ️ 所有配置文件已加入 `.gitignore`，不会被提交。
 
 ### 备注存储
 备注以独立 `.md` 文件存储在 `MA_ShelfTools_Pro_Notes/` 目录，每个工具对应 `{unique_id}.md`。
