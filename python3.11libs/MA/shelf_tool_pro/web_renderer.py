@@ -8,10 +8,78 @@ import json
 import logging
 import os
 
-from PySide6.QtCore import QUrl, QObject
+from PySide6.QtCore import QUrl, QObject, Qt
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 logger = logging.getLogger(__name__)
+
+# File extensions that should be opened in the system player
+_MEDIA_EXTENSIONS = {
+    ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm", ".m4v",
+    ".mp3", ".wav", ".flac", ".aac", ".ogg", ".wma", ".m4a",
+}
+
+
+class _MediaNavigationHandler(QWebEnginePage):
+    """Intercepts navigation to file:// media URLs and opens them externally."""
+
+    def acceptNavigationRequest(self, url, navigation_type, is_main_frame):
+        if url.scheme() == "file":
+            path = url.toLocalFile().lower()
+            ext = os.path.splitext(path)[1]
+            if ext in _MEDIA_EXTENSIONS:
+                logger.debug("MediaNavigationHandler: opening %s in system player", url.toDisplayString())
+                QDesktopServices.openUrl(url)
+                return False  # Block navigation in the web view
+        return super().acceptNavigationRequest(url, navigation_type, is_main_frame)
+
+
+class WebRendererPool:
+    """Global singleton pool for the shared hover notes WebRenderer."""
+    _NOTES_PANEL_WIDTH = 450
+    _NOTES_PANEL_HEIGHT = 600
+    _renderer: "WebRenderer | None" = None
+    _mouse_in_notes: bool = False
+
+    @classmethod
+    def has_renderer(cls) -> bool:
+        return cls._renderer is not None
+
+    @classmethod
+    def get_renderer(cls) -> "WebRenderer":
+        if cls._renderer is None:
+            cls._renderer = WebRenderer()
+            panel = cls._renderer.get_widget()
+            panel.setWindowFlags(
+                Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint
+            )
+            panel.setAttribute(Qt.WA_TranslucentBackground, False)
+            panel.resize(cls._NOTES_PANEL_WIDTH, cls._NOTES_PANEL_HEIGHT)
+        return cls._renderer  # type: ignore[return-value]
+
+    @classmethod
+    def show_notes(cls, note_text: str, panel_pos) -> None:
+        renderer = cls.get_renderer()
+        panel = renderer.get_widget()
+        panel.move(panel_pos)
+        panel.show()
+        panel.raise_()
+        panel.activateWindow()
+        renderer.render(note_text)
+
+    @classmethod
+    def hide_notes(cls) -> None:
+        if cls._renderer is not None:
+            cls._renderer.get_widget().hide()
+        cls._mouse_in_notes = False
+
+    @classmethod
+    def is_notes_panel(cls, obj) -> bool:
+        if cls._renderer and obj is cls._renderer.get_widget():
+            return True
+        return False
 
 
 class WebRenderer(QObject):
@@ -28,9 +96,11 @@ class WebRenderer(QObject):
 
     def __init__(self):
         super().__init__()
+        self._page = _MediaNavigationHandler()
         self._view = QWebEngineView()
+        self._view.setPage(self._page)
         self._ready = False
-        self._pending_render: str | None = None
+        self._pending_render: "tuple[str, object] | None" = None
 
         # Vendor directory for template and JS libraries
         vendor_dir = os.path.join(os.path.dirname(__file__), "vendor")
@@ -54,20 +124,18 @@ class WebRenderer(QObject):
             baseUrl=QUrl.fromLocalFile(vendor_dir + "/"),
         )
 
-    def render(self, markdown_text: str) -> None:
+    def render(self, markdown_text: str, callback=None) -> None:
         """Render markdown text in the web view.
-
-        If the page is ready, inject immediately. Otherwise, queue for
-        later processing after loadFinished fires.
 
         Args:
             markdown_text: Raw Markdown text (not pre-escaped).
+            callback: Optional callable invoked after JS injection completes.
         """
         if self._ready:
-            self._inject_markdown(markdown_text)
+            self._inject_markdown(markdown_text, callback)
         else:
             logger.debug("WebRenderer: page not ready, queuing render")
-            self._pending_render = markdown_text
+            self._pending_render = (markdown_text, callback)
 
     def get_widget(self) -> QWebEngineView:
         """Return the QWebEngineView instance for embedding in UI."""
@@ -84,29 +152,30 @@ class WebRenderer(QObject):
             self._ready = True
             # Process the last queued render (earlier ones are obsolete)
             if self._pending_render is not None:
-                text = self._pending_render
+                text, callback = self._pending_render
                 self._pending_render = None
-                self._inject_markdown(text)
+                self._inject_markdown(text, callback)
         else:
-            logger.error("WebRenderer: page failed to load")
-            self._ready = False
+            # If page was already loaded, this is just a navigation cancellation
+            # (e.g., media link intercepted), not a real failure.
+            if not self._ready:
+                logger.error("WebRenderer: page failed to load")
+                self._ready = False
 
-    def _inject_markdown(self, text: str) -> None:
+    def _inject_markdown(self, text: str, callback=None) -> None:
         """Inject markdown text into the page via runJavaScript.
-
-        Escapes the text for safe JS string literal injection, then calls
-        window.renderMarkdown() defined in the HTML template.
 
         Args:
             text: Raw Markdown text.
+            callback: Optional callable invoked after JS execution completes.
         """
-        # Use json.dumps to safely escape for JS string literal context
-        # (handles quotes, backslashes, newlines, unicode, etc.)
         js_safe_text = json.dumps(text)
-
         js_code = f"window.renderMarkdown({js_safe_text});"
 
         try:
-            self._view.page().runJavaScript(js_code)
+            if callback:
+                self._view.page().runJavaScript(js_code, 0, callback)
+            else:
+                self._view.page().runJavaScript(js_code)
         except Exception as e:
             logger.error("WebRenderer: JS injection failed: %s", e)

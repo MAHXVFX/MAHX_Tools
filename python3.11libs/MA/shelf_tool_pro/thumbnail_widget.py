@@ -9,7 +9,7 @@ from PySide6 import QtWidgets, QtGui, QtCore
 from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
 from MA.shelf_tool_pro.shelf_loader import execute_tool, drop_at_cursor
 from MA.shelf_tool_pro.styles import TEXT_SECONDARY, CONTEXT_MENU_STYLE
-from MA.shelf_tool_pro.web_renderer import WebRenderer
+from MA.shelf_tool_pro.web_renderer import WebRenderer, WebRendererPool
 from MA.shelf_tool_pro.markdown_text_edit import MarkdownTextEdit
 
 logger = logging.getLogger("MA")
@@ -35,9 +35,6 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._notes_timer_id = None
         self._custom_image_path = None
         self._is_gif = False
-        self._notes_panel = None
-        self._web_renderer = None
-        self._mouse_in_notes = False
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -63,8 +60,6 @@ class ThumbnailWidget(QtWidgets.QWidget):
             self._custom_image_path = custom_image_info.get("path")
             self._is_gif = custom_image_info.get("is_gif", False)
             self._load_custom_image()
-
-        self._init_notes_panel()
 
     @staticmethod
     def _make_rounded_pixmap(size, radius, color):
@@ -247,6 +242,9 @@ class ThumbnailWidget(QtWidgets.QWidget):
         preview_renderer.render(current_note)
         splitter.addWidget(preview_browser)
         
+        # 对话框关闭时销毁 WebRenderer 释放 QtWebEngineProcess
+        dialog.finished.connect(preview_renderer.get_widget().deleteLater)
+        
         # 设置分割比例 50:50
         splitter.setSizes([450, 450])
         
@@ -327,6 +325,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
             | QtCore.Qt.WindowType.WindowMaximizeButtonHint
             | QtCore.Qt.WindowType.WindowStaysOnTopHint
         )
+        notes_window.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         notes_window.setAttribute(QtCore.Qt.WA_ShowWithoutActivating, False)
         notes_window.resize(450, 600)
         notes_window.setStyleSheet("background-color: #1F1F24;")
@@ -349,6 +348,11 @@ class ThumbnailWidget(QtWidgets.QWidget):
         layout.addWidget(notes_display)
         # 渲染 markdown
         notes_renderer.render(current_note)
+        
+        # 窗口关闭时彻底销毁 WebRenderer 释放 QtWebEngineProcess
+        view = notes_display
+        page = view.page()
+        notes_window.finished.connect(lambda: (page.deleteLater(), view.deleteLater()))
         
         # 定位：约束在屏幕可用区域
         pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
@@ -456,11 +460,13 @@ class ThumbnailWidget(QtWidgets.QWidget):
             self._notes_timer_id = None
         
         # 检查鼠标是否移向备注面板
-        if self._notes_panel and self._notes_panel.isVisible():
-            # 延迟隐藏，给鼠标移动到备注面板的时间
-            QtCore.QTimer.singleShot(150, self._delayed_hide_notes)
-        else:
-            self._hide_notes_panel()
+        if WebRendererPool.has_renderer():
+            notes_panel = WebRendererPool.get_renderer().get_widget()
+            if notes_panel.isVisible():
+                # 延迟隐藏，给鼠标移动到备注面板的时间
+                QtCore.QTimer.singleShot(150, self._delayed_hide_notes)
+            else:
+                WebRendererPool.hide_notes()
 
     def timerEvent(self, event):
         """定时器触发：GIF 动画 / 备注面板显示。"""
@@ -490,69 +496,53 @@ class ThumbnailWidget(QtWidgets.QWidget):
             self._movie.jumpToFrame(0)
             self._on_gif_frame_changed()
 
-    def _init_notes_panel(self):
-        """初始化备注面板。"""
-        self._web_renderer = WebRenderer()
-        self._notes_panel = self._web_renderer.get_widget()
-        self._notes_panel.setWindowFlags(
-            QtCore.Qt.WindowType.Tool | QtCore.Qt.WindowType.FramelessWindowHint
-        )
-        self._notes_panel.setAttribute(QtCore.Qt.WA_TranslucentBackground, False)
-        self._notes_panel.resize(self._NOTES_PANEL_WIDTH, self._NOTES_PANEL_HEIGHT)
-        self._notes_panel.setVisible(False)
-
-        # 安装事件过滤器以检测鼠标进入/离开备注面板
-        self._notes_panel.installEventFilter(self)
-
     def _show_notes_panel(self):
         """显示备注面板（如有备注内容）。"""
         note_text = ShelfToolsCacheManager.get_note(self._unique_id)
-        logger.debug("_show_notes_panel: unique_id=%s, note_text=%r", self._unique_id, note_text)
         if not note_text or not note_text.strip():
-            logger.debug("_show_notes_panel: no note text, skipping")
             return
 
-        self._web_renderer.render(note_text)
+        # 安装事件过滤器到所有已存在的渲染器面板上
+        self._install_notes_event_filters()
 
-        # 智能定位：优先上方显示，若超出屏幕则改为下方显示
-        panel_height = self._notes_panel.height()
-        panel_width = self._notes_panel.width()
+        # 智能定位
+        panel_width = WebRendererPool._NOTES_PANEL_WIDTH
+        panel_height = WebRendererPool._NOTES_PANEL_HEIGHT
         pos_above = self.mapToGlobal(QtCore.QPoint(0, -panel_height))
-        
         available = self._get_available_geometry()
-        
+
         if pos_above.y() < available.y():
             pos = self.mapToGlobal(QtCore.QPoint(0, self.height()))
         else:
             pos = pos_above
-        
-        # 复用 _clamp_to_screen 处理水平约束
+
         pos = self._clamp_to_screen(pos, panel_width, panel_height)
-        
-        self._notes_panel.move(pos)
-        logger.debug("_show_notes_panel: showing at %s, size=%s", pos, self._notes_panel.size())
-        self._notes_panel.show()
-        self._notes_panel.raise_()
-        self._notes_panel.activateWindow()
+
+        WebRendererPool.show_notes(note_text, pos)
+
+    def _install_notes_event_filters(self):
+        """确保当前缩略图已注册为备注面板的事件过滤器。"""
+        if getattr(self, '_notes_filter_installed', False):
+            return
+        renderer = WebRendererPool.get_renderer()
+        renderer.get_widget().installEventFilter(self)
+        self._notes_filter_installed = True
 
     def _hide_notes_panel(self):
         """隐藏备注面板。"""
-        if self._notes_panel:
-            self._notes_panel.hide()
-    
+        WebRendererPool.hide_notes()
+
     def _delayed_hide_notes(self):
         """延迟隐藏备注面板（检查鼠标是否在备注面板上）。"""
-        if self._notes_panel and self._notes_panel.isVisible():
-            if not self._mouse_in_notes:
-                self._notes_panel.hide()
-    
+        if not WebRendererPool._mouse_in_notes:
+            WebRendererPool.hide_notes()
+
     def eventFilter(self, obj, event):
         """事件过滤器：检测鼠标进入/离开备注面板。"""
-        if obj == self._notes_panel:
+        if WebRendererPool.is_notes_panel(obj):
             if event.type() == QtCore.QEvent.Type.Enter:
-                self._mouse_in_notes = True
+                WebRendererPool._mouse_in_notes = True
             elif event.type() == QtCore.QEvent.Type.Leave:
-                self._mouse_in_notes = False
-                # 鼠标离开备注面板，立即隐藏
+                WebRendererPool._mouse_in_notes = False
                 QtCore.QTimer.singleShot(self._NOTES_HIDE_DELAY, self._hide_notes_panel)
         return super().eventFilter(obj, event)

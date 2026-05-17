@@ -183,12 +183,18 @@ Tool 对象
 - **渲染器**：`web_renderer.py` 使用 vendored `marked.js` + `highlight.js` 通过 QWebEngineView 渲染
 - **模板**：`vendor/template.html` 包含 VitePress 风格 CSS 和 `window.renderMarkdown()` 函数
 - **代码高亮**：VitePress 风格（`#2E2E32` 背景、圆角容器、语言标签、语法高亮）
-- **代码复制**：点击语言标签复制代码，反馈文字"复制成功"（使用 `execCommand('copy')` 兼容 QWebEngineView）
+- **代码复制**：无语言标识符时显示"COPY"，有则显示语言名；点击复制代码，反馈文字"复制成功"
 - **Callout 提示块**：`> [!note]` / `> [!tip]` / `> [!warning]` / `> [!caution]` / `> [!quote]` 渲染为带标题和背景色的卡片
 - **JS 注入**：`json.dumps()` 安全转义 → `runJavaScript()` 调用 `window.renderMarkdown()`
 - **异步处理**：`setHtml()` → `loadFinished` → 队列渲染（仅保留最后一次渲染请求）→ `runJavaScript()`
+- **防闪烁**：`renderMarkdown` 先清空内容，再用 `requestAnimationFrame` 等浏览器绘制空白帧后渲染新内容
+- **常量提升**：`MEDIA_EXTS`、`VIDEO_EXTS`、`CALLOUT_TITLES` 定义在函数外，避免每次调用重建
+- **DOM 查询优化**：`a[href]` 查询合并（反斜杠修复 + 媒体卡片在同一循环处理），`img/video/audio` 合并为单次查询
+- **媒体文件链接**：markdown 中的媒体链接（`.mp4`/`.mp3` 等）自动渲染为可点击卡片，点击用系统播放器打开
+- **反斜杠路径修复**：markdown 图片/链接 URL 中的 `\` 自动转为 `/`（`marked.parse` 前预处理）
 - **关键陷阱**：`setHtml()` 必须传 `baseUrl` 参数，否则相对路径 JS 脚本无法加载
 - **GC 防护**：中键窗口和编辑对话框中的 `WebRenderer` 实例必须绑定到窗口对象，防止被 GC 回收
+- **回调参数**：`WebRenderer.render(text, callback=None)` 支持可选回调，`callback` 为 `None` 时不传给 `runJavaScript`
 
 #### 悬停备注智能定位
 - **优先上方显示**：若超出屏幕上边缘 → 改为下方显示
@@ -202,10 +208,11 @@ Tool 对象
 - 使用 `screen.availableGeometry()` 排除 Windows 任务栏区域
 
 #### 关键实现细节
-- **悬停备注**：`_init_notes_panel()` 创建独立窗口，`installEventFilter(self)` 检测鼠标进出
+- **悬停备注**：`WebRendererPool` 全局单例管理悬停面板，所有缩略图共享同一个 `QWebEngineView`，通过 `show_notes(text, pos)` 和 `hide_notes()` 控制显示/隐藏
 - **`_mouse_in_notes` 标志**：跟踪鼠标是否在备注面板上，决定延迟隐藏行为
 - **`_delayed_hide_notes()`**：150ms 延迟检查，给鼠标移动到备注面板的时间窗口
-- **中键窗口**：无备注时直接 return，不显示任何内容
+- **`is_notes_panel(obj)`**：检查事件对象是否为悬停备注面板（用于 `eventFilter`）
+- **中键窗口**：无备注时直接 return，不显示任何内容；关闭时通过 `finished.connect(deleteLater)` 释放进程
 - **编辑窗口**：分屏布局（左编辑/右预览），300ms 防抖实时更新，闭包避免实例引用泄漏
 - **智能编辑器**（`MarkdownTextEdit`）：继承 `QTextEdit`，纯文本模式（`setAcceptRichText(False)`）
   - `_handle_list_continuation()`：Enter 时自动延续列表，空行退出列表
@@ -276,6 +283,7 @@ Tool 对象
 - **GC 防护**：中键窗口和编辑对话框中的 `WebRenderer` 实例必须绑定到窗口对象（如 `notes_window._notes_renderer = renderer`），防止被 GC 回收
 - **`setHtml()` 必须传 `baseUrl`**：否则 `./marked.min.js` 等相对路径脚本无法加载
 - **JS 闭包陷阱**：`template.html` 中代码块复制按钮的事件监听器必须用 IIFE 或 `let` 包裹循环体，避免 `var` 导致的闭包引用最后一个元素
+- **JS 变量提升陷阱**：`renderMarkdown` 中 `requestAnimationFrame` 回调内的 `var text` 会通过 hoisting 覆盖外层 `text` 参数，导致 `undefined` 错误。已修复为 `var bqText`
 - **Callout `white-space: pre-line`**：callout 内容使用 `pre-line` 保留换行，同时折叠多余空格，确保多段落正常显示
 
 #### Vendored 依赖

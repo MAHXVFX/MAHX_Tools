@@ -190,6 +190,40 @@
             border-radius: 4px;
         }
 
+        /* Media links - styled as clickable cards */
+        a.media-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background-color: #2E2E32;
+            border: 1px solid #3d3d3d;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 8px 0;
+            text-decoration: none;
+            color: #d4d4d4;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+        a.media-link:hover {
+            border-color: #58a6ff;
+            background-color: #333338;
+        }
+        a.media-link .media-icon {
+            font-size: 1.5em;
+            color: #58a6ff;
+            flex-shrink: 0;
+        }
+        a.media-link .media-filename {
+            font-size: 0.9em;
+            word-break: break-all;
+        }
+        a.media-link .media-hint {
+            font-size: 0.7em;
+            color: #666;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
         /* Task lists */
         li:has(input[type="checkbox"]) {
             list-style: none;
@@ -261,42 +295,78 @@
     <div id="content"></div>
 
     <script>
+        // Constants (created once, reused across all renderMarkdown calls)
+        var MEDIA_EXTS = ['.mp4','.avi','.mkv','.mov','.wmv','.flv','.webm','.m4v','.mp3','.wav','.flac','.aac','.ogg','.wma','.m4a'];
+        var VIDEO_EXTS = ['.mp4','.avi','.mkv','.mov','.wmv','.flv','.webm','.m4v'];
+        var CALLOUT_TITLES = {'note':'Note','tip':'Tip','warning':'Warning','caution':'Caution','quote':'Quote'};
+
         // Render markdown text and update the content div
         window.renderMarkdown = function(text) {
-            // Parse markdown to HTML (marked handles escaping internally)
-            var html = marked.parse(text, {
-                gfm: true,
-                breaks: false
-            });
+            if (typeof text !== 'string') return;
 
-            // Update content
-            document.getElementById('content').innerHTML = html;
+            var content = document.getElementById('content');
+            content.innerHTML = '';
 
-            // Apply syntax highlighting and add clickable language labels
-            var codeBlocks = document.querySelectorAll('pre code');
-            for (var i = 0; i < codeBlocks.length; i++) {
-                (function() {
-                    var codeEl = codeBlocks[i];
-                    var preEl = codeEl.parentElement;
-                    var lang = '';
+            requestAnimationFrame(function() {
+                // Use local variable to avoid modifying the closure-captured parameter
+                var md = text.replace(/(!?\[[^\]]*\]\()([^)]+)(\))/g, function(m, prefix, url, suffix) {
+                    return prefix + url.replace(/\\/g, '/') + suffix;
+                });
 
-                    // Extract language from class
-                    var classes = codeEl.className.split(' ');
-                    for (var j = 0; j < classes.length; j++) {
-                        if (classes[j].startsWith('language-')) {
-                            lang = classes[j].substring(9);
-                            break;
-                        }
+                var html = marked.parse(md, { gfm: true, breaks: false });
+                content.innerHTML = html;
+
+                // Process links: backslash fix + media card styling (single query)
+                var links = document.querySelectorAll('a[href]');
+                for (var i = 0; i < links.length; i++) {
+                    var href = links[i].href.replace(/\\/g, '/').toLowerCase();
+                    links[i].href = href;
+                    var isMedia = false;
+                    for (var j = 0; j < MEDIA_EXTS.length; j++) {
+                        if (href.indexOf(MEDIA_EXTS[j]) !== -1) { isMedia = true; break; }
                     }
+                    if (!isMedia) continue;
 
-                    // Add clickable language label for copy
-                    if (lang) {
+                    var parts = href.split('/');
+                    var filename = parts[parts.length - 1] || 'media';
+                    var isVideo = VIDEO_EXTS.some(function(e) { return href.indexOf(e) !== -1; });
+                    var icon = isVideo ? '\u25B6' : '\u266B';
+
+                    links[i].className = 'media-link';
+                    var originalText = links[i].textContent || filename;
+                    links[i].innerHTML = '<span class="media-icon">' + icon + '</span>' +
+                        '<span class="media-filename">' + originalText + '</span>' +
+                        '<span class="media-hint">点击打开</span>';
+                }
+
+                // Fix img/video/audio src backslashes
+                var mediaEls = document.querySelectorAll('img[src], video[src], audio[src]');
+                for (var i = 0; i < mediaEls.length; i++) {
+                    mediaEls[i].src = mediaEls[i].src.replace(/\\/g, '/');
+                }
+
+                // Apply syntax highlighting and add clickable language labels
+                var codeBlocks = document.querySelectorAll('pre code');
+                for (var i = 0; i < codeBlocks.length; i++) {
+                    (function() {
+                        var codeEl = codeBlocks[i];
+                        var preEl = codeEl.parentElement;
+                        var lang = '';
+
+                        var classes = codeEl.className.split(' ');
+                        for (var j = 0; j < classes.length; j++) {
+                            if (classes[j].startsWith('language-')) {
+                                lang = classes[j].substring(9);
+                                break;
+                            }
+                        }
+
+                        var displayText = lang || 'COPY';
                         var label = document.createElement('span');
                         label.className = 'lang-label';
-                        label.textContent = lang;
+                        label.textContent = displayText;
                         label.addEventListener('click', function() {
                             var code = codeEl.textContent;
-                            // Use execCommand for QWebEngineView compatibility
                             var ta = document.createElement('textarea');
                             ta.value = code;
                             ta.style.position = 'fixed';
@@ -305,69 +375,58 @@
                             ta.select();
                             document.execCommand('copy');
                             document.body.removeChild(ta);
-                            
+
                             label.textContent = '复制成功';
                             label.classList.add('copied');
                             setTimeout(function() {
-                                label.textContent = lang;
+                                label.textContent = displayText;
                                 label.classList.remove('copied');
                             }, 2000);
                         });
                         preEl.appendChild(label);
+
+                        hljs.highlightElement(codeEl);
+                    })();
+                }
+
+                // Process callout/admonition blocks
+                var blockquotes = document.querySelectorAll('blockquote');
+                for (var i = blockquotes.length - 1; i >= 0; i--) {
+                    var bq = blockquotes[i];
+                    var firstP = bq.querySelector('p');
+                    if (!firstP) continue;
+
+                    var bqText = firstP.textContent;
+                    var match = bqText.match(/^\[!(note|tip|warning|caution|quote)\]\s*/i);
+                    if (!match) continue;
+
+                    var type = match[1].toLowerCase();
+
+                    var callout = document.createElement('div');
+                    callout.className = 'callout callout-' + type;
+
+                    var titleDiv = document.createElement('div');
+                    titleDiv.className = 'callout-title';
+                    titleDiv.textContent = CALLOUT_TITLES[type];
+                    callout.appendChild(titleDiv);
+
+                    var remainingText = bqText.substring(match[0].length).trim();
+                    if (remainingText) {
+                        firstP.textContent = remainingText;
+                        callout.appendChild(firstP);
                     }
 
-                    hljs.highlightElement(codeEl);
-                })();
-            }
+                    var next;
+                    var child = firstP.nextSibling;
+                    while (child) {
+                        next = child.nextSibling;
+                        callout.appendChild(child);
+                        child = next;
+                    }
 
-            // Process callout/admonition blocks
-            var blockquotes = document.querySelectorAll('blockquote');
-            for (var i = blockquotes.length - 1; i >= 0; i--) {
-                var bq = blockquotes[i];
-                var firstP = bq.querySelector('p');
-                if (!firstP) continue;
-
-                var text = firstP.textContent;
-                var match = text.match(/^\[!(note|tip|warning|caution|quote)\]\s*/i);
-                if (!match) continue;
-
-                var type = match[1].toLowerCase();
-                var titles = {
-                    'note': 'Note',
-                    'tip': 'Tip',
-                    'warning': 'Warning',
-                    'caution': 'Caution',
-                    'quote': 'Quote'
-                };
-
-                // Create callout container
-                var callout = document.createElement('div');
-                callout.className = 'callout callout-' + type;
-
-                var titleDiv = document.createElement('div');
-                titleDiv.className = 'callout-title';
-                titleDiv.textContent = titles[type];
-                callout.appendChild(titleDiv);
-
-                // Remove the [!type] prefix from first paragraph
-                var remainingText = text.substring(match[0].length).trim();
-                if (remainingText) {
-                    firstP.textContent = remainingText;
-                    callout.appendChild(firstP);
+                    bq.parentNode.replaceChild(callout, bq);
                 }
-
-                // Move remaining sibling elements from blockquote to callout
-                var next;
-                var child = firstP.nextSibling;
-                while (child) {
-                    next = child.nextSibling;
-                    callout.appendChild(child);
-                    child = next;
-                }
-
-                // Replace blockquote with callout
-                bq.parentNode.replaceChild(callout, bq);
-            }
+            });
         };
     </script>
 </body>
