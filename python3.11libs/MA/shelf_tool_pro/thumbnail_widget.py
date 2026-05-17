@@ -1,4 +1,4 @@
-"""缩略图控件。"""
+"""缩略图控件"""
 
 import os
 import shutil
@@ -90,7 +90,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         """将面板位置约束在屏幕可用区域内，避免被任务栏或屏幕边缘裁剪。"""
         available = self._get_available_geometry()
 
-        # 水平方向：优先右侧，超出则左侧；若左侧也超出则贴右边界
+        # 水平方向：优先右侧，超出则左侧；若左侧也超出则贴右边框
         if pos.x() + width > available.right():
             pos = self.mapToGlobal(QtCore.QPoint(-width - self._HORIZONTAL_GAP, 0))
         if pos.x() < available.left():
@@ -222,7 +222,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         text_edit.setPlainText(current_note)
         text_edit.setStyleSheet(
             "QTextEdit { "
-            "  background-color: #1e1e1e; "
+            "  background-color: #1F1F24; "
             "  color: #ffffff; "
             "  border: 1px solid #3d3d3d; "
             "  border-radius: 4px; "
@@ -238,7 +238,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         preview_browser = preview_renderer.get_widget()
         preview_browser.setStyleSheet(
             "QWebEngineView { "
-            "  background-color: #1e1e1e; "
+            "  background-color: #1F1F24; "
             "  border: 1px solid #3d3d3d; "
             "  border-radius: 4px; "
             "}"
@@ -247,7 +247,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         preview_renderer.render(current_note)
         splitter.addWidget(preview_browser)
         
-        # 设置分割比例（50:50）
+        # 设置分割比例 50:50
         splitter.setSizes([450, 450])
         
         layout.addWidget(splitter)
@@ -302,7 +302,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         cancel_btn.clicked.connect(dialog.reject)
         ok_btn.clicked.connect(dialog.accept)
         
-        # 定位：约束在屏幕可用区域内
+        # 定位：约束在屏幕可用区域
         pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
         pos = self._clamp_to_screen(pos, dialog.width(), dialog.height())
         dialog.move(pos)
@@ -350,7 +350,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         # 渲染 markdown
         notes_renderer.render(current_note)
         
-        # 定位：约束在屏幕可用区域内
+        # 定位：约束在屏幕可用区域
         pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
         pos = self._clamp_to_screen(pos, notes_window.width(), notes_window.height())
         notes_window.move(pos)

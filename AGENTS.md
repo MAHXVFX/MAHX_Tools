@@ -44,12 +44,13 @@ MATools/
         └── shelf_tool_pro/            # MA ShelfTools Pro 业务模块（拆分架构）
             ├── __init__.py            # 导出 MAShelfToolProPanel
             ├── panel.py               # MAShelfToolProPanel（UI 组装：工具栏/设置面板/工具区）
-            ├── thumbnail_widget.py    # ThumbnailWidget（缩略图控件：点击/拖拽/右键/GIF/Notes）
+            ├── thumbnail_widget.py    # ThumbnailWidget（缩略图控件：点击/拖拽/右键/GIF/Notes/Hover备注/编辑备注）
             ├── web_renderer.py        # Markdown 渲染器（QWebEngineView + marked.js + highlight.js）
+            ├── markdown_text_edit.py  # Markdown 智能编辑器（列表延续/快捷键）
             ├── vendor/                # Vendored 前端库
             │   ├── marked.min.js      # marked.js v15.0.12（MIT）
             │   ├── highlight.min.js   # highlight.js v11.11.1（BSD 3-Clause）
-            │   └── template.html      # HTML 模板（VitePress 风格 CSS + renderMarkdown 函数）
+            │   └── template.html      # HTML 模板（VitePress 风格 CSS + callout + 代码复制 + renderMarkdown 函数）
             ├── shelf_loader.py        # shelf 加载与执行（scan_tool_names, ensure_shelves, execute_tool, drop_at_cursor）
             └── styles.py              # 样式常量（颜色、QSS）
 ```
@@ -121,8 +122,9 @@ python_panels/MAShelfToolPro.pypanel  ← 薄层入口（from MA.shelf_tool_pro 
     ↓
 python3.11libs/MA/shelf_tool_pro/
     ├── panel.py                ← MAShelfToolProPanel（UI 组装）
-    ├── thumbnail_widget.py     ← ThumbnailWidget（缩略图控件）
+    ├── thumbnail_widget.py     ← ThumbnailWidget（缩略图控件 + 备注编辑/预览/悬停）
     ├── web_renderer.py         ← WebRenderer（QWebEngineView + marked.js + highlight.js）
+    ├── markdown_text_edit.py   ← MarkdownTextEdit（智能编辑：列表延续/快捷键/纯文本粘贴）
     ├── vendor/                 ← Vendored 前端库（marked.min.js, highlight.min.js, template.html）
     ├── shelf_loader.py         ← shelf 加载与执行逻辑
     └── styles.py               ← 样式常量
@@ -151,7 +153,7 @@ Tool 对象
 7. **右键设置图片流**：`QFileDialog.getOpenFileName()` → `shutil.copy2()` 到配置目录 → `ShelfToolsCacheManager.set_custom_image(unique_id)` → `_load_custom_image()`
 8. **GIF 悬停动画流**：`enterEvent` → `startTimer(500)` → `timerEvent` → `_start_gif_animation()` → `leaveEvent` → `killTimer()` + `_stop_gif_animation()`
 9. **设置面板流**：Settings 按钮 → `elastic_resize()` 展开/收起 → 路径输入框 + Browse 按钮 → `ShelfToolsSettingsManager.set_thumbnail_directory()`
-10. **右键编辑备注流**：`contextMenuEvent` → `_on_edit_notes()` → 自定义 QDialog (900x700) → `ShelfToolsCacheManager.set_note(unique_id)`
+10. **右键编辑备注流**：`contextMenuEvent` → `_on_edit_notes()` → 自定义 QDialog (900x700)，左 `MarkdownTextEdit` 编辑 / 右 `WebRenderer` 实时预览 → `ShelfToolsCacheManager.set_note(unique_id)`
 11. **中键查看备注流**：`mouseReleaseEvent(MiddleButton)` → `_open_notes_window()` → QWebEngineView 渲染 markdown → 无备注则无事发生
 12. **悬停显示备注流**：`enterEvent` → 500ms 延迟 → `_show_notes_panel()` → 无边框 QWebEngineView 显示在缩略图上方/下方 → 鼠标移向备注时通过 `eventFilter` 保持显示
 
@@ -174,15 +176,17 @@ Tool 对象
 | 触发方式 | 行为 | 面板类型 |
 |---|---|---|
 | 悬停 500ms | 显示小型浮动备注（只读，markdown 渲染） | 无边框 QWebEngineView，固定 450x600 |
-| 中键点击 | 打开独立备注窗口（只读，markdown 渲染） | 带标题栏 QDialog (450x600)，无备注则无事发生 |
-| 右键 → Notes | 打开备注编辑窗口（分屏实时预览） | 自定义 QDialog (900x700)，QTextEdit + QWebEngineView 分屏 |
+| 中键点击 | 打开独立备注窗口（只读，markdown 渲染） | 带标题栏 QDialog (450x600)，无备注则无事发生；标题用自定义名称（`self.name_label.text()`） |
+| 右键 → Notes | 打开备注编辑窗口（分屏实时预览） | 自定义 QDialog (900x700)，左 `MarkdownTextEdit` + 右 `WebRenderer` 分屏 |
 
 #### Markdown 渲染管线
 - **渲染器**：`web_renderer.py` 使用 vendored `marked.js` + `highlight.js` 通过 QWebEngineView 渲染
 - **模板**：`vendor/template.html` 包含 VitePress 风格 CSS 和 `window.renderMarkdown()` 函数
 - **代码高亮**：VitePress 风格（`#2E2E32` 背景、圆角容器、语言标签、语法高亮）
+- **代码复制**：点击语言标签复制代码，反馈文字"复制成功"（使用 `execCommand('copy')` 兼容 QWebEngineView）
+- **Callout 提示块**：`> [!note]` / `> [!tip]` / `> [!warning]` / `> [!caution]` / `> [!quote]` 渲染为带标题和背景色的卡片
 - **JS 注入**：`json.dumps()` 安全转义 → `runJavaScript()` 调用 `window.renderMarkdown()`
-- **异步处理**：`setHtml()` → `loadFinished` → 队列渲染 → `runJavaScript()`
+- **异步处理**：`setHtml()` → `loadFinished` → 队列渲染（仅保留最后一次渲染请求）→ `runJavaScript()`
 - **关键陷阱**：`setHtml()` 必须传 `baseUrl` 参数，否则相对路径 JS 脚本无法加载
 - **GC 防护**：中键窗口和编辑对话框中的 `WebRenderer` 实例必须绑定到窗口对象，防止被 GC 回收
 
@@ -203,6 +207,12 @@ Tool 对象
 - **`_delayed_hide_notes()`**：150ms 延迟检查，给鼠标移动到备注面板的时间窗口
 - **中键窗口**：无备注时直接 return，不显示任何内容
 - **编辑窗口**：分屏布局（左编辑/右预览），300ms 防抖实时更新，闭包避免实例引用泄漏
+- **智能编辑器**（`MarkdownTextEdit`）：继承 `QTextEdit`，纯文本模式（`setAcceptRichText(False)`）
+  - `_handle_list_continuation()`：Enter 时自动延续列表，空行退出列表
+  - 支持无序列表（`- `）、有序列表（`1. `）、任务列表（`- [ ] `）、blockquote（`> `）
+  - Ctrl+B/I/\`：加粗/斜体/行内代码；Ctrl+Shift+K：插入代码块
+  - Tab/Shift+Tab：缩进/反缩进（2空格）
+  - 使用 `re.match()` 解析行内容，不依赖复杂状态机
 
 ### 缓存结构扩展
 
@@ -265,6 +275,8 @@ Tool 对象
 - **延迟隐藏机制**：`leaveEvent` 不直接隐藏，而是 `QTimer.singleShot(150, _delayed_hide_notes)`，给鼠标移动到备注面板的时间窗口
 - **GC 防护**：中键窗口和编辑对话框中的 `WebRenderer` 实例必须绑定到窗口对象（如 `notes_window._notes_renderer = renderer`），防止被 GC 回收
 - **`setHtml()` 必须传 `baseUrl`**：否则 `./marked.min.js` 等相对路径脚本无法加载
+- **JS 闭包陷阱**：`template.html` 中代码块复制按钮的事件监听器必须用 IIFE 或 `let` 包裹循环体，避免 `var` 导致的闭包引用最后一个元素
+- **Callout `white-space: pre-line`**：callout 内容使用 `pre-line` 保留换行，同时折叠多余空格，确保多段落正常显示
 
 #### Vendored 依赖
 - **`python3.11libs/MA/shelf_tool_pro/vendor/`**：前端渲染库
@@ -273,6 +285,27 @@ Tool 对象
   - `template.html` — HTML 模板（VitePress 风格 CSS + `renderMarkdown` 函数）
 - **许可证合规**：`marked/LICENSE.md` 和 `highlight.js/LICENSE` 必须保留在项目根目录
 - **Houdini 自动加载**：`python3.11libs/` 自动加入 `sys.path`，无需额外配置
+
+#### 渲染样式
+
+| 元素 | 颜色/样式 |
+|---|---|
+| 背景 | `#1F1F24` |
+| 文本 | `#d4d4d4` |
+| H1 | `#BC5662`，下划线 |
+| H2 | `#D47440`，下划线 |
+| H3 | `#ECBC47` |
+| H4 | `#5CB98F` |
+| H5 | `#5387C7` |
+| H6 | `#8968A2` |
+| 粗体 | `#FF5858` |
+| 斜体 | `#99C696` |
+| 代码块背景 | `#2E2E32`，圆角 8px |
+| Callout Note | 蓝边框 `#58a6ff`，深蓝背景 `#1a2332` |
+| Callout Tip | 绿边框 `#3fb950`，深绿背景 `#1a2e1a` |
+| Callout Warning | 黄边框 `#d29922`，深黄背景 `#2e251a` |
+| Callout Caution | 红边框 `#f85149`，深红背景 `#2e1a1a` |
+| Callout Quote | 灰边框 `#8b949e`，深灰背景 `#252526` |
 
 ## 开发约束
 

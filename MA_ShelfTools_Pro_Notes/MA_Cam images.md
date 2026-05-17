@@ -1,4 +1,4 @@
-```c
+```
 // Grow Hairs
 vector dir = { 0, 1, 0 };
 // dir = @N;    // grow in normal direction
@@ -12,7 +12,7 @@ int             pr = addprim(geoself(), "polyline");
 
 ```
 
-```c
+```
 // Start the curve with our point
 addvertex(geoself(), pr, @ptnum);
 for (int i = 0; i < steps; i++)
