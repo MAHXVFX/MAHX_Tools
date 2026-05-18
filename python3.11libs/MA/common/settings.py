@@ -129,3 +129,21 @@ class ShelfToolsCacheManager(BaseJsonManager):
         note_path = os.path.join(SHELFTOOLS_NOTES_DIR, f"{tool_name}.md")
         with open(note_path, "w", encoding="utf-8") as f:
             f.write(note)
+
+    @classmethod
+    def remove_custom_image(cls, tool_name):
+        """Remove custom image entry from cache."""
+        data = cls.load()
+        images = data.get("custom_images", {})
+        if tool_name in images:
+            del images[tool_name]
+            cls.save(data)
+
+    @classmethod
+    def remove_custom_name(cls, tool_name):
+        """Remove custom name entry from cache."""
+        data = cls.load()
+        names = data.get("custom_names", {})
+        if tool_name in names:
+            del names[tool_name]
+            cls.save(data)

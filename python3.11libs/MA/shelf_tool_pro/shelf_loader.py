@@ -120,5 +120,17 @@ def drop_at_cursor(unique_id):
         pass
 
 
+def refresh_tools():
+    """重新扫描所有 .shelf 文件并更新全局工具注册表。
+
+    在创建新工具并写入 .shelf 文件后调用此函数。
+    此函数会清除之前的注册信息，重新解析所有 .shelf 文件。
+    """
+    global _TOOL_NAMES, _TOOL_REGISTRY
+    _TOOL_NAMES = []
+    _TOOL_REGISTRY = {}
+    _TOOL_NAMES = scan_tool_names()
+
+
 # 模块加载时扫描工具名称
 _TOOL_NAMES = scan_tool_names()

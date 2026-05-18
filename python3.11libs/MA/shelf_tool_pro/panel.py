@@ -1,6 +1,13 @@
 """MAShelfToolPro 主面板。"""
 
+import logging
+
 from PySide6 import QtWidgets, QtCore
+
+try:
+    import hou
+except ImportError:
+    hou = None
 
 from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
 from MA.common.animation_helper import elastic_resize
@@ -10,6 +17,8 @@ from MA.shelf_tool_pro.styles import (
 )
 from MA.shelf_tool_pro.shelf_loader import _TOOL_NAMES, _TOOL_REGISTRY
 from MA.shelf_tool_pro.thumbnail_widget import ThumbnailWidget
+
+_logger = logging.getLogger("MA")
 
 _DEFAULT_SIZE = 130
 
@@ -30,6 +39,8 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
     def __init__(self):
         super().__init__()
+        self.setAcceptDrops(True)
+        self._save_dialog_open = False
         self.setMinimumWidth(350)
         self.setStyleSheet(f"background-color: {BG_PRIMARY};")
 
@@ -48,6 +59,191 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         main_layout.addWidget(sep)
 
         main_layout.addWidget(self._create_scroll_area(init_size), 1)
+
+    # ── 拖放事件 ──────────────────────────────────
+
+    def dragEnterEvent(self, event):
+        """Accept Houdini node drags, reject own tool drags."""
+        mime = event.mimeData()
+
+        # Reject own panel drag-out (MIME: "ma_tool:...")
+        if mime.hasText() and mime.text().strip().startswith("ma_tool:"):
+            event.ignore()
+            return
+
+        # Check for Houdini node MIME type (GUI-only)
+        accepted = False
+        if hou is not None and hasattr(hou, 'qt') and hasattr(hou.qt, 'mimeType') and \
+           hasattr(hou.qt.mimeType, 'nodePath'):
+            if mime.hasFormat(hou.qt.mimeType.nodePath):
+                accepted = True
+
+        # Fallback: check text/plain for node path pattern
+        if not accepted and mime.hasText():
+            text = mime.text().strip()
+            # Node paths start with "/"
+            first_line = text.split("\n")[0].split("\t")[0]
+            if first_line.startswith("/") and hou is not None:
+                if hou.node(first_line) is not None:
+                    accepted = True
+
+        if accepted:
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        """Handle Houdini node drop: show dialog, save tool, refresh panel."""
+        if self._save_dialog_open:
+            event.ignore()  # prevent re-entrant
+            return
+
+        mime = event.mimeData()
+        node_paths = []
+
+        # Extract node paths from MIME data
+        if hou is not None and hasattr(hou, 'qt') and hasattr(hou.qt, 'mimeType') and \
+           hasattr(hou.qt.mimeType, 'nodePath') and \
+           mime.hasFormat(hou.qt.mimeType.nodePath):
+            try:
+                raw = bytes(mime.data(hou.qt.mimeType.nodePath)).decode('utf-8', errors='replace')
+                node_paths = [p.strip() for p in raw.split("\t") if p.strip()]
+            except Exception:
+                pass
+        # Fallback to text/plain
+        if not node_paths and mime.hasText():
+            text = mime.text().strip()
+            node_paths = [p.strip() for p in text.split("\t") if p.strip().startswith("/")]
+
+        if not node_paths:
+            return
+
+        # Validate paths exist
+        valid_paths = []
+        if hou is not None:
+            for p in node_paths:
+                if hou.node(p) is not None:
+                    valid_paths.append(p)
+        else:
+            valid_paths = node_paths
+
+        if not valid_paths:
+            return
+
+        event.acceptProposedAction()
+
+        self._save_dialog_open = True
+        try:
+            from MA.shelf_tool_pro.save_tool_dialog import SaveToolDialog
+            dialog = SaveToolDialog(valid_paths, self)
+            if dialog.exec() != QtWidgets.QDialog.Accepted:
+                return  # cancelled
+
+            result = dialog.get_result()
+            if result is None:
+                return
+
+            # Check name conflict before saving
+            from MA.shelf_tool_pro.shelf_saver import check_name_conflict, save_node_to_shelf
+
+            shelf_file = result["shelf_file"]
+            tool_name = result["tool_name"]
+
+            if check_name_conflict(tool_name, shelf_file):
+                reply = QtWidgets.QMessageBox.question(
+                    self,
+                    "Tool Name Conflict",
+                    f"A tool named '{tool_name}' already exists in\n{shelf_file}\n\nDo you want to overwrite it?",
+                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                    QtWidgets.QMessageBox.No,
+                )
+                if reply != QtWidgets.QMessageBox.Yes:
+                    return  # user chose not to overwrite
+
+            # Save to .shelf file
+            success = save_node_to_shelf(
+                node_paths=result["node_paths"],
+                tool_name=tool_name,
+                label=result["label"],
+                shelf_file_path=shelf_file,
+                icon_path=result.get("icon_path", ""),
+            )
+            if not success:
+                QtWidgets.QMessageBox.warning(self, "Error",
+                    "Failed to save tool to shelf file.")
+                return
+
+            # Load the .shelf file into Houdini
+            if hou is not None:
+                try:
+                    hou.shelves.loadFile(result["shelf_file"])
+                except Exception as exc:
+                    _logger.warning("hou.shelves.loadFile failed: %s", exc)
+
+            # Refresh panel
+            self._refresh_tools()
+
+            QtWidgets.QMessageBox.information(self, "Success",
+                f"Tool '{result['label']}' saved to {result['shelf_file']}")
+        finally:
+            self._save_dialog_open = False
+
+    # ── 工具缩略图助手 ────────────────────────────
+
+    def _build_thumb_widgets(self, layout, tool_names, size):
+        """向 layout 填充 ThumbnailWidget 实例。"""
+        if not tool_names:
+            info = QtWidgets.QLabel("No tools found")
+            info.setAlignment(QtCore.Qt.AlignCenter)
+            info.setStyleSheet(
+                "color: #888888; font-size: 14px; padding: 20px; background: transparent;")
+            layout.addWidget(info)
+            return
+
+        self._thumb_widgets = []
+        for unique_id in tool_names:
+            if unique_id in _TOOL_REGISTRY:
+                _, display_name, _ = _TOOL_REGISTRY[unique_id]
+            else:
+                display_name = unique_id.split("_", 1)[-1]
+
+            custom_name = ShelfToolsCacheManager.get_custom_name(unique_id)
+            custom_image = ShelfToolsCacheManager.get_custom_image(unique_id)
+            tw = ThumbnailWidget(unique_id, display_name, size,
+                                 custom_name=custom_name,
+                                 custom_image_info=custom_image)
+            self._thumb_widgets.append(tw)
+            layout.addWidget(tw)
+        layout.addStretch()
+
+    # ── 面板刷新 ──────────────────────────────────
+
+    def _refresh_tools(self):
+        """Refresh the tool list in the scroll area after saving a new tool."""
+        from MA.shelf_tool_pro.shelf_loader import refresh_tools
+
+        refresh_tools()  # re-scan .shelf files, update globals
+
+        # Re-import to bind locally updated _TOOL_NAMES / _TOOL_REGISTRY
+        from MA.shelf_tool_pro.shelf_loader import _TOOL_NAMES, _TOOL_REGISTRY
+
+        old_container = self.tools_container
+        new_container = QtWidgets.QWidget()
+        new_container.setStyleSheet(f"background-color: {BG_SECONDARY};")
+        new_layout = QtWidgets.QHBoxLayout(new_container)
+        new_layout.setContentsMargins(6, 6, 6, 6)
+        new_layout.setSpacing(12)
+        new_layout.setAlignment(QtCore.Qt.AlignTop)
+
+        self._build_thumb_widgets(new_layout, _TOOL_NAMES, self.thumb_slider.value())
+
+        # Swap in new container
+        self.tools_container = new_container
+        self.scroll_area.setWidget(new_container)
+        try:
+            old_container.deleteLater()
+        except RuntimeError:
+            pass  # Qt already deleted the old widget during setWidget()
 
     def _create_toolbar(self, init_size):
         layout = QtWidgets.QHBoxLayout()
@@ -134,26 +330,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         tools_layout.setSpacing(12)
         tools_layout.setAlignment(QtCore.Qt.AlignTop)
 
-        if not _TOOL_NAMES:
-            info = QtWidgets.QLabel("No tools found")
-            info.setAlignment(QtCore.Qt.AlignCenter)
-            info.setStyleSheet(f"color: #888888; font-size: 14px; padding: 20px; background: transparent;")
-            tools_layout.addWidget(info)
-        else:
-            self._thumb_widgets = []
-            for unique_id in _TOOL_NAMES:
-                # 从注册表获取显示名称
-                if unique_id in _TOOL_REGISTRY:
-                    _, display_name, _ = _TOOL_REGISTRY[unique_id]
-                else:
-                    display_name = unique_id.split("_", 1)[-1]
-
-                custom_name = ShelfToolsCacheManager.get_custom_name(unique_id)
-                custom_image = ShelfToolsCacheManager.get_custom_image(unique_id)
-                tw = ThumbnailWidget(unique_id, display_name, init_size, custom_name=custom_name, custom_image_info=custom_image)
-                self._thumb_widgets.append(tw)
-                tools_layout.addWidget(tw)
-            tools_layout.addStretch()
+        self._build_thumb_widgets(tools_layout, _TOOL_NAMES, init_size)
 
         self.scroll_area.setWidget(self.tools_container)
         return self.scroll_area

@@ -161,9 +161,12 @@ class ThumbnailWidget(QtWidgets.QWidget):
         rename_action = menu.addAction("Rename")
         set_image_action = menu.addAction("Set Image")
         notes_action = menu.addAction("Notes")
+        menu.addSeparator()
+        delete_action = menu.addAction("Delete")
         rename_action.triggered.connect(self._on_rename)
         set_image_action.triggered.connect(self._on_set_image)
         notes_action.triggered.connect(self._on_edit_notes)
+        delete_action.triggered.connect(self._on_delete_tool)
         menu.exec(event.globalPos())
 
     def _on_rename(self):
@@ -312,7 +315,76 @@ class ThumbnailWidget(QtWidgets.QWidget):
         if dialog.exec() == QtWidgets.QDialog.Accepted:
             new_note = text_edit.toPlainText()
             ShelfToolsCacheManager.set_note(self._unique_id, new_note)
-    
+
+    def _on_delete_tool(self):
+        """删除当前工具：确认 → 从 .shelf 移除 → 清理 → 刷新面板。"""
+        from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY, refresh_tools
+        from MA.shelf_tool_pro.shelf_saver import remove_tool_from_shelf
+        from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
+        from MA.common.constants import SHELFTOOLS_NOTES_DIR
+
+        # 确认对话框
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            "Delete Tool",
+            f"Are you sure you want to delete '{self.name_label.text()}'?\n\n"
+            "This will remove the tool from the .shelf file and all related data.",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.No,
+        )
+        if reply != QtWidgets.QMessageBox.Yes:
+            return
+
+        # 从注册表获取工具信息
+        if self._unique_id not in _TOOL_REGISTRY:
+            logger.warning("Tool '%s' not found in registry", self._unique_id)
+            QtWidgets.QMessageBox.warning(self, "Error", "Tool not found in registry.")
+            return
+
+        _, tool_name, shelf_path = _TOOL_REGISTRY[self._unique_id]
+
+        # 1. 从 .shelf 文件移除
+        if not remove_tool_from_shelf(tool_name, shelf_path):
+            QtWidgets.QMessageBox.warning(self, "Error",
+                f"Failed to remove tool from\n{shelf_path}")
+            return
+
+        # 2. 删除自定义缩略图文件
+        thumb_dir = ShelfToolsSettingsManager.get_thumbnail_directory()
+        for ext in (".jpg", ".jpeg", ".png", ".gif"):
+            thumb_path = os.path.join(thumb_dir, f"{self._unique_id}_custom{ext}")
+            if os.path.exists(thumb_path):
+                try:
+                    os.remove(thumb_path)
+                except OSError as e:
+                    logger.warning("Failed to remove thumbnail %s: %s", thumb_path, e)
+
+        # 3. 清理缓存
+        ShelfToolsCacheManager.remove_custom_image(self._unique_id)
+        ShelfToolsCacheManager.remove_custom_name(self._unique_id)
+
+        # 4. 删除备注文件
+        note_path = os.path.join(SHELFTOOLS_NOTES_DIR, f"{self._unique_id}.md")
+        if os.path.exists(note_path):
+            try:
+                os.remove(note_path)
+            except OSError as e:
+                logger.warning("Failed to remove notes %s: %s", note_path, e)
+
+        # 5. 删除自身控件
+        self.setParent(None)
+        self.deleteLater()
+
+        # 6. 刷新面板
+        refresh_tools()
+        # 找到父 panel 并刷新 UI
+        parent = self.parent()
+        while parent is not None:
+            if hasattr(parent, '_refresh_tools'):
+                parent._refresh_tools()
+                break
+            parent = parent.parent()
+
     def _open_notes_window(self):
         """以悬浮窗口方式打开备注（只读，渲染 markdown，带标题栏）。"""
         # 无备注则无事发生

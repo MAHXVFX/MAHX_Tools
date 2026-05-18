@@ -531,7 +531,6 @@ opcf ..
 # End of editable subnode
 opcf ../..
 
-
 # Editable subnode
 opcf torus/sopnet
 opcf create
@@ -831,5 +830,303 @@ def create_attribute_split_tool():
 
 # å¨Houdiniä¸­è°ç¨
 create_attribute_split_tool()]]></script>
+  </tool>
+
+  <tool name="sss" label="sss" icon="">
+    <script scriptType="python"><![CDATA[# === MA_ShelfTools_Pro: kwargs-aware positioning ===
+_K8s_NODES = []
+_K8s_REQUESTED = {}  # requested_name â actual nodeï¼å¤çéå½ååºæ¯ï¼
+_K8s_REL_POS = {
+    "color1": (0, 0),
+    "box1": (-0.82596, 1.921336),
+    "scatter1": (-0.82596, 0.98689),
+    "attribtransfer1": (-2.51298, -0.87882),
+    "null1": (-2.50953, -1.98152)
+}  # name â (dx, dy) ç¸å¯¹ä½ç½®åç§»ï¼ç±»ä¼¼ $arg2/arg3ï¼
+_kwargs = globals().get("kwargs", {})
+_pane = _kwargs.get("pane")
+
+# Override hou_parent to current context instead of asCode's hardcoded path.
+if _pane is not None:
+    hou_parent = _pane.pwd()
+
+_autoplace = _kwargs.get("autoplace", True)
+_nx = _kwargs.get("nodepositionx")
+_ny = _kwargs.get("nodepositiony")
+_has_pos = not _autoplace and _nx is not None and _ny is not None
+# === end preamble ===
+
+# Saved from MA_ShelfTools_Pro on 2026-05-18 22:31:19
+
+# Original node(s): /obj/geo1/color1, /obj/geo1/box1, /obj/geo1/scatter1, /obj/geo1/attribtransfer1, /obj/geo1/null1
+
+
+
+# Code for /obj/geo1/color1
+
+# Initialize parent node variable.
+if locals().get("hou_parent") is None:
+    hou_parent = hou.node("/obj/geo1")
+
+# Code for /obj/geo1/color1
+hou_node = hou_parent.createNode("color", "color1", run_init_scripts=False, load_contents=True, exact_type_name=True)
+_K8s_NODES.append(hou_node)
+_K8s_REQUESTED["color1"] = hou_node
+hou_node.move(hou.Vector2(-2.17256, -1.59833))
+hou_node.bypass(False)
+hou_node.setDisplayFlag(False)
+hou_node.hide(False)
+hou_node.setHighlightFlag(False)
+hou_node.setHardLocked(False)
+hou_node.setSoftLocked(False)
+hou_node.setSelectableTemplateFlag(False)
+hou_node.setSelected(True)
+hou_node.setRenderFlag(False)
+hou_node.setTemplateFlag(False)
+hou_node.setUnloadFlag(False)
+
+# Code for /obj/geo1/color1/color parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/geo1/color1")
+hou_parm_tuple = hou_node.parmTuple("color")
+hou_parm_tuple.deleteAllKeyframes()
+hou_parm_tuple.set((1, 0.5, 0))
+
+
+# Code for /obj/geo1/color1/ramp2pos parm 
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/geo1/color1")
+hou_parm = hou_node.parm("ramp2pos")
+hou_parm.deleteAllKeyframes()
+hou_parm.set(1)
+
+
+# Code for /obj/geo1/color1/ramp2c parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/geo1/color1")
+hou_parm_tuple = hou_node.parmTuple("ramp2c")
+hou_parm_tuple.deleteAllKeyframes()
+hou_parm_tuple.set((1, 1, 1))
+
+
+hou_node.setColor(hou.Color([1, 0.725, 0]))
+hou_node.setExpressionLanguage(hou.exprLanguage.Hscript)
+
+
+
+# Code for /obj/geo1/box1
+
+# Initialize parent node variable.
+if locals().get("hou_parent") is None:
+    hou_parent = hou.node("/obj/geo1")
+
+# Code for /obj/geo1/box1
+hou_node = hou_parent.createNode("box", "box1", run_init_scripts=False, load_contents=True, exact_type_name=True)
+_K8s_NODES.append(hou_node)
+_K8s_REQUESTED["box1"] = hou_node
+hou_node.move(hou.Vector2(-2.99852, 0.323009))
+hou_node.bypass(False)
+hou_node.setDisplayFlag(False)
+hou_node.hide(False)
+hou_node.setHighlightFlag(False)
+hou_node.setHardLocked(False)
+hou_node.setSoftLocked(False)
+hou_node.setSelectableTemplateFlag(False)
+hou_node.setSelected(True)
+hou_node.setRenderFlag(False)
+hou_node.setTemplateFlag(False)
+hou_node.setUnloadFlag(False)
+
+# Code for /obj/geo1/box1/type parm 
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/geo1/box1")
+hou_parm = hou_node.parm("type")
+hou_parm.deleteAllKeyframes()
+hou_parm.set("polymesh")
+
+
+# Code for /obj/geo1/box1/divrate parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/geo1/box1")
+hou_parm_tuple = hou_node.parmTuple("divrate")
+hou_parm_tuple.deleteAllKeyframes()
+hou_parm_tuple.set((2, 2, 2))
+
+
+hou_node.setExpressionLanguage(hou.exprLanguage.Hscript)
+
+if hasattr(hou_node, "syncNodeVersionIfNeeded"):
+    hou_node.syncNodeVersionIfNeeded("21.0.512")
+# Update the parent node.
+hou_parent = hou_node
+
+
+# Restore the parent and current nodes.
+hou_parent = hou_parent.parent()
+hou_node = hou_node.parent()
+
+
+
+# Code for /obj/geo1/scatter1
+
+# Initialize parent node variable.
+if locals().get("hou_parent") is None:
+    hou_parent = hou.node("/obj/geo1")
+
+# Code for /obj/geo1/scatter1
+hou_node = hou_parent.createNode("scatter::2.0", "scatter1", run_init_scripts=False, load_contents=True, exact_type_name=True)
+_K8s_NODES.append(hou_node)
+_K8s_REQUESTED["scatter1"] = hou_node
+hou_node.move(hou.Vector2(-2.99852, -0.611437))
+hou_node.bypass(False)
+hou_node.setDisplayFlag(False)
+hou_node.hide(False)
+hou_node.setHighlightFlag(False)
+hou_node.setHardLocked(False)
+hou_node.setSoftLocked(False)
+hou_node.setSelectableTemplateFlag(False)
+hou_node.setSelected(True)
+hou_node.setRenderFlag(False)
+hou_node.setTemplateFlag(False)
+hou_node.setUnloadFlag(False)
+
+hou_node.setExpressionLanguage(hou.exprLanguage.Hscript)
+
+
+
+# Code for /obj/geo1/attribtransfer1
+
+# Initialize parent node variable.
+if locals().get("hou_parent") is None:
+    hou_parent = hou.node("/obj/geo1")
+
+# Code for /obj/geo1/attribtransfer1
+hou_node = hou_parent.createNode("attribtransfer", "attribtransfer1", run_init_scripts=False, load_contents=True, exact_type_name=True)
+_K8s_NODES.append(hou_node)
+_K8s_REQUESTED["attribtransfer1"] = hou_node
+hou_node.move(hou.Vector2(-4.68554, -2.47715))
+hou_node.bypass(False)
+hou_node.setDisplayFlag(False)
+hou_node.hide(False)
+hou_node.setHighlightFlag(False)
+hou_node.setHardLocked(False)
+hou_node.setSoftLocked(False)
+hou_node.setSelectableTemplateFlag(False)
+hou_node.setSelected(True)
+hou_node.setRenderFlag(False)
+hou_node.setTemplateFlag(False)
+hou_node.setUnloadFlag(False)
+
+hou_node.setExpressionLanguage(hou.exprLanguage.Hscript)
+
+
+
+# Code for /obj/geo1/null1
+
+# Initialize parent node variable.
+if locals().get("hou_parent") is None:
+    hou_parent = hou.node("/obj/geo1")
+
+# Code for /obj/geo1/null1
+hou_node = hou_parent.createNode("null", "null1", run_init_scripts=False, load_contents=True, exact_type_name=True)
+_K8s_NODES.append(hou_node)
+_K8s_REQUESTED["null1"] = hou_node
+hou_node.move(hou.Vector2(-4.68209, -3.57985))
+hou_node.bypass(False)
+hou_node.setDisplayFlag(True)
+hou_node.hide(False)
+hou_node.setHighlightFlag(False)
+hou_node.setHardLocked(False)
+hou_node.setSoftLocked(False)
+hou_node.setSelectableTemplateFlag(False)
+hou_node.setSelected(True)
+hou_node.setRenderFlag(True)
+hou_node.setTemplateFlag(False)
+hou_node.setUnloadFlag(False)
+
+hou_node.setExpressionLanguage(hou.exprLanguage.Hscript)
+
+
+
+# Code to establish connections for /obj/geo1/color1
+hou_node = _K8s_REQUESTED.get("color1")
+if _K8s_REQUESTED.get("scatter1") is not None:
+    hou_node.setInput(0, _K8s_REQUESTED.get("scatter1"), 0)
+if _K8s_REQUESTED.get("attribtransfer1") is not None:
+    _K8s_REQUESTED.get("attribtransfer1").setInput(1, hou_node, 0)
+hou_node.setUserData("___toolid___", "sop_color")
+hou_node.setUserData("___Version___", "")
+hou_node.setUserData("___toolcount___", "2")
+if hasattr(hou_node, "syncNodeVersionIfNeeded"):
+    hou_node.syncNodeVersionIfNeeded("")
+
+
+# Code to establish connections for /obj/geo1/scatter1
+hou_node = _K8s_REQUESTED.get("scatter1")
+if _K8s_REQUESTED.get("box1") is not None:
+    hou_node.setInput(0, _K8s_REQUESTED.get("box1"), 0)
+if _K8s_REQUESTED.get("color1") is not None:
+    _K8s_REQUESTED.get("color1").setInput(0, hou_node, 0)
+if _K8s_REQUESTED.get("attribtransfer1") is not None:
+    _K8s_REQUESTED.get("attribtransfer1").setInput(0, hou_node, 0)
+if hasattr(hou_node, "syncNodeVersionIfNeeded"):
+    hou_node.syncNodeVersionIfNeeded("21.0.512")
+# Update the parent node.
+hou_parent = hou_node
+
+
+# Restore the parent and current nodes.
+hou_parent = hou_parent.parent()
+hou_node = hou_node.parent()
+
+
+
+# Code to establish connections for /obj/geo1/attribtransfer1
+hou_node = _K8s_REQUESTED.get("attribtransfer1")
+if _K8s_REQUESTED.get("scatter1") is not None:
+    hou_node.setInput(0, _K8s_REQUESTED.get("scatter1"), 0)
+if _K8s_REQUESTED.get("color1") is not None:
+    hou_node.setInput(1, _K8s_REQUESTED.get("color1"), 0)
+if _K8s_REQUESTED.get("null1") is not None:
+    _K8s_REQUESTED.get("null1").setInput(0, hou_node, 0)
+if hasattr(hou_node, "syncNodeVersionIfNeeded"):
+    hou_node.syncNodeVersionIfNeeded("21.0.512")
+# Update the parent node.
+hou_parent = hou_node
+
+
+# Restore the parent and current nodes.
+hou_parent = hou_parent.parent()
+hou_node = hou_node.parent()
+
+
+
+# Code to establish connections for /obj/geo1/null1
+hou_node = _K8s_REQUESTED.get("null1")
+if _K8s_REQUESTED.get("attribtransfer1") is not None:
+    hou_node.setInput(0, _K8s_REQUESTED.get("attribtransfer1"), 0)
+if hasattr(hou_node, "syncNodeVersionIfNeeded"):
+    hou_node.syncNodeVersionIfNeeded("21.0.512")
+# Update the parent node.
+hou_parent = hou_node
+
+
+# Restore the parent and current nodes.
+hou_parent = hou_parent.parent()
+hou_node = hou_node.parent()
+
+
+# === MA_ShelfTools_Pro: drag reposition ===
+# ç¨ä¿å­æ¶çç¸å¯¹åç§»ï¼_K8s_REL_POSï¼+ åæ ä½ç½®ç´æ¥å®ä½ã
+# å Houdini åçå·¥å·æ¶ä¸è´ï¼position = cursor + relative_offset
+if _has_pos and _K8s_REL_POS:
+    _cx = float(_nx)
+    _cy = float(_ny)
+    for _name, _n in _K8s_REQUESTED.items():
+        _rel = _K8s_REL_POS.get(_name)
+        if _rel is not None:
+            _n.move(hou.Vector2(_cx + _rel[0], _cy + _rel[1]))
+# === end reposition ===
+]]></script>
   </tool>
 </shelfDocument>
