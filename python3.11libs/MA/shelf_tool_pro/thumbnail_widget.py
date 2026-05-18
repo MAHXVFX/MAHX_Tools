@@ -355,14 +355,22 @@ class ThumbnailWidget(QtWidgets.QWidget):
         # 窗口关闭时彻底销毁 WebRenderer 释放 QtWebEngineProcess
         view = notes_display
         page = view.page()
-        notes_window.finished.connect(lambda: (page.deleteLater(), view.deleteLater()))
+        def _cleanup_notes_window():
+            notes_window._ready_to_show = False
+            page.deleteLater()
+            view.deleteLater()
+
+        notes_window.finished.connect(_cleanup_notes_window)
         
         # 定位：约束在屏幕可用区域
         pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
         pos = self._clamp_to_screen(pos, notes_window.width(), notes_window.height())
         notes_window.move(pos)
+        notes_window._ready_to_show = True
 
         def _show_after_render(_=None):
+            if not getattr(notes_window, "_ready_to_show", False):
+                return
             notes_window.show()
             notes_window.raise_()
             notes_window.activateWindow()

@@ -190,8 +190,10 @@ class WebRenderer(QObject):
             callback: Optional callable invoked after JS execution completes.
         """
         js_safe_text = json.dumps(text)
+        options = {"fade": True} if fade else None
+        js_safe_options = json.dumps(options)
         if fade:
-            js_code = f"window.renderMarkdown({js_safe_text}, {{fade: true}});"
+            js_code = f"window.renderMarkdown({js_safe_text}, {js_safe_options});"
         else:
             js_code = f"window.renderMarkdown({js_safe_text});"
 
