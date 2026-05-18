@@ -350,8 +350,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
             "}"
         )
         layout.addWidget(notes_display)
-        # 渲染 markdown
-        notes_renderer.render(current_note)
+        # Render after positioning so the window is only shown with ready content.
         
         # 窗口关闭时彻底销毁 WebRenderer 释放 QtWebEngineProcess
         view = notes_display
@@ -362,9 +361,13 @@ class ThumbnailWidget(QtWidgets.QWidget):
         pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
         pos = self._clamp_to_screen(pos, notes_window.width(), notes_window.height())
         notes_window.move(pos)
-        notes_window.show()
-        notes_window.raise_()
-        notes_window.activateWindow()
+
+        def _show_after_render(_=None):
+            notes_window.show()
+            notes_window.raise_()
+            notes_window.activateWindow()
+
+        notes_renderer.render(current_note, _show_after_render, fade=True)
 
     def _release_movie(self):
         """彻底释放 QMovie 对象及其文件句柄。"""

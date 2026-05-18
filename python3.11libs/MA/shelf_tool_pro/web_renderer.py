@@ -8,8 +8,8 @@ import json
 import logging
 import os
 
-from PySide6.QtCore import QUrl, QObject, Qt
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QTimer, QUrl, QObject, Qt
+from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
@@ -40,8 +40,10 @@ class WebRendererPool:
     """Global singleton pool for the shared hover notes WebRenderer."""
     _NOTES_PANEL_WIDTH = 450
     _NOTES_PANEL_HEIGHT = 600
+    _FADE_OUT_MS = 180
     _renderer: "WebRenderer | None" = None
     _mouse_in_notes: bool = False
+    _show_generation: int = 0
 
     @classmethod
     def has_renderer(cls) -> bool:
@@ -63,16 +65,31 @@ class WebRendererPool:
     def show_notes(cls, note_text: str, panel_pos) -> None:
         renderer = cls.get_renderer()
         panel = renderer.get_widget()
-        panel.move(panel_pos)
-        panel.show()
-        panel.raise_()
-        panel.activateWindow()
-        renderer.render(note_text)
+        cls._show_generation += 1
+        generation = cls._show_generation
+        panel.hide()
+
+        def _show_after_render(_=None) -> None:
+            if generation != cls._show_generation:
+                return
+            panel.move(panel_pos)
+            panel.show()
+            panel.raise_()
+            panel.activateWindow()
+
+        renderer.render(note_text, _show_after_render, fade=True)
 
     @classmethod
     def hide_notes(cls) -> None:
+        cls._show_generation += 1
+        generation = cls._show_generation
         if cls._renderer is not None:
-            cls._renderer.get_widget().hide()
+            cls._renderer.hide_content()
+            panel = cls._renderer.get_widget()
+            QTimer.singleShot(
+                cls._FADE_OUT_MS,
+                lambda: panel.hide() if generation == cls._show_generation else None,
+            )
         cls._mouse_in_notes = False
 
     @classmethod
@@ -97,10 +114,12 @@ class WebRenderer(QObject):
     def __init__(self):
         super().__init__()
         self._page = _MediaNavigationHandler()
+        self._page.setBackgroundColor(QColor("#1F1F24"))
         self._view = QWebEngineView()
         self._view.setPage(self._page)
+        self._view.setStyleSheet("QWebEngineView { background-color: #1F1F24; }")
         self._ready = False
-        self._pending_render: "tuple[str, object] | None" = None
+        self._pending_render: "tuple[str, object, bool] | None" = None
 
         # Vendor directory for template and JS libraries
         vendor_dir = os.path.join(os.path.dirname(__file__), "vendor")
@@ -124,18 +143,19 @@ class WebRenderer(QObject):
             baseUrl=QUrl.fromLocalFile(vendor_dir + "/"),
         )
 
-    def render(self, markdown_text: str, callback=None) -> None:
+    def render(self, markdown_text: str, callback=None, fade: bool = False) -> None:
         """Render markdown text in the web view.
 
         Args:
             markdown_text: Raw Markdown text (not pre-escaped).
             callback: Optional callable invoked after JS injection completes.
+            fade: Fade in the rendered content inside the web page.
         """
         if self._ready:
-            self._inject_markdown(markdown_text, callback)
+            self._inject_markdown(markdown_text, callback, fade=fade)
         else:
             logger.debug("WebRenderer: page not ready, queuing render")
-            self._pending_render = (markdown_text, callback)
+            self._pending_render = (markdown_text, callback, fade)
 
     def get_widget(self) -> QWebEngineView:
         """Return the QWebEngineView instance for embedding in UI."""
@@ -152,9 +172,9 @@ class WebRenderer(QObject):
             self._ready = True
             # Process the last queued render (earlier ones are obsolete)
             if self._pending_render is not None:
-                text, callback = self._pending_render
+                text, callback, fade = self._pending_render
                 self._pending_render = None
-                self._inject_markdown(text, callback)
+                self._inject_markdown(text, callback, fade=fade)
         else:
             # If page was already loaded, this is just a navigation cancellation
             # (e.g., media link intercepted), not a real failure.
@@ -162,7 +182,7 @@ class WebRenderer(QObject):
                 logger.error("WebRenderer: page failed to load")
                 self._ready = False
 
-    def _inject_markdown(self, text: str, callback=None) -> None:
+    def _inject_markdown(self, text: str, callback=None, fade: bool = False) -> None:
         """Inject markdown text into the page via runJavaScript.
 
         Args:
@@ -170,7 +190,10 @@ class WebRenderer(QObject):
             callback: Optional callable invoked after JS execution completes.
         """
         js_safe_text = json.dumps(text)
-        js_code = f"window.renderMarkdown({js_safe_text});"
+        if fade:
+            js_code = f"window.renderMarkdown({js_safe_text}, {{fade: true}});"
+        else:
+            js_code = f"window.renderMarkdown({js_safe_text});"
 
         try:
             if callback:
@@ -179,3 +202,12 @@ class WebRenderer(QObject):
                 self._view.page().runJavaScript(js_code)
         except Exception as e:
             logger.error("WebRenderer: JS injection failed: %s", e)
+
+    def hide_content(self) -> None:
+        """Hide current page content without destroying the loaded template."""
+        if not self._ready:
+            return
+        try:
+            self._view.page().runJavaScript("window.hideMarkdownContent && window.hideMarkdownContent();")
+        except Exception as e:
+            logger.error("WebRenderer: JS hide content failed: %s", e)

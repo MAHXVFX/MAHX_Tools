@@ -22,6 +22,11 @@
             overflow-y: auto;
         }
 
+        #content {
+            opacity: 1;
+            transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
         /* Headings */
         h1, h2, h3, h4, h5, h6 {
             color: #e0e0e0;
@@ -301,13 +306,24 @@
         var CALLOUT_TITLES = {'note':'Note','tip':'Tip','warning':'Warning','caution':'Caution','quote':'Quote'};
 
         // Render markdown text and update the content div
-        window.renderMarkdown = function(text) {
+        window.hideMarkdownContent = function() {
+            var content = document.getElementById('content');
+            if (!content) return;
+            content.style.transition = 'opacity 180ms cubic-bezier(0.4, 0, 0.2, 1)';
+            content.style.opacity = '0';
+        };
+
+        window.renderMarkdown = function(text, options) {
             if (typeof text !== 'string') return;
 
             var content = document.getElementById('content');
-            content.innerHTML = '';
+            var fade = options && options.fade;
+            if (fade) {
+                content.style.transition = 'none';
+                content.style.opacity = '0';
+            }
 
-            requestAnimationFrame(function() {
+            (function() {
                 // Use local variable to avoid modifying the closure-captured parameter
                 var md = text.replace(/(!?\[[^\]]*\]\()([^)]+)(\))/g, function(m, prefix, url, suffix) {
                     return prefix + url.replace(/\\/g, '/') + suffix;
@@ -426,7 +442,18 @@
 
                     bq.parentNode.replaceChild(callout, bq);
                 }
-            });
+            })();
+
+            if (fade) {
+                content.offsetHeight;
+                requestAnimationFrame(function() {
+                    content.style.transition = 'opacity 220ms cubic-bezier(0.22, 1, 0.36, 1)';
+                    content.style.opacity = '1';
+                });
+            } else {
+                content.style.transition = 'none';
+                content.style.opacity = '1';
+            }
         };
     </script>
 </body>
