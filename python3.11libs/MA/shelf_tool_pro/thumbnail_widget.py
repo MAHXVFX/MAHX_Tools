@@ -1,6 +1,7 @@
 """缩略图控件"""
 
 import os
+import gc
 import shutil
 import logging
 
@@ -184,6 +185,9 @@ class ThumbnailWidget(QtWidgets.QWidget):
         thumb_dir = ShelfToolsSettingsManager.get_thumbnail_directory()
         os.makedirs(thumb_dir, exist_ok=True)
 
+        # 清理旧格式的自定义缩略图
+        self._cleanup_old_thumbnails(thumb_dir)
+
         ext = os.path.splitext(file_path)[1].lower()
         dest_filename = f"{self._unique_id}_custom{ext}"
         dest_path = os.path.join(thumb_dir, dest_filename)
@@ -362,16 +366,39 @@ class ThumbnailWidget(QtWidgets.QWidget):
         notes_window.raise_()
         notes_window.activateWindow()
 
+    def _release_movie(self):
+        """彻底释放 QMovie 对象及其文件句柄。"""
+        if self._movie:
+            self._movie.stop()
+            # 清除引用 + 强制 GC，确保 Windows 文件句柄立即释放
+            self._movie = None
+            gc.collect()
+
+    def _cleanup_old_thumbnails(self, thumb_dir):
+        """清理同一 unique_id 下所有格式的自定义缩略图。
+        
+        如果当前有 QMovie 占用（GIF），先释放句柄再删除。
+        """
+        # 释放当前 QMovie（如果有），解除 GIF 文件锁定
+        if self._movie:
+            self._release_movie()
+
+        # 删除所有格式的旧文件
+        for ext in (".jpg", ".jpeg", ".png", ".gif"):
+            old_path = os.path.join(thumb_dir, f"{self._unique_id}_custom{ext}")
+            if os.path.exists(old_path):
+                try:
+                    os.remove(old_path)
+                    logger.debug("Cleaned up old thumbnail: %s", old_path)
+                except OSError as e:
+                    logger.warning("Failed to remove old thumbnail %s: %s", old_path, e)
+
     def _load_custom_image(self):
         """加载自定义图片到 image_label。GIF 默认显示第一帧。"""
         if not self._custom_image_path or not os.path.exists(self._custom_image_path):
             return
 
-        self._stop_gif_animation()
-        # 清理旧 QMovie 对象
-        if self._movie:
-            self._movie.deleteLater()
-            self._movie = None
+        self._release_movie()
 
         if self._is_gif:
             self._movie = QtGui.QMovie(self._custom_image_path)
