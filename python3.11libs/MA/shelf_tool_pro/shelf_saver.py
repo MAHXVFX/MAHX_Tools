@@ -42,6 +42,8 @@ _pane = _kwargs.get("pane")
 # Override hou_parent to current context instead of asCode's hardcoded path.
 if _pane is not None:
     hou_parent = _pane.pwd()
+    # 清除旧选中状态（类似 Houdini 原生 toolutils 的 pattern）
+    hou_parent.setSelected(False, True)
 
 _autoplace = _kwargs.get("autoplace", True)
 _nx = _kwargs.get("nodepositionx")
@@ -61,7 +63,7 @@ if _has_pos and _K8s_REL_POS:
     for _name, _n in _K8s_REQUESTED.items():
         _rel = _K8s_REL_POS.get(_name)
         if _rel is not None:
-            _n.move(hou.Vector2(_cx + _rel[0], _cy + _rel[1]))
+            _n.setPosition(hou.Vector2(_cx + _rel[0], _cy + _rel[1]))
 # === end reposition ===
 """
 
@@ -225,7 +227,7 @@ def save_node_to_shelf(
     # ------------------------------------------------------------------
     all_connections: list[str] = []
     for node in nodes:
-        if node.isHDA():
+        if hasattr(node, "isHDA") and node.isHDA():
             try:
                 lib_path = node.type().definition().libraryFilePath()
                 script_parts.append(f"# Requires OTL: {lib_path}")

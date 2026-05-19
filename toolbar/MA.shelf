@@ -832,7 +832,7 @@ def create_attribute_split_tool():
 create_attribute_split_tool()]]></script>
   </tool>
 
-  <tool name="sss" label="sss" icon="">
+  <tool name="ewe" label="ewe" icon="">
     <script scriptType="python"><![CDATA[# === MA_ShelfTools_Pro: kwargs-aware positioning ===
 _K8s_NODES = []
 _K8s_REQUESTED = {}  # requested_name â actual nodeï¼å¤çéå½ååºæ¯ï¼
@@ -849,6 +849,8 @@ _pane = _kwargs.get("pane")
 # Override hou_parent to current context instead of asCode's hardcoded path.
 if _pane is not None:
     hou_parent = _pane.pwd()
+    # æ¸é¤æ§éä¸­ç¶æï¼ç±»ä¼¼ Houdini åç toolutils ç patternï¼
+    hou_parent.setSelected(False, True)
 
 _autoplace = _kwargs.get("autoplace", True)
 _nx = _kwargs.get("nodepositionx")
@@ -856,7 +858,7 @@ _ny = _kwargs.get("nodepositiony")
 _has_pos = not _autoplace and _nx is not None and _ny is not None
 # === end preamble ===
 
-# Saved from MA_ShelfTools_Pro on 2026-05-18 22:31:19
+# Saved from MA_ShelfTools_Pro on 2026-05-19 13:04:18
 
 # Original node(s): /obj/geo1/color1, /obj/geo1/box1, /obj/geo1/scatter1, /obj/geo1/attribtransfer1, /obj/geo1/null1
 
@@ -872,7 +874,7 @@ if locals().get("hou_parent") is None:
 hou_node = hou_parent.createNode("color", "color1", run_init_scripts=False, load_contents=True, exact_type_name=True)
 _K8s_NODES.append(hou_node)
 _K8s_REQUESTED["color1"] = hou_node
-hou_node.move(hou.Vector2(-2.17256, -1.59833))
+hou_node.move(hou.Vector2(0.82596, -1.92134))
 hou_node.bypass(False)
 hou_node.setDisplayFlag(False)
 hou_node.hide(False)
@@ -924,7 +926,7 @@ if locals().get("hou_parent") is None:
 hou_node = hou_parent.createNode("box", "box1", run_init_scripts=False, load_contents=True, exact_type_name=True)
 _K8s_NODES.append(hou_node)
 _K8s_REQUESTED["box1"] = hou_node
-hou_node.move(hou.Vector2(-2.99852, 0.323009))
+hou_node.move(hou.Vector2(0, 0))
 hou_node.bypass(False)
 hou_node.setDisplayFlag(False)
 hou_node.hide(False)
@@ -977,7 +979,7 @@ if locals().get("hou_parent") is None:
 hou_node = hou_parent.createNode("scatter::2.0", "scatter1", run_init_scripts=False, load_contents=True, exact_type_name=True)
 _K8s_NODES.append(hou_node)
 _K8s_REQUESTED["scatter1"] = hou_node
-hou_node.move(hou.Vector2(-2.99852, -0.611437))
+hou_node.move(hou.Vector2(0, -0.934446))
 hou_node.bypass(False)
 hou_node.setDisplayFlag(False)
 hou_node.hide(False)
@@ -1004,7 +1006,7 @@ if locals().get("hou_parent") is None:
 hou_node = hou_parent.createNode("attribtransfer", "attribtransfer1", run_init_scripts=False, load_contents=True, exact_type_name=True)
 _K8s_NODES.append(hou_node)
 _K8s_REQUESTED["attribtransfer1"] = hou_node
-hou_node.move(hou.Vector2(-4.68554, -2.47715))
+hou_node.move(hou.Vector2(-1.68702, -2.80016))
 hou_node.bypass(False)
 hou_node.setDisplayFlag(False)
 hou_node.hide(False)
@@ -1031,7 +1033,7 @@ if locals().get("hou_parent") is None:
 hou_node = hou_parent.createNode("null", "null1", run_init_scripts=False, load_contents=True, exact_type_name=True)
 _K8s_NODES.append(hou_node)
 _K8s_REQUESTED["null1"] = hou_node
-hou_node.move(hou.Vector2(-4.68209, -3.57985))
+hou_node.move(hou.Vector2(-1.68357, -3.90286))
 hou_node.bypass(False)
 hou_node.setDisplayFlag(True)
 hou_node.hide(False)
@@ -1125,7 +1127,7 @@ if _has_pos and _K8s_REL_POS:
     for _name, _n in _K8s_REQUESTED.items():
         _rel = _K8s_REL_POS.get(_name)
         if _rel is not None:
-            _n.move(hou.Vector2(_cx + _rel[0], _cy + _rel[1]))
+            _n.setPosition(hou.Vector2(_cx + _rel[0], _cy + _rel[1]))
 # === end reposition ===
 ]]></script>
   </tool>
