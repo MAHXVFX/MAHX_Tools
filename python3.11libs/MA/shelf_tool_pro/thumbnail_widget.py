@@ -168,7 +168,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self.image_label.setPixmap(canvas)
 
     def _render_thumbnail(self, size):
-        """渲染缩略图：优先读缓存 GIF/PNG/JPG，其次 .shelf 图标路径，否则灰色占位图。"""
+        """渲染缩略图：优先读缓存 GIF/PNG/JPG，其次 Houdini 内部图标，否则灰色占位图。"""
         radius = max(3, size // 8)
 
         # 从缓存取图标路径
@@ -204,9 +204,66 @@ class ThumbnailWidget(QtWidgets.QWidget):
                 self._stop_gif()
                 return
 
+        # ── Houdini 内部图标名（如 "MISC_generic" 或 "hicon:/SVGIcons.index?COMMON_scattered.svg"）──
+        if cached_icon:
+            icon_pixmap = self._load_houdini_icon(cached_icon, size)
+            if icon_pixmap is not None:
+                canvas = QtGui.QPixmap(size, size)
+                canvas.fill(QtCore.Qt.transparent)
+                painter = QtGui.QPainter(canvas)
+                self._paint_rounded_image(painter, icon_pixmap, size, radius)
+                painter.end()
+                self.image_label.setPixmap(canvas)
+                self._stop_gif()
+                return
+
         # 灰色占位图
         self._stop_gif()
         self.image_label.setPixmap(self._make_rounded_pixmap(size, radius, "#2d2d2d"))
+
+    def _load_houdini_icon(self, icon_ref, size):
+        """从 Houdini 内部图标名加载 QPixmap（高 DPI 优化）。
+
+        使用 hou.qt.Icon() API，通过 4x 超采样 + 平滑缩放解决放大后模糊问题。
+        """
+        try:
+            import hou
+        except ImportError:
+            return None
+
+        # 解析 icon_ref → 候选图标名列表
+        candidates = []
+        if icon_ref.startswith("hicon:"):
+            if "?" in icon_ref:
+                raw_name = icon_ref.split("?", 1)[1]
+                candidates.append(raw_name)
+                if raw_name.endswith(".svg"):
+                    candidates.append(raw_name[:-4])
+            else:
+                candidates.append(icon_ref[len("hicon:"):])
+        else:
+            candidates.append(icon_ref)
+
+        for name in candidates:
+            try:
+                qt_icon = hou.qt.Icon(name)
+                if qt_icon is None or qt_icon.isNull():
+                    continue
+                # 4x 超采样 + 平滑缩放，解决大尺寸下模糊问题
+                super_size = size * 4
+                pixmap = qt_icon.pixmap(QtCore.QSize(super_size, super_size))
+                if pixmap.isNull():
+                    continue
+                pixmap = pixmap.scaled(
+                    size, size,
+                    QtCore.Qt.KeepAspectRatio,
+                    QtCore.Qt.SmoothTransformation,
+                )
+                return pixmap
+            except Exception:
+                continue
+
+        return None
 
     # ── 鼠标事件 ──────────────────────────────────
     def mousePressEvent(self, event):

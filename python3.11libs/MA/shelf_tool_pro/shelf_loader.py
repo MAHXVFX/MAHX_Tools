@@ -50,7 +50,7 @@ def scan_tool_names():
 
 
 def ensure_shelves():
-    """确保所有 shelf 文件已加载到 Houdini。"""
+    """确保所有 shelf 文件已加载到 Houdini，并用 API 补充图标信息。"""
     shelf_dir = os.path.join(project_root(), "toolbar")
     for f in sorted(glob.glob(os.path.join(shelf_dir, "*.shelf"))):
         if f not in _loaded_shelf_files:
@@ -59,6 +59,21 @@ def ensure_shelves():
             except Exception:
                 pass
             _loaded_shelf_files.add(f)
+    # 加载完成后，用 Houdini API 补充/覆盖注册表中的 icon
+    _enrich_icons()
+
+
+def _enrich_icons():
+    """用 hou.shelves.tool().icon() 覆盖注册表中的 icon 信息。"""
+    for unique_id, (shelf_stem, tool_name, label, _, shelf_path) in list(_TOOL_REGISTRY.items()):
+        try:
+            tool = hou.shelves.tool(tool_name)
+            if tool is not None:
+                api_icon = tool.icon()
+                if api_icon:
+                    _TOOL_REGISTRY[unique_id] = (shelf_stem, tool_name, label, api_icon, shelf_path)
+        except Exception:
+            pass  # 保留正则解析的原始值
 
 
 def execute_tool(unique_id, extra_kwargs=None):
@@ -139,6 +154,9 @@ def refresh_tools():
     _TOOL_NAMES = []
     _TOOL_REGISTRY = {}
     _TOOL_NAMES = scan_tool_names()
+    # 重新加载 shelf 文件并补充图标
+    _loaded_shelf_files.clear()
+    ensure_shelves()
 
 
 # 模块加载时扫描工具名称
