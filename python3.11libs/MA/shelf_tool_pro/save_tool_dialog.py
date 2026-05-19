@@ -32,8 +32,8 @@ from MA.common.constants import _MA_TOOLS_DIR
 
 
 def _toolbar_dir() -> str:
-    """返回 toolbar 目录路径。"""
-    return os.path.join(_MA_TOOLS_DIR, "toolbar")
+    """返回 MAtoolbar 目录路径。"""
+    return os.path.join(_MA_TOOLS_DIR, "MAtoolbar")
 
 
 from MA.shelf_tool_pro.shelf_saver import _VALID_TOOL_NAME_RE as _TOOL_NAME_REGEX

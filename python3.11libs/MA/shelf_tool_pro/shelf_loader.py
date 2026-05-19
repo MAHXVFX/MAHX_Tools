@@ -27,7 +27,7 @@ def scan_tool_names():
         list of str: 唯一标识列表，格式 "{shelf_stem}_{tool_name}"
     """
     names = []
-    shelf_dir = os.path.join(project_root(), "toolbar")
+    shelf_dir = os.path.join(project_root(), "MAtoolbar")
     for f in sorted(glob.glob(os.path.join(shelf_dir, "*.shelf"))):
         shelf_stem = os.path.splitext(os.path.basename(f))[0]
         try:
@@ -52,7 +52,7 @@ def scan_tool_names():
 
 def ensure_shelves():
     """确保所有 shelf 文件已加载到 Houdini，并用 API 补充图标信息。"""
-    shelf_dir = os.path.join(project_root(), "toolbar")
+    shelf_dir = os.path.join(project_root(), "MAtoolbar")
     for f in sorted(glob.glob(os.path.join(shelf_dir, "*.shelf"))):
         if f not in _loaded_shelf_files:
             try:
