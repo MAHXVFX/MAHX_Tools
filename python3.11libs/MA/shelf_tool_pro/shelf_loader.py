@@ -8,10 +8,13 @@ import os
 import sys
 import glob
 import html
+import logging
 import xml.etree.ElementTree as ET
 
 import hou
 import MA
+
+_logger = logging.getLogger("MA")
 
 _TOOL_NAMES = []      # 唯一标识列表：["shelfA_cam", "shelfB_cam"]
 _TOOL_REGISTRY = {}   # 唯一标识 -> (shelf_stem, tool_name, label, icon, shelf_path)
@@ -23,22 +26,44 @@ def project_root():
     return os.path.dirname(os.path.dirname(os.path.dirname(MA.__file__)))
 
 
+def _find_network_editor(prefer_current=True):
+    """查找 NetworkEditor。
+
+    Args:
+        prefer_current: 是否优先返回当前激活的 tab。
+
+    Returns:
+        hou.NetworkEditor or None
+    """
+    panes = hou.ui.paneTabs()
+    if prefer_current:
+        for pane in panes:
+            if isinstance(pane, hou.NetworkEditor) and pane.isCurrentTab():
+                return pane
+    for pane in panes:
+        if isinstance(pane, hou.NetworkEditor):
+            return pane
+    return None
+
+
 def scan_tool_names():
-    """解析 MAtoolbar/*.shelf 文件，提取所有 tool name、label 和 script 内容。
+    """解析 MAtoolbar/*.shelf 文件，提取所有 tool 信息。
     
     Returns:
-        list of str: 唯一标识列表，格式 "{shelf_stem}_{tool_name}"
+        tuple: (names, registry, scripts) 三元组
+            - names: list of str, 唯一标识列表
+            - registry: dict, 唯一标识 -> (shelf_stem, tool_name, label, icon, shelf_path)
+            - scripts: dict, 唯一标识 -> script content
     """
-    global _TOOL_SCRIPTS
     names = []
-    _TOOL_SCRIPTS = {}
+    registry = {}
+    scripts = {}
     shelf_dir = os.path.join(project_root(), "MAtoolbar")
     for f in sorted(glob.glob(os.path.join(shelf_dir, "*.shelf"))):
         shelf_stem = os.path.splitext(os.path.basename(f))[0]
         try:
             with open(f, "r", encoding="utf-8") as fp:
                 content = fp.read()
-            # 解析 XML 提取 script 内容
             root = ET.fromstring(content)
             for tool_elem in root.findall('.//tool'):
                 tool_name = tool_elem.get('name', '')
@@ -47,19 +72,20 @@ def scan_tool_names():
                 label = html.unescape(tool_elem.get('label', tool_name))
                 icon = html.unescape(tool_elem.get('icon', ''))
                 
-                # 提取 script 内容
                 script_elem = tool_elem.find('script')
                 script_content = ''
-                if script_elem is not None and script_elem.text:
-                    script_content = script_elem.text
+                if script_elem is not None:
+                    script_content = ''.join(script_elem.itertext())
                 
                 unique_id = f"{shelf_stem}_{tool_name}"
                 names.append(unique_id)
-                _TOOL_REGISTRY[unique_id] = (shelf_stem, tool_name, label, icon, f)
-                _TOOL_SCRIPTS[unique_id] = script_content
-        except Exception:
-            pass
-    return names
+                registry[unique_id] = (shelf_stem, tool_name, label, icon, f)
+                scripts[unique_id] = script_content
+        except ET.ParseError as e:
+            _logger.warning("Failed to parse shelf XML: %s — %s", f, e)
+        except Exception as e:
+            _logger.warning("Failed to scan shelf file: %s — %s", f, e)
+    return names, registry, scripts
 
 
 def execute_tool(unique_id, extra_kwargs=None):
@@ -81,16 +107,7 @@ def execute_tool(unique_id, extra_kwargs=None):
         return
         
     # 查找当前 NetworkEditor，确保节点放置在正确的层级
-    ne = None
-    for pane in hou.ui.paneTabs():
-        if isinstance(pane, hou.NetworkEditor) and pane.isCurrentTab():
-            ne = pane
-            break
-    if ne is None:
-        for pane in hou.ui.paneTabs():
-            if isinstance(pane, hou.NetworkEditor):
-                ne = pane
-                break
+    ne = _find_network_editor(prefer_current=True)
                 
     # 注入 pane 和必要参数，防止脚本走错分支或回退到 /obj
     kwargs = {
@@ -108,11 +125,7 @@ def execute_tool(unique_id, extra_kwargs=None):
 
 def drop_at_cursor(unique_id):
     """在 NetworkEditor 光标位置放置工具节点。"""
-    ne = None
-    for pane in hou.ui.paneTabs():
-        if isinstance(pane, hou.NetworkEditor):
-            ne = pane
-            break
+    ne = _find_network_editor(prefer_current=False)
     if ne is not None:
         pos = ne.cursorPosition()
         try:
@@ -134,14 +147,10 @@ def refresh_tools():
     """重新扫描所有 .shelf 文件并更新全局工具注册表。
 
     在创建新工具并写入 .shelf 文件后调用此函数。
-    此函数会清除之前的注册信息，重新解析所有 .shelf 文件。
     """
     global _TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS
-    _TOOL_NAMES = []
-    _TOOL_REGISTRY = {}
-    _TOOL_SCRIPTS = {}
-    _TOOL_NAMES = scan_tool_names()
+    _TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS = scan_tool_names()
 
 
 # 模块加载时扫描工具名称
-_TOOL_NAMES = scan_tool_names()
+_TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS = scan_tool_names()
