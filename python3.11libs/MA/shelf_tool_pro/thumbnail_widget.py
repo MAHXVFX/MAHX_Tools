@@ -424,7 +424,6 @@ class ThumbnailWidget(QtWidgets.QWidget):
         """删除当前工具：确认 → 从 .shelf 移除 → 清理 → 刷新面板。"""
         from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY, refresh_tools
         from MA.shelf_tool_pro.shelf_saver import remove_tool_from_shelf
-        from MA.common import ShelfToolsCacheManager
         from MA.common.constants import SHELFTOOLS_NOTES_DIR
 
         # 确认对话框
@@ -463,20 +462,19 @@ class ThumbnailWidget(QtWidgets.QWidget):
             except OSError as e:
                 logger.warning("Failed to remove notes %s: %s", note_path, e)
 
-        # 3. 清除图标缓存
-        from MA.common.settings import ShelfToolsCacheManager
+        # 3. 清除图标缓存（顶部已 import ShelfToolsCacheManager）
         ShelfToolsCacheManager.remove_tool_icon(self._unique_id)
 
-        # 5. 找到父 panel（在 detach 前保存引用）
+        # 4. 找到父 panel（在 detach 前保存引用，否则 parent() 返回 None）
         panel = self.parent()
         while panel is not None and not hasattr(panel, '_refresh_tools'):
             panel = panel.parent()
 
-        # 6. 删除自身控件
+        # 5. 删除自身控件
         self.setParent(None)
         self.deleteLater()
 
-        # 7. 刷新面板
+        # 6. 刷新面板
         refresh_tools()
         if panel is not None:
             panel._refresh_tools()
