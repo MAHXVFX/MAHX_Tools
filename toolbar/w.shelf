@@ -1,0 +1,1538 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shelfDocument>
+  <!-- This file contains definitions of shelves, toolbars, and tools.
+ It should not be hand-edited when it is being used by the application.
+ Note, that two definitions of the same element are not allowed in
+ a single file. -->
+
+  <tool name="w" label="w" icon="hicon:/SVGIcons.index?BUTTONS_mask_track.svg">
+    <toolMenuContext name="network">
+      <contextOpType>Object/null</contextOpType>
+    </toolMenuContext>
+    <script scriptType="python"><![CDATA[# === MA_ShelfTools_Pro: kwargs-aware positioning ===
+_K8s_REQUESTED = {}  # requested_name -> actual node (handles rename scenarios)
+_K8s_REL_POS = {
+    "Import_Scale": (0, 0),
+    "Ropnet": (0, -9.97),
+    "Lopnet": (0, -7.97),
+    "Import": (0, -1.97),
+    "FX": (0, -3.97),
+    "Matnet": (0, -5.97)
+}  # name -> (dx, dy) relative position offset (like $arg2/$arg3)
+_K8s_PARENT_CATEGORY = "Object"  # parent network type at save time (for context compatibility check)
+_kwargs = globals().get("kwargs", {})
+_pane = _kwargs.get("pane")
+
+# Override hou_parent to current context instead of asCode's hardcoded path.
+if _pane is not None:
+    hou_parent = _pane.pwd()
+    # Validate context compatibility (similar to Houdini native toolutils pattern)
+    if hou_parent.childTypeCategory().name() != _K8s_PARENT_CATEGORY:
+        hou.ui.displayMessage(
+            "Node creation failed: current network type mismatch\n\n"
+            "This tool requires placement in a " + _K8s_PARENT_CATEGORY + " network, "
+            "but the current network is " + hou_parent.childTypeCategory().name() + ".\n\n"
+            "Please switch to the corresponding network editor and try again."
+        )
+        import sys; sys.exit(0)
+    # Clear old selection state
+    hou_parent.setSelected(False, True)
+
+_autoplace = _kwargs.get("autoplace", True)
+_nx = _kwargs.get("nodepositionx")
+_ny = _kwargs.get("nodepositiony")
+_has_pos = not _autoplace and _nx is not None and _ny is not None
+# === end preamble ===
+
+# Saved from MA_ShelfTools_Pro on 2026-05-19 23:42:17
+
+# Original node(s): /obj/Import_Scale, /obj/Ropnet, /obj/Lopnet, /obj/Import, /obj/FX, /obj/Matnet
+
+
+
+# Code for /obj/Import_Scale
+
+# Initialize parent node variable.
+if locals().get("hou_parent") is None:
+    hou_parent = hou.node("/obj")
+
+# Code for /obj/Import_Scale
+hou_node = hou_parent.createNode("null", "Import_Scale", run_init_scripts=False, load_contents=True, exact_type_name=True)
+_K8s_REQUESTED["Import_Scale"] = hou_node
+hou_node.move(hou.Vector2(0, 1.85))
+hou_node.setSelectableInViewport(False)
+hou_node.showOrigin(False)
+hou_node.useXray(True)
+hou_node.setDisplayFlag(False)
+hou_node.hide(False)
+hou_node.setSelected(True)
+
+# Code for /obj/Import_Scale/t parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale")
+hou_parm_tuple = hou_node.parmTuple("t")
+hou_parm_tuple.setAutoscope((True, True, True))
+
+
+# Code for /obj/Import_Scale/r parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale")
+hou_parm_tuple = hou_node.parmTuple("r")
+hou_parm_tuple.setAutoscope((True, True, True))
+
+
+# Code for /obj/Import_Scale/s parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale")
+hou_parm_tuple = hou_node.parmTuple("s")
+hou_parm_tuple.setAutoscope((True, True, True))
+
+
+# Code for /obj/Import_Scale/picking parm 
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale")
+hou_parm = hou_node.parm("picking")
+hou_parm.deleteAllKeyframes()
+hou_parm.set(0)
+
+
+hou_node.setColor(hou.Color([0, 0, 0]))
+hou_node.setExpressionLanguage(hou.exprLanguage.Hscript)
+
+hou_node.setUserData("___Version___", "21.0.440")
+if hasattr(hou_node, "syncNodeVersionIfNeeded"):
+    hou_node.syncNodeVersionIfNeeded("21.0.440")
+# Update the parent node.
+hou_parent = hou_node
+
+# Code for /obj/Import_Scale/control1
+hou_node = hou_parent.createNode("control", "control1", run_init_scripts=False, load_contents=True, exact_type_name=True)
+_K8s_REQUESTED["control1"] = hou_node
+hou_node.move(hou.Vector2(0.5, 1))
+hou_node.bypass(False)
+hou_node.setDisplayFlag(True)
+hou_node.hide(False)
+hou_node.setHighlightFlag(False)
+hou_node.setHardLocked(False)
+hou_node.setSoftLocked(False)
+hou_node.setSelectableTemplateFlag(False)
+hou_node.setSelected(False)
+hou_node.setRenderFlag(True)
+hou_node.setTemplateFlag(False)
+hou_node.setUnloadFlag(False)
+
+# Code for /obj/Import_Scale/control1/usecolor parm 
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale/control1")
+hou_parm = hou_node.parm("usecolor")
+hou_parm.deleteAllKeyframes()
+hou_parm.set(1)
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../use_dcolor\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../use_dcolor\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../use_dcolor\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../use_dcolor\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+
+# Code for /obj/Import_Scale/control1/color parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale/control1")
+hou_parm_tuple = hou_node.parmTuple("color")
+hou_parm_tuple.deleteAllKeyframes()
+hou_parm_tuple.set((0, 0.75, 0))
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../dcolorr\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[0].setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../dcolorr\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[0].setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../dcolorr\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[0].setKeyframe(hou_keyframe)
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../dcolorg\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[1].setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../dcolorg\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[1].setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../dcolorg\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[1].setKeyframe(hou_keyframe)
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../dcolorb\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[2].setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../dcolorb\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[2].setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../dcolorb\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[2].setKeyframe(hou_keyframe)
+
+
+# Code for /obj/Import_Scale/control1/size parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale/control1")
+hou_parm_tuple = hou_node.parmTuple("size")
+hou_parm_tuple.deleteAllKeyframes()
+hou_parm_tuple.set((1, 1, 1))
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geosizex\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[0].setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geosizex\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[0].setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geosizex\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[0].setKeyframe(hou_keyframe)
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geosizey\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[1].setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geosizey\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[1].setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geosizey\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[1].setKeyframe(hou_keyframe)
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geosizez\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[2].setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geosizez\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[2].setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geosizez\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[2].setKeyframe(hou_keyframe)
+
+
+# Code for /obj/Import_Scale/control1/t parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale/control1")
+hou_parm_tuple = hou_node.parmTuple("t")
+hou_parm_tuple.deleteAllKeyframes()
+hou_parm_tuple.set((0, 0, 0))
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geocenterx\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[0].setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geocenterx\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[0].setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geocenterx\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[0].setKeyframe(hou_keyframe)
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geocentery\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[1].setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geocentery\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[1].setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geocentery\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[1].setKeyframe(hou_keyframe)
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geocenterz\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[2].setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geocenterz\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[2].setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geocenterz\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[2].setKeyframe(hou_keyframe)
+
+
+# Code for /obj/Import_Scale/control1/r parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale/control1")
+hou_parm_tuple = hou_node.parmTuple("r")
+hou_parm_tuple.deleteAllKeyframes()
+hou_parm_tuple.set((0, 0, 0))
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../georotatex\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[0].setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../georotatex\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[0].setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../georotatex\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[0].setKeyframe(hou_keyframe)
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../georotatey\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[1].setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../georotatey\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[1].setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../georotatey\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[1].setKeyframe(hou_keyframe)
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../georotatez\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[2].setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../georotatez\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[2].setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../georotatez\")", hou.exprLanguage.Hscript)
+hou_parm_tuple[2].setKeyframe(hou_keyframe)
+
+
+# Code for /obj/Import_Scale/control1/scale parm 
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale/control1")
+hou_parm = hou_node.parm("scale")
+hou_parm.deleteAllKeyframes()
+hou_parm.set(1)
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geoscale\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geoscale\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geoscale\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../geoscale\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+
+# Code for /obj/Import_Scale/control1/displayicon parm 
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale/control1")
+hou_parm = hou_node.parm("displayicon")
+hou_parm.deleteAllKeyframes()
+hou_parm.set("icon")
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../displayicon\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../displayicon\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../displayicon\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../displayicon\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+
+# Code for /obj/Import_Scale/control1/controltype parm 
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale/control1")
+hou_parm = hou_node.parm("controltype")
+hou_parm.deleteAllKeyframes()
+hou_parm.set("null")
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../controltype\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../controltype\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../controltype\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../controltype\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+
+# Code for /obj/Import_Scale/control1/orientation parm 
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale/control1")
+hou_parm = hou_node.parm("orientation")
+hou_parm.deleteAllKeyframes()
+hou_parm.set("xyz")
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../orientation\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../orientation\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../orientation\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../orientation\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+
+# Code for /obj/Import_Scale/control1/shadedmode parm 
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale/control1")
+hou_parm = hou_node.parm("shadedmode")
+hou_parm.deleteAllKeyframes()
+hou_parm.set(0)
+
+# Code for first keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../shadedmode\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for last keyframe.
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../shadedmode\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../shadedmode\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+# Code for keyframe.
+hou_keyframe = hou.Keyframe()
+hou_keyframe.setTime(0)
+hou_keyframe.setExpression("ch(\"../shadedmode\")", hou.exprLanguage.Hscript)
+hou_parm.setKeyframe(hou_keyframe)
+
+
+hou_node.setExpressionLanguage(hou.exprLanguage.Hscript)
+
+hou_node.setUserData("___Version___", "21.0.440")
+if hasattr(hou_node, "syncNodeVersionIfNeeded"):
+    hou_node.syncNodeVersionIfNeeded("21.0.440")
+# Update the parent node.
+hou_parent = hou_node
+
+
+# Restore the parent and current nodes.
+hou_parent = hou_parent.parent()
+hou_node = hou_node.parent()
+
+# Code for /obj/Import_Scale/point1
+hou_node = hou_parent.createNode("add", "point1", run_init_scripts=False, load_contents=True, exact_type_name=True)
+_K8s_REQUESTED["point1"] = hou_node
+hou_node.move(hou.Vector2(2.5, 1))
+hou_node.bypass(False)
+hou_node.setDisplayFlag(False)
+hou_node.hide(False)
+hou_node.setHighlightFlag(False)
+hou_node.setHardLocked(False)
+hou_node.setSoftLocked(False)
+hou_node.setSelectableTemplateFlag(False)
+hou_node.setSelected(False)
+hou_node.setRenderFlag(False)
+hou_node.setTemplateFlag(False)
+hou_node.setUnloadFlag(False)
+
+# Code for /obj/Import_Scale/point1/points parm 
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import_Scale/point1")
+hou_parm = hou_node.parm("points")
+hou_parm.deleteAllKeyframes()
+hou_parm.set(1)
+
+
+hou_node.setExpressionLanguage(hou.exprLanguage.Hscript)
+
+hou_node.setUserData("___Version___", "21.0.440")
+if hasattr(hou_node, "syncNodeVersionIfNeeded"):
+    hou_node.syncNodeVersionIfNeeded("21.0.440")
+# Update the parent node.
+hou_parent = hou_node
+
+
+# Restore the parent and current nodes.
+hou_parent = hou_parent.parent()
+hou_node = hou_node.parent()
+
+
+# Restore the parent and current nodes.
+hou_parent = hou_parent.parent()
+hou_node = hou_node.parent()
+
+
+
+# Code for /obj/Ropnet
+
+# Initialize parent node variable.
+if locals().get("hou_parent") is None:
+    hou_parent = hou.node("/obj")
+
+# Code for /obj/Ropnet
+hou_node = hou_parent.createNode("ropnet", "Ropnet", run_init_scripts=False, load_contents=True, exact_type_name=True)
+_K8s_REQUESTED["Ropnet"] = hou_node
+hou_node.move(hou.Vector2(0, -8.12))
+hou_node.bypass(False)
+hou_node.hide(False)
+hou_node.setLocked(False)
+hou_node.setSelected(True)
+
+hou_node.setExpressionLanguage(hou.exprLanguage.Hscript)
+
+hou_node.setUserData("___Version___", "21.0.440")
+if hasattr(hou_node, "syncNodeVersionIfNeeded"):
+    hou_node.syncNodeVersionIfNeeded("21.0.440")
+# Update the parent node.
+hou_parent = hou_node
+
+
+# Restore the parent and current nodes.
+hou_parent = hou_parent.parent()
+hou_node = hou_node.parent()
+
+
+
+# Code for /obj/Lopnet
+
+# Initialize parent node variable.
+if locals().get("hou_parent") is None:
+    hou_parent = hou.node("/obj")
+
+# Code for /obj/Lopnet
+hou_node = hou_parent.createNode("lopnet", "Lopnet", run_init_scripts=False, load_contents=True, exact_type_name=True)
+_K8s_REQUESTED["Lopnet"] = hou_node
+hou_node.move(hou.Vector2(0, -6.12))
+hou_node.hide(False)
+hou_node.setSelected(True)
+
+hou_node.setExpressionLanguage(hou.exprLanguage.Hscript)
+
+hou_node.setUserData("___Version___", "21.0.440")
+if hasattr(hou_node, "syncNodeVersionIfNeeded"):
+    hou_node.syncNodeVersionIfNeeded("21.0.440")
+# Update the parent node.
+hou_parent = hou_node
+
+
+# Restore the parent and current nodes.
+hou_parent = hou_parent.parent()
+hou_node = hou_node.parent()
+
+
+
+# Code for /obj/Import
+
+# Initialize parent node variable.
+if locals().get("hou_parent") is None:
+    hou_parent = hou.node("/obj")
+
+# Code for /obj/Import
+hou_node = hou_parent.createNode("geo", "Import", run_init_scripts=False, load_contents=True, exact_type_name=True)
+_K8s_REQUESTED["Import"] = hou_node
+hou_node.move(hou.Vector2(0, -0.12))
+hou_node.setSelectableInViewport(False)
+hou_node.showOrigin(False)
+hou_node.useXray(False)
+hou_node.setDisplayFlag(False)
+hou_node.hide(False)
+hou_node.setSelected(True)
+
+hou_parm_template_group = hou.ParmTemplateGroup()
+# Code for parameter template
+hou_parm_template = hou.FolderParmTemplate("stdswitcher4", "Transform", folder_type=hou.folderType.Tabs, default_value=0, ends_tab_group=False)
+hou_parm_template.setTags({"sidefx::switcher": "stdswitcher"})
+# Code for parameter template
+hou_parm_template2 = hou.MenuParmTemplate("xOrd", "Transform Order", menu_items=(["srt","str","rst","rts","tsr","trs"]), menu_labels=(["Scale Rot Trans","Scale Trans Rot","Rot Scale Trans","Rot Trans Scale","Trans Scale Rot","Trans Rot Scale"]), default_value=0, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template2.setJoinWithNext(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.MenuParmTemplate("rOrd", "Rotate Order", menu_items=(["xyz","xzy","yxz","yzx","zxy","zyx"]), menu_labels=(["Rx Ry Rz","Rx Rz Ry","Ry Rx Rz","Ry Rz Rx","Rz Rx Ry","Rz Ry Rx"]), default_value=0, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template2.hideLabel(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("t", "Translate", 3, default_value=([0, 0, 0]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.XYZW)
+hou_parm_template2.setTags({"autoscope": "1111111111111111111111111111111", "script_action": "import objecttoolutils\nobjecttoolutils.matchTransform(kwargs, 0)", "script_action_help": "Select an object to match the translation with.", "script_action_icon": "BUTTONS_match_transform"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("r", "Rotate", 3, default_value=([0, 0, 0]), min=0, max=360, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.XYZW)
+hou_parm_template2.setTags({"autoscope": "1111111111111111111111111111111", "script_action": "import objecttoolutils\nobjecttoolutils.matchTransform(kwargs, 1)", "script_action_help": "Select an object to match the rotation with.", "script_action_icon": "BUTTONS_match_rotation"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("s", "Scale", 3, default_value=([1, 1, 1]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.XYZW)
+hou_parm_template2.setTags({"autoscope": "1111111111111111111111111111111", "script_action": "import objecttoolutils\nobjecttoolutils.matchTransform(kwargs, 2)", "script_action_help": "Select an object to match the scale with.", "script_action_icon": "BUTTONS_match_scale"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("p", "Pivot Translate", 3, default_value=([0, 0, 0]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.XYZW)
+hou_parm_template2.setTags({"script_action": "import objecttoolutils\nobjecttoolutils.matchTransform(kwargs, 3)", "script_action_help": "Select an object to match the pivot with.", "script_action_icon": "BUTTONS_match_pivot"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("pr", "Pivot Rotate", 3, default_value=([0, 0, 0]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.XYZW)
+hou_parm_template2.setTags({"script_action": "import objecttoolutils\nobjecttoolutils.matchTransform(kwargs, 4)", "script_action_help": "Select an object to match the pivot rotation with.", "script_action_icon": "BUTTONS_match_pivot_rotation"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("scale", "Uniform Scale", 1, default_value=([1]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.MenuParmTemplate("pre_xform", "Modify Pre-Transform", menu_items=(["clean","cleantrans","cleanrot","cleanscales","extract","reset"]), menu_labels=(["Clean Transform","Clean Translates","Clean Rotates","Clean Scales","Extract Pre-transform","Reset Pre-transform"]), default_value=0, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.StringReplace, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("keeppos", "Keep Position When Parenting", default_value=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("childcomp", "Child Compensation", default_value=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("constraints_on", "Enable Constraints", default_value=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("constraints_path", "Constraints", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReference, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.setConditional(hou.parmCondType.HideWhen, "{ constraints_on == 0 }")
+hou_parm_template2.setTags({"opfilter": "!!CHOP", "oprelative": ".", "script_action": "import objecttoolutils\nobjecttoolutils.constraintsMenu(kwargs)", "script_action_help": "", "script_action_icon": "BUTTONS_add_constraints"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("lookatpath", "Look At", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReference, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.hide(True)
+hou_parm_template2.setTags({"opfilter": "!!OBJ!!", "oprelative": "."})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("lookupobjpath", "Look Up Object", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReference, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.hide(True)
+hou_parm_template2.setTags({"opfilter": "!!OBJ!!", "oprelative": "."})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("lookup", "Look At Up Vector", 1, default_value=(["on"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=(["off","on","quat","pos","obj"]), menu_labels=(["Don't Use Up Vector","Use Up Vector","Use Quaternions","Use Global Position","Use Up Object"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("pathobjpath", "Path Object", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReference, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.hide(True)
+hou_parm_template2.setTags({"opfilter": "!!SOP!!", "oprelative": "."})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("roll", "Roll", 1, default_value=([0]), min=-360, max=360, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Angle, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("pos", "Position", 1, default_value=([0]), min=0, max=10, min_is_strict=True, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.MenuParmTemplate("uparmtype", "Parameterization", menu_items=(["uniform","arc"]), menu_labels=(["Uniform","Arc Length"]), default_value=1, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.IntParmTemplate("pathorient", "Orient Along Path", 1, default_value=([1]), min=0, max=1, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("up", "Orient Up Vector", 3, default_value=([0, 1, 0]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Vector, naming_scheme=hou.parmNamingScheme.XYZW)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("bank", "Auto-Bank factor", 1, default_value=([0]), min=-1, max=1, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+hou_parm_template_group.append(hou_parm_template)
+# Code for parameter template
+hou_parm_template = hou.FolderParmTemplate("stdswitcher4_1", "Render", folder_type=hou.folderType.Tabs, default_value=0, ends_tab_group=False)
+hou_parm_template.setTags({"sidefx::switcher": "stdswitcher"})
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("shop_materialpath", "Material", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReference, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.setTags({"opfilter": "!!CUSTOM/MATERIAL!!", "oprelative": "."})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.MenuParmTemplate("shop_materialopts", "Options", menu_items=([]), menu_labels=([]), default_value=0, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Mini, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("tdisplay", "Display", default_value=False)
+hou_parm_template2.hideLabel(True)
+hou_parm_template2.setJoinWithNext(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.IntParmTemplate("display", "Display", 1, default_value=([1]), min=0, max=1, min_is_strict=True, max_is_strict=True, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.MenuParmTemplate("viewportlod", "Display As", menu_items=(["full","points","box","centroid","hidden","subd"]), menu_labels=(["Full Geometry","Point Cloud","Bounding Box","Centroid","Hidden","Subdivision Surface / Curves"]), default_value=0, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template2.setHelp("Choose how the object's geometry should be rendered in the viewport")
+hou_parm_template2.setTags({"spare_category": "Render"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("vm_rendervisibility", "Render Visibility", 1, default_value=(["*"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=(["*","primary","primary|shadow","-primary","-diffuse","-diffuse&-reflect&-refract",""]), menu_labels=(["Visible to all","Visible only to primary rays","Visible only to primary and shadow rays","Invisible to primary rays (Phantom)","Invisible to diffuse rays","Invisible to secondary rays","Invisible (Unrenderable)"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.StringReplace)
+hou_parm_template2.setTags({"mantra_class": "object", "mantra_name": "rendervisibility", "spare_category": "Render"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("vm_rendersubd", "Render Polygons As Subdivision (Mantra)", default_value=False)
+hou_parm_template2.setTags({"mantra_class": "object", "mantra_name": "rendersubd", "spare_category": "Geometry"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("vm_subdstyle", "Subdivision Style", 1, default_value=(["mantra_catclark"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=(["mantra_catclark","osd_catclark"]), menu_labels=(["Mantra Catmull-Clark","OpenSubdiv Catmull-Clark"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.setConditional(hou.parmCondType.HideWhen, "{ vm_rendersubd == 0 }")
+hou_parm_template2.setTags({"mantra_class": "object", "mantra_name": "subdstyle", "spare_category": "Geometry"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("vm_subdgroup", "Subdivision Group", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.setConditional(hou.parmCondType.HideWhen, "{ vm_rendersubd == 0 }")
+hou_parm_template2.setTags({"mantra_class": "object", "mantra_name": "subdgroup", "spare_category": "Geometry"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("vm_osd_quality", "Open Subdiv Quality", 1, default_value=([1]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template2.setConditional(hou.parmCondType.HideWhen, "{ vm_rendersubd == 0 vm_subdstyle != osd_catclark }")
+hou_parm_template2.setTags({"mantra_class": "object", "mantra_name": "osd_quality", "spare_category": "Geometry"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.IntParmTemplate("vm_osd_vtxinterp", "OSD Vtx Interp", 1, default_value=([2]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1","2"]), menu_labels=(["No vertex interpolation","Edges only","Edges and Corners"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template2.setConditional(hou.parmCondType.HideWhen, "{ vm_rendersubd == 0 vm_subdstyle != osd_catclark }")
+hou_parm_template2.setTags({"mantra_class": "object", "mantra_name": "osd_vtxinterp", "spare_category": "Geometry"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.IntParmTemplate("vm_osd_fvarinterp", "OSD FVar Interp", 1, default_value=([4]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1","2","3","4","5"]), menu_labels=(["Smooth everywhere","Sharpen corners only","Sharpen edges and corners","Sharpen edges and propagated corners","Sharpen all boundaries","Bilinear interpolation"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template2.setConditional(hou.parmCondType.HideWhen, "{ vm_rendersubd == 0 vm_subdstyle != osd_catclark }")
+hou_parm_template2.setTags({"mantra_class": "object", "mantra_name": "osd_fvarinterp", "spare_category": "Geometry"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FolderParmTemplate("folder0", "Shading", folder_type=hou.folderType.Tabs, default_value=0, ends_tab_group=False)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("categories", "Categories", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setHelp("A list of tags which can be used to select the object")
+hou_parm_template3.setTags({"spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("reflectmask", "Reflection Mask", 1, default_value=(["*"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReferenceList, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setHelp("Objects that will be reflected on this object.")
+hou_parm_template3.setTags({"opexpand": "1", "opfilter": "!!OBJ/GEOMETRY!!", "oprelative": "/obj", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("refractmask", "Refraction Mask", 1, default_value=(["*"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReferenceList, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setHelp("Objects that will be refracted on this object.")
+hou_parm_template3.setTags({"opexpand": "1", "opfilter": "!!OBJ/GEOMETRY!!", "oprelative": "/obj", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("lightmask", "Light Mask", 1, default_value=(["*"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReferenceList, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setHelp("Lights that illuminate this object.")
+hou_parm_template3.setTags({"opexpand": "1", "opfilter": "!!OBJ/LIGHT!!", "oprelative": "/obj", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("lightcategories", "Light Selection", 1, default_value=(["*"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setTags({"spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("vm_lpetag", "LPE Tag", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "lpetag", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("vm_volumefilter", "Volume Filter", 1, default_value=(["box"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=(["box","gaussian","bartlett","catrom","hanning","blackman","sinc"]), menu_labels=(["Box Filter","Gaussian","Bartlett (triangle)","Catmull-Rom","Hanning","Blackman","Sinc (sharpening)"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "filter", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.FloatParmTemplate("vm_volumefilterwidth", "Volume Filter Width", 1, default_value=([1]), min=0.001, max=5, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "filterwidth", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_matte", "Matte shading", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "matte", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_rayshade", "Raytrace Shading", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "rayshade", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FolderParmTemplate("folder0_1", "Sampling", folder_type=hou.folderType.Tabs, default_value=0, ends_tab_group=False)
+# Code for parameter template
+hou_parm_template3 = hou.MenuParmTemplate("geo_velocityblur", "Geometry Velocity Blur", menu_items=(["off","on","accelblur"]), menu_labels=(["No Velocity Blur","Velocity Blur","Acceleration Blur"]), default_value=0, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template3.setConditional(hou.parmCondType.DisableWhen, "{ allowmotionblur == 0 }")
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("geo_accelattribute", "Acceleration Attribute", 1, default_value=(["accel"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setConditional(hou.parmCondType.HideWhen, "{ geo_velocityblur != accelblur }")
+hou_parm_template3.setTags({"spare_category": "Sampling"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FolderParmTemplate("folder0_2", "Dicing", folder_type=hou.folderType.Tabs, default_value=0, ends_tab_group=False)
+# Code for parameter template
+hou_parm_template3 = hou.FloatParmTemplate("vm_shadingquality", "Shading Quality", 1, default_value=([1]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "shadingquality", "spare_category": "Dicing"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.FloatParmTemplate("vm_flatness", "Dicing Flatness", 1, default_value=([0.05]), min=0, max=1, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "flatness", "spare_category": "Dicing"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.IntParmTemplate("vm_raypredice", "Ray Predicing", 1, default_value=([0]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1","2"]), menu_labels=(["Disable Predicing","Full Predicing","Precompute Bounds"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "raypredice", "spare_category": "Dicing"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_curvesurface", "Shade Curves As Surfaces", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "curvesurface", "spare_category": "Dicing"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FolderParmTemplate("folder0_3", "Geometry", folder_type=hou.folderType.Tabs, default_value=0, ends_tab_group=False)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_rmbackface", "Backface Removal", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "rmbackface", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("shop_geometrypath", "Procedural Shader", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReference, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setTags({"opfilter": "!!SHOP/GEOMETRY!!", "oprelative": ".", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_forcegeometry", "Force Procedural Geometry Output", default_value=True)
+hou_parm_template3.setTags({"spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_rendersubdcurves", "Render Polygon Curves As Subdivision (Mantra)", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "rendersubdcurves", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.IntParmTemplate("vm_renderpoints", "Render As Points (Mantra)", 1, default_value=([2]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1","2"]), menu_labels=(["No Point Rendering","Render Only Points","Render Unconnected Points"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "renderpoints", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.IntParmTemplate("vm_renderpointsas", "Render Points As (Mantra)", 1, default_value=([0]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1"]), menu_labels=(["Spheres","Circles"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template3.setConditional(hou.parmCondType.DisableWhen, "{ vm_renderpoints == 0 }")
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "renderpointsas", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_usenforpoints", "Use N For Point Rendering", default_value=False)
+hou_parm_template3.setConditional(hou.parmCondType.DisableWhen, "{ vm_renderpoints == 0 }")
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "usenforpoints", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.FloatParmTemplate("vm_pointscale", "Point Scale", 1, default_value=([1]), min=0, max=10, min_is_strict=True, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template3.setConditional(hou.parmCondType.DisableWhen, "{ vm_renderpoints == 0 }")
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "pointscale", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_pscalediameter", "Treat Point Scale as Diameter Instead of Radius", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "pscalediameter", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_metavolume", "Metaballs as Volume", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "metavolume", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.IntParmTemplate("vm_coving", "Coving", 1, default_value=([1]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1","2"]), menu_labels=(["Disable Coving","Coving for displacement/sub-d","Coving for all primitives"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "coving", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("vm_materialoverride", "Material Override", 1, default_value=(["compact"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=(["none","full","compact"]), menu_labels=(["Disabled","Evaluate for Each Primitve/Point","Evaluate Once"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setTags({"spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_overridedetail", "Ignore Geometry Attribute Shaders", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "overridedetail", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_procuseroottransform", "Proc Use Root Transform", default_value=True)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "procuseroottransform", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+hou_parm_template_group.append(hou_parm_template)
+# Code for parameter template
+hou_parm_template = hou.FolderParmTemplate("stdswitcher4_2", "Misc", folder_type=hou.folderType.Tabs, default_value=0, ends_tab_group=False)
+hou_parm_template.setTags({"sidefx::switcher": "stdswitcher"})
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("use_dcolor", "Set Wireframe Color", default_value=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("dcolor", "Wireframe Color", 3, default_value=([1, 1, 1]), min=0, max=1, min_is_strict=True, max_is_strict=True, look=hou.parmLook.ColorSquare, naming_scheme=hou.parmNamingScheme.RGBA)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("picking", "Viewport Selecting Enabled", default_value=True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("pickscript", "Select Script", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.FileReference, file_type=hou.fileType.Any, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.StringReplace)
+hou_parm_template2.setTags({"filechooser_mode": "read"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("caching", "Cache Object Transform", default_value=True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("vport_shadeopen", "Shade Open Curves In Viewport", default_value=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("vport_displayassubdiv", "Display as Subdivision in Viewport", default_value=False)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.MenuParmTemplate("vport_onionskin", "Onion Skinning", menu_items=(["off","xform","on"]), menu_labels=(["Off","Transform only","Full Deformation"]), default_value=0, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+hou_parm_template_group.append(hou_parm_template)
+hou_node.setParmTemplateGroup(hou_parm_template_group)
+# Code for /obj/Import/t parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import")
+hou_parm_tuple = hou_node.parmTuple("t")
+hou_parm_tuple.setAutoscope((True, True, True))
+
+
+# Code for /obj/Import/r parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import")
+hou_parm_tuple = hou_node.parmTuple("r")
+hou_parm_tuple.setAutoscope((True, True, True))
+
+
+# Code for /obj/Import/s parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import")
+hou_parm_tuple = hou_node.parmTuple("s")
+hou_parm_tuple.setAutoscope((True, True, True))
+
+
+# Code for /obj/Import/picking parm 
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/Import")
+hou_parm = hou_node.parm("picking")
+hou_parm.deleteAllKeyframes()
+hou_parm.set(0)
+
+
+hou_node.setColor(hou.Color([0, 0, 0]))
+hou_node.setExpressionLanguage(hou.exprLanguage.Hscript)
+
+
+
+# Code for /obj/FX
+
+# Initialize parent node variable.
+if locals().get("hou_parent") is None:
+    hou_parent = hou.node("/obj")
+
+# Code for /obj/FX
+hou_node = hou_parent.createNode("geo", "FX", run_init_scripts=False, load_contents=True, exact_type_name=True)
+_K8s_REQUESTED["FX"] = hou_node
+hou_node.move(hou.Vector2(0, -2.12))
+hou_node.setSelectableInViewport(False)
+hou_node.showOrigin(False)
+hou_node.useXray(False)
+hou_node.setDisplayFlag(False)
+hou_node.hide(False)
+hou_node.setSelected(True)
+
+hou_parm_template_group = hou.ParmTemplateGroup()
+# Code for parameter template
+hou_parm_template = hou.FolderParmTemplate("stdswitcher4", "Transform", folder_type=hou.folderType.Tabs, default_value=0, ends_tab_group=False)
+hou_parm_template.setTags({"sidefx::switcher": "stdswitcher"})
+# Code for parameter template
+hou_parm_template2 = hou.MenuParmTemplate("xOrd", "Transform Order", menu_items=(["srt","str","rst","rts","tsr","trs"]), menu_labels=(["Scale Rot Trans","Scale Trans Rot","Rot Scale Trans","Rot Trans Scale","Trans Scale Rot","Trans Rot Scale"]), default_value=0, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template2.setJoinWithNext(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.MenuParmTemplate("rOrd", "Rotate Order", menu_items=(["xyz","xzy","yxz","yzx","zxy","zyx"]), menu_labels=(["Rx Ry Rz","Rx Rz Ry","Ry Rx Rz","Ry Rz Rx","Rz Rx Ry","Rz Ry Rx"]), default_value=0, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template2.hideLabel(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("t", "Translate", 3, default_value=([0, 0, 0]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.XYZW)
+hou_parm_template2.setTags({"autoscope": "1111111111111111111111111111111", "script_action": "import objecttoolutils\nobjecttoolutils.matchTransform(kwargs, 0)", "script_action_help": "Select an object to match the translation with.", "script_action_icon": "BUTTONS_match_transform"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("r", "Rotate", 3, default_value=([0, 0, 0]), min=0, max=360, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.XYZW)
+hou_parm_template2.setTags({"autoscope": "1111111111111111111111111111111", "script_action": "import objecttoolutils\nobjecttoolutils.matchTransform(kwargs, 1)", "script_action_help": "Select an object to match the rotation with.", "script_action_icon": "BUTTONS_match_rotation"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("s", "Scale", 3, default_value=([1, 1, 1]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.XYZW)
+hou_parm_template2.setTags({"autoscope": "1111111111111111111111111111111", "script_action": "import objecttoolutils\nobjecttoolutils.matchTransform(kwargs, 2)", "script_action_help": "Select an object to match the scale with.", "script_action_icon": "BUTTONS_match_scale"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("p", "Pivot Translate", 3, default_value=([0, 0, 0]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.XYZW)
+hou_parm_template2.setTags({"script_action": "import objecttoolutils\nobjecttoolutils.matchTransform(kwargs, 3)", "script_action_help": "Select an object to match the pivot with.", "script_action_icon": "BUTTONS_match_pivot"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("pr", "Pivot Rotate", 3, default_value=([0, 0, 0]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.XYZW)
+hou_parm_template2.setTags({"script_action": "import objecttoolutils\nobjecttoolutils.matchTransform(kwargs, 4)", "script_action_help": "Select an object to match the pivot rotation with.", "script_action_icon": "BUTTONS_match_pivot_rotation"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("scale", "Uniform Scale", 1, default_value=([1]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.MenuParmTemplate("pre_xform", "Modify Pre-Transform", menu_items=(["clean","cleantrans","cleanrot","cleanscales","extract","reset"]), menu_labels=(["Clean Transform","Clean Translates","Clean Rotates","Clean Scales","Extract Pre-transform","Reset Pre-transform"]), default_value=0, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.StringReplace, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("keeppos", "Keep Position When Parenting", default_value=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("childcomp", "Child Compensation", default_value=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("constraints_on", "Enable Constraints", default_value=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("constraints_path", "Constraints", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReference, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.setConditional(hou.parmCondType.HideWhen, "{ constraints_on == 0 }")
+hou_parm_template2.setTags({"opfilter": "!!CHOP", "oprelative": ".", "script_action": "import objecttoolutils\nobjecttoolutils.constraintsMenu(kwargs)", "script_action_help": "", "script_action_icon": "BUTTONS_add_constraints"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("lookatpath", "Look At", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReference, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.hide(True)
+hou_parm_template2.setTags({"opfilter": "!!OBJ!!", "oprelative": "."})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("lookupobjpath", "Look Up Object", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReference, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.hide(True)
+hou_parm_template2.setTags({"opfilter": "!!OBJ!!", "oprelative": "."})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("lookup", "Look At Up Vector", 1, default_value=(["on"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=(["off","on","quat","pos","obj"]), menu_labels=(["Don't Use Up Vector","Use Up Vector","Use Quaternions","Use Global Position","Use Up Object"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("pathobjpath", "Path Object", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReference, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.hide(True)
+hou_parm_template2.setTags({"opfilter": "!!SOP!!", "oprelative": "."})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("roll", "Roll", 1, default_value=([0]), min=-360, max=360, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Angle, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("pos", "Position", 1, default_value=([0]), min=0, max=10, min_is_strict=True, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.MenuParmTemplate("uparmtype", "Parameterization", menu_items=(["uniform","arc"]), menu_labels=(["Uniform","Arc Length"]), default_value=1, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.IntParmTemplate("pathorient", "Orient Along Path", 1, default_value=([1]), min=0, max=1, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("up", "Orient Up Vector", 3, default_value=([0, 1, 0]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Vector, naming_scheme=hou.parmNamingScheme.XYZW)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("bank", "Auto-Bank factor", 1, default_value=([0]), min=-1, max=1, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+hou_parm_template_group.append(hou_parm_template)
+# Code for parameter template
+hou_parm_template = hou.FolderParmTemplate("stdswitcher4_1", "Render", folder_type=hou.folderType.Tabs, default_value=0, ends_tab_group=False)
+hou_parm_template.setTags({"sidefx::switcher": "stdswitcher"})
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("shop_materialpath", "Material", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReference, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.setTags({"opfilter": "!!CUSTOM/MATERIAL!!", "oprelative": "."})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.MenuParmTemplate("shop_materialopts", "Options", menu_items=([]), menu_labels=([]), default_value=0, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Mini, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("tdisplay", "Display", default_value=False)
+hou_parm_template2.hideLabel(True)
+hou_parm_template2.setJoinWithNext(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.IntParmTemplate("display", "Display", 1, default_value=([1]), min=0, max=1, min_is_strict=True, max_is_strict=True, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.MenuParmTemplate("viewportlod", "Display As", menu_items=(["full","points","box","centroid","hidden","subd"]), menu_labels=(["Full Geometry","Point Cloud","Bounding Box","Centroid","Hidden","Subdivision Surface / Curves"]), default_value=0, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template2.setHelp("Choose how the object's geometry should be rendered in the viewport")
+hou_parm_template2.setTags({"spare_category": "Render"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("vm_rendervisibility", "Render Visibility", 1, default_value=(["*"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=(["*","primary","primary|shadow","-primary","-diffuse","-diffuse&-reflect&-refract",""]), menu_labels=(["Visible to all","Visible only to primary rays","Visible only to primary and shadow rays","Invisible to primary rays (Phantom)","Invisible to diffuse rays","Invisible to secondary rays","Invisible (Unrenderable)"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.StringReplace)
+hou_parm_template2.setTags({"mantra_class": "object", "mantra_name": "rendervisibility", "spare_category": "Render"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("vm_rendersubd", "Render Polygons As Subdivision (Mantra)", default_value=False)
+hou_parm_template2.setTags({"mantra_class": "object", "mantra_name": "rendersubd", "spare_category": "Geometry"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("vm_subdstyle", "Subdivision Style", 1, default_value=(["mantra_catclark"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=(["mantra_catclark","osd_catclark"]), menu_labels=(["Mantra Catmull-Clark","OpenSubdiv Catmull-Clark"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.setConditional(hou.parmCondType.HideWhen, "{ vm_rendersubd == 0 }")
+hou_parm_template2.setTags({"mantra_class": "object", "mantra_name": "subdstyle", "spare_category": "Geometry"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("vm_subdgroup", "Subdivision Group", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template2.setConditional(hou.parmCondType.HideWhen, "{ vm_rendersubd == 0 }")
+hou_parm_template2.setTags({"mantra_class": "object", "mantra_name": "subdgroup", "spare_category": "Geometry"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("vm_osd_quality", "Open Subdiv Quality", 1, default_value=([1]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template2.setConditional(hou.parmCondType.HideWhen, "{ vm_rendersubd == 0 vm_subdstyle != osd_catclark }")
+hou_parm_template2.setTags({"mantra_class": "object", "mantra_name": "osd_quality", "spare_category": "Geometry"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.IntParmTemplate("vm_osd_vtxinterp", "OSD Vtx Interp", 1, default_value=([2]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1","2"]), menu_labels=(["No vertex interpolation","Edges only","Edges and Corners"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template2.setConditional(hou.parmCondType.HideWhen, "{ vm_rendersubd == 0 vm_subdstyle != osd_catclark }")
+hou_parm_template2.setTags({"mantra_class": "object", "mantra_name": "osd_vtxinterp", "spare_category": "Geometry"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.IntParmTemplate("vm_osd_fvarinterp", "OSD FVar Interp", 1, default_value=([4]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1","2","3","4","5"]), menu_labels=(["Smooth everywhere","Sharpen corners only","Sharpen edges and corners","Sharpen edges and propagated corners","Sharpen all boundaries","Bilinear interpolation"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template2.setConditional(hou.parmCondType.HideWhen, "{ vm_rendersubd == 0 vm_subdstyle != osd_catclark }")
+hou_parm_template2.setTags({"mantra_class": "object", "mantra_name": "osd_fvarinterp", "spare_category": "Geometry"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FolderParmTemplate("folder0", "Shading", folder_type=hou.folderType.Tabs, default_value=0, ends_tab_group=False)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("categories", "Categories", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setHelp("A list of tags which can be used to select the object")
+hou_parm_template3.setTags({"spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("reflectmask", "Reflection Mask", 1, default_value=(["*"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReferenceList, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setHelp("Objects that will be reflected on this object.")
+hou_parm_template3.setTags({"opexpand": "1", "opfilter": "!!OBJ/GEOMETRY!!", "oprelative": "/obj", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("refractmask", "Refraction Mask", 1, default_value=(["*"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReferenceList, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setHelp("Objects that will be refracted on this object.")
+hou_parm_template3.setTags({"opexpand": "1", "opfilter": "!!OBJ/GEOMETRY!!", "oprelative": "/obj", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("lightmask", "Light Mask", 1, default_value=(["*"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReferenceList, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setHelp("Lights that illuminate this object.")
+hou_parm_template3.setTags({"opexpand": "1", "opfilter": "!!OBJ/LIGHT!!", "oprelative": "/obj", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("lightcategories", "Light Selection", 1, default_value=(["*"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setTags({"spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("vm_lpetag", "LPE Tag", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "lpetag", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("vm_volumefilter", "Volume Filter", 1, default_value=(["box"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=(["box","gaussian","bartlett","catrom","hanning","blackman","sinc"]), menu_labels=(["Box Filter","Gaussian","Bartlett (triangle)","Catmull-Rom","Hanning","Blackman","Sinc (sharpening)"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "filter", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.FloatParmTemplate("vm_volumefilterwidth", "Volume Filter Width", 1, default_value=([1]), min=0.001, max=5, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "filterwidth", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_matte", "Matte shading", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "matte", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_rayshade", "Raytrace Shading", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "rayshade", "spare_category": "Shading"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FolderParmTemplate("folder0_1", "Sampling", folder_type=hou.folderType.Tabs, default_value=0, ends_tab_group=False)
+# Code for parameter template
+hou_parm_template3 = hou.MenuParmTemplate("geo_velocityblur", "Geometry Velocity Blur", menu_items=(["off","on","accelblur"]), menu_labels=(["No Velocity Blur","Velocity Blur","Acceleration Blur"]), default_value=0, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template3.setConditional(hou.parmCondType.DisableWhen, "{ allowmotionblur == 0 }")
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("geo_accelattribute", "Acceleration Attribute", 1, default_value=(["accel"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setConditional(hou.parmCondType.HideWhen, "{ geo_velocityblur != accelblur }")
+hou_parm_template3.setTags({"spare_category": "Sampling"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FolderParmTemplate("folder0_2", "Dicing", folder_type=hou.folderType.Tabs, default_value=0, ends_tab_group=False)
+# Code for parameter template
+hou_parm_template3 = hou.FloatParmTemplate("vm_shadingquality", "Shading Quality", 1, default_value=([1]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "shadingquality", "spare_category": "Dicing"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.FloatParmTemplate("vm_flatness", "Dicing Flatness", 1, default_value=([0.05]), min=0, max=1, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "flatness", "spare_category": "Dicing"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.IntParmTemplate("vm_raypredice", "Ray Predicing", 1, default_value=([0]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1","2"]), menu_labels=(["Disable Predicing","Full Predicing","Precompute Bounds"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "raypredice", "spare_category": "Dicing"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_curvesurface", "Shade Curves As Surfaces", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "curvesurface", "spare_category": "Dicing"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FolderParmTemplate("folder0_3", "Geometry", folder_type=hou.folderType.Tabs, default_value=0, ends_tab_group=False)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_rmbackface", "Backface Removal", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "rmbackface", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("shop_geometrypath", "Procedural Shader", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.NodeReference, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setTags({"opfilter": "!!SHOP/GEOMETRY!!", "oprelative": ".", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_forcegeometry", "Force Procedural Geometry Output", default_value=True)
+hou_parm_template3.setTags({"spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_rendersubdcurves", "Render Polygon Curves As Subdivision (Mantra)", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "rendersubdcurves", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.IntParmTemplate("vm_renderpoints", "Render As Points (Mantra)", 1, default_value=([2]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1","2"]), menu_labels=(["No Point Rendering","Render Only Points","Render Unconnected Points"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "renderpoints", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.IntParmTemplate("vm_renderpointsas", "Render Points As (Mantra)", 1, default_value=([0]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1"]), menu_labels=(["Spheres","Circles"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template3.setConditional(hou.parmCondType.DisableWhen, "{ vm_renderpoints == 0 }")
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "renderpointsas", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_usenforpoints", "Use N For Point Rendering", default_value=False)
+hou_parm_template3.setConditional(hou.parmCondType.DisableWhen, "{ vm_renderpoints == 0 }")
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "usenforpoints", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.FloatParmTemplate("vm_pointscale", "Point Scale", 1, default_value=([1]), min=0, max=10, min_is_strict=True, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1)
+hou_parm_template3.setConditional(hou.parmCondType.DisableWhen, "{ vm_renderpoints == 0 }")
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "pointscale", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_pscalediameter", "Treat Point Scale as Diameter Instead of Radius", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "pscalediameter", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_metavolume", "Metaballs as Volume", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "metavolume", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.IntParmTemplate("vm_coving", "Coving", 1, default_value=([1]), min=0, max=10, min_is_strict=False, max_is_strict=False, look=hou.parmLook.Regular, naming_scheme=hou.parmNamingScheme.Base1, menu_items=(["0","1","2"]), menu_labels=(["Disable Coving","Coving for displacement/sub-d","Coving for all primitives"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "coving", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.StringParmTemplate("vm_materialoverride", "Material Override", 1, default_value=(["compact"]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.Regular, menu_items=(["none","full","compact"]), menu_labels=(["Disabled","Evaluate for Each Primitve/Point","Evaluate Once"]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal)
+hou_parm_template3.setTags({"spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_overridedetail", "Ignore Geometry Attribute Shaders", default_value=False)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "overridedetail", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+# Code for parameter template
+hou_parm_template3 = hou.ToggleParmTemplate("vm_procuseroottransform", "Proc Use Root Transform", default_value=True)
+hou_parm_template3.setTags({"mantra_class": "object", "mantra_name": "procuseroottransform", "spare_category": "Geometry"})
+hou_parm_template2.addParmTemplate(hou_parm_template3)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+hou_parm_template_group.append(hou_parm_template)
+# Code for parameter template
+hou_parm_template = hou.FolderParmTemplate("stdswitcher4_2", "Misc", folder_type=hou.folderType.Tabs, default_value=0, ends_tab_group=False)
+hou_parm_template.setTags({"sidefx::switcher": "stdswitcher"})
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("use_dcolor", "Set Wireframe Color", default_value=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.FloatParmTemplate("dcolor", "Wireframe Color", 3, default_value=([1, 1, 1]), min=0, max=1, min_is_strict=True, max_is_strict=True, look=hou.parmLook.ColorSquare, naming_scheme=hou.parmNamingScheme.RGBA)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("picking", "Viewport Selecting Enabled", default_value=True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.StringParmTemplate("pickscript", "Select Script", 1, default_value=([""]), naming_scheme=hou.parmNamingScheme.Base1, string_type=hou.stringParmType.FileReference, file_type=hou.fileType.Any, menu_items=([]), menu_labels=([]), icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.StringReplace)
+hou_parm_template2.setTags({"filechooser_mode": "read"})
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("caching", "Cache Object Transform", default_value=True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("vport_shadeopen", "Shade Open Curves In Viewport", default_value=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.ToggleParmTemplate("vport_displayassubdiv", "Display as Subdivision in Viewport", default_value=False)
+hou_parm_template2.hide(True)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+# Code for parameter template
+hou_parm_template2 = hou.MenuParmTemplate("vport_onionskin", "Onion Skinning", menu_items=(["off","xform","on"]), menu_labels=(["Off","Transform only","Full Deformation"]), default_value=0, icon_names=([]), item_generator_script="", item_generator_script_language=hou.scriptLanguage.Python, menu_type=hou.menuType.Normal, menu_use_token=False, is_button_strip=False, strip_uses_icons=False)
+hou_parm_template.addParmTemplate(hou_parm_template2)
+hou_parm_template_group.append(hou_parm_template)
+hou_node.setParmTemplateGroup(hou_parm_template_group)
+# Code for /obj/FX/t parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/FX")
+hou_parm_tuple = hou_node.parmTuple("t")
+hou_parm_tuple.setAutoscope((True, True, True))
+
+
+# Code for /obj/FX/r parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/FX")
+hou_parm_tuple = hou_node.parmTuple("r")
+hou_parm_tuple.setAutoscope((True, True, True))
+
+
+# Code for /obj/FX/s parm tuple
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/FX")
+hou_parm_tuple = hou_node.parmTuple("s")
+hou_parm_tuple.setAutoscope((True, True, True))
+
+
+# Code for /obj/FX/picking parm 
+if locals().get("hou_node") is None:
+    hou_node = hou.node("/obj/FX")
+hou_parm = hou_node.parm("picking")
+hou_parm.deleteAllKeyframes()
+hou_parm.set(0)
+
+
+hou_node.setColor(hou.Color([0.451, 0.369, 0.796]))
+hou_node.setExpressionLanguage(hou.exprLanguage.Hscript)
+
+hou_node.setUserData("___Version___", "21.0.440")
+if hasattr(hou_node, "syncNodeVersionIfNeeded"):
+    hou_node.syncNodeVersionIfNeeded("21.0.440")
+# Update the parent node.
+hou_parent = hou_node
+
+
+# Restore the parent and current nodes.
+hou_parent = hou_parent.parent()
+hou_node = hou_node.parent()
+
+
+
+# Code for /obj/Matnet
+
+# Initialize parent node variable.
+if locals().get("hou_parent") is None:
+    hou_parent = hou.node("/obj")
+
+# Code for /obj/Matnet
+hou_node = hou_parent.createNode("matnet", "Matnet", run_init_scripts=False, load_contents=True, exact_type_name=True)
+_K8s_REQUESTED["Matnet"] = hou_node
+hou_node.move(hou.Vector2(0, -4.12))
+hou_node.hide(False)
+hou_node.setSelected(True)
+hou_node.setExpressionLanguage(hou.exprLanguage.Hscript)
+
+hou_node.setUserData("___Version___", "21.0.440")
+if hasattr(hou_node, "syncNodeVersionIfNeeded"):
+    hou_node.syncNodeVersionIfNeeded("21.0.440")
+# Update the parent node.
+hou_parent = hou_node
+
+
+# Restore the parent and current nodes.
+hou_parent = hou_parent.parent()
+hou_node = hou_node.parent()
+
+
+
+# Code to establish connections for /obj/Import
+hou_node = _K8s_REQUESTED.get("Import")
+if _K8s_REQUESTED.get("Import_Scale") is not None:
+    hou_node.setInput(0, _K8s_REQUESTED.get("Import_Scale"), 0)
+hou_node.setUserData("___Version___", "21.0.440")
+if hasattr(hou_node, "syncNodeVersionIfNeeded"):
+    hou_node.syncNodeVersionIfNeeded("21.0.440")
+# Update the parent node.
+hou_parent = hou_node
+
+
+# Restore the parent and current nodes.
+hou_parent = hou_parent.parent()
+hou_node = hou_node.parent()
+
+
+# === MA_ShelfTools_Pro: drag reposition ===
+# ç¨ä¿å­æ¶çç¸å¯¹åç§»ï¼_K8s_REL_POSï¼+ åæ ä½ç½®ç´æ¥å®ä½ã
+# å Houdini åçå·¥å·æ¶ä¸è´ï¼position = cursor + relative_offset
+if _has_pos and _K8s_REL_POS:
+    _cx = float(_nx)
+    _cy = float(_ny)
+    for _name, _n in _K8s_REQUESTED.items():
+        _rel = _K8s_REL_POS.get(_name)
+        if _rel is not None:
+            _n.setPosition(hou.Vector2(_cx + _rel[0], _cy + _rel[1]))
+# === end reposition ===
+]]></script>
+  </tool>
+
+  <toolshelf name="w" label="w">
+    <memberTool name="w"/>
+  </toolshelf>
+</shelfDocument>

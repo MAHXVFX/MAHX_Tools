@@ -314,7 +314,7 @@ network_box.setColor(mycolor)
 network_box.setComment(text)]]></script>
   </tool>
 
-  <tool name="Example Instancer " label="示例" icon="hicon:/SVGIcons.index?BUTTONS_light_solo.svg">
+  <tool name="Example Instancer " label="" icon="hicon:/SVGIcons.index?BUTTONS_light_solo.svg">
     <script scriptType="python"><![CDATA[
 import sys
 import toolutils
@@ -599,7 +599,7 @@ hou.hscript(h_preamble + h_extra_args + h_cmd)
 ]]></script>
   </tool>
 
-  <tool name="selected name" label="按属性删除" icon="C:/Users/mahx_/Pictures/AI/mahx_selected name_custom.png">
+  <tool name="selected name" label="" icon="C:/Users/mahx_/Pictures/AI/mahx_selected name_custom.png">
     <script scriptType="python"><![CDATA[import hou
 from PySide6 import QtWidgets, QtCore, QtGui
 
@@ -831,5 +831,4 @@ def create_attribute_split_tool():
 # å¨Houdiniä¸­è°ç¨
 create_attribute_split_tool()]]></script>
   </tool>
-
 </shelfDocument>

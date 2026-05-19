@@ -337,22 +337,24 @@ class ThumbnailWidget(QtWidgets.QWidget):
         if result is None:
             return
 
-        # 更新 .shelf 文件中的 label（icon 只支持 Houdini 内部图标名，不写入）
-        from MA.shelf_tool_pro.shelf_saver import update_tool_in_shelf
-        updated = update_tool_in_shelf(
-            shelf_file=result["shelf_file"],
-            tool_name=result["tool_name"],
-            new_label=result["label"],
-        )
-        if not updated:
-            QtWidgets.QMessageBox.warning(self, "错误",
-                "更新工具失败。")
-            return
-
-        # 缓存图标路径
+        # 缓存图标路径（始终执行，与 .shelf 文件无关）
         from MA.common.settings import ShelfToolsCacheManager
         new_icon = result.get("icon_path", "")
         ShelfToolsCacheManager.set_tool_icon(self._unique_id, new_icon)
+
+        # 仅当 label 改变时才更新 .shelf 文件
+        _, _, old_label, _, shelf_path = _TOOL_REGISTRY[self._unique_id]
+        if result["label"] != old_label:
+            from MA.shelf_tool_pro.shelf_saver import update_tool_in_shelf
+            updated = update_tool_in_shelf(
+                shelf_file=result["shelf_file"],
+                tool_name=result["tool_name"],
+                new_label=result["label"],
+            )
+            if not updated:
+                QtWidgets.QMessageBox.warning(self, "错误",
+                    "更新工具名称失败。")
+                return
 
         # 刷新面板
         from MA.shelf_tool_pro.shelf_loader import refresh_tools

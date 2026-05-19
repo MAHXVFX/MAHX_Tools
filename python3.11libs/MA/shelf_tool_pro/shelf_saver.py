@@ -3,6 +3,7 @@
 import os
 import re
 import logging
+import tempfile
 from datetime import datetime
 
 import hou
@@ -11,6 +12,22 @@ logger = logging.getLogger("MA")
 
 # 共享验证正则（save_tool_dialog.py 也引用）
 _VALID_TOOL_NAME_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+
+
+def _atomic_write(file_path: str, content: str) -> None:
+    """原子写入文件，避免 Windows 下 Houdini 占用导致的 Permission denied。"""
+    dir_name = os.path.dirname(os.path.normpath(file_path))
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".shelf")
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            f.write(content)
+        os.replace(tmp_path, file_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 # ── 相对位置偏移（类似原生工具架的 $arg2/arg3 + offset） ──
 
@@ -33,25 +50,25 @@ def _build_rel_pos_block(nodes: list) -> str:
 
 
 _PREAMBLE_TRACK_RELPOS = """# === MA_ShelfTools_Pro: kwargs-aware positioning ===
-_K8s_REQUESTED = {}  # requested_name → actual node（处理重命名场景）
-_K8s_REL_POS = %s  # name → (dx, dy) 相对位置偏移（类似 $arg2/arg3）
-_K8s_PARENT_CATEGORY = "%s"  # 保存时的父级网络类型（用于上下文兼容性校验）
+_K8s_REQUESTED = {}  # requested_name -> actual node (handles rename scenarios)
+_K8s_REL_POS = %s  # name -> (dx, dy) relative position offset (like $arg2/$arg3)
+_K8s_PARENT_CATEGORY = "%s"  # parent network type at save time (for context compatibility check)
 _kwargs = globals().get("kwargs", {})
 _pane = _kwargs.get("pane")
 
 # Override hou_parent to current context instead of asCode's hardcoded path.
 if _pane is not None:
     hou_parent = _pane.pwd()
-    # 校验上下文兼容性（类似 Houdini 原生 toolutils 的 pattern）
+    # Validate context compatibility (similar to Houdini native toolutils pattern)
     if hou_parent.childTypeCategory().name() != _K8s_PARENT_CATEGORY:
         hou.ui.displayMessage(
-            "节点创建失败：当前网络类型不匹配\\n\\n"
-            "该工具需要放置在 " + _K8s_PARENT_CATEGORY + " 层级，"
-            "当前位于 " + hou_parent.childTypeCategory().name() + " 层级。\\n\\n"
-            "请切换到对应的网络编辑器后重试。"
+            "Node creation failed: current network type mismatch\\n\\n"
+            "This tool requires placement in a " + _K8s_PARENT_CATEGORY + " network, "
+            "but the current network is " + hou_parent.childTypeCategory().name() + ".\\n\\n"
+            "Please switch to the corresponding network editor and try again."
         )
         import sys; sys.exit(0)
-    # 清除旧选中状态
+    # Clear old selection state
     hou_parent.setSelected(False, True)
 
 _autoplace = _kwargs.get("autoplace", True)
@@ -307,24 +324,45 @@ def save_node_to_shelf(
 
     # Houdini API may escape non-ASCII chars in label as XML entities.
     # Overwrite with original Unicode via direct XML edit.
-    if label:
-        try:
-            with open(shelf_file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            # 找到 <tool name="tool_name"...> 标签并写入正确 label
-            tag_re = re.compile(
-                r'(<tool\s+name="' + re.escape(tool_name) + r'"[^>]*?)>'
+    # Also inject a default icon, <toolMenuContext>, and <toolshelf> wrapper
+    # so the native shelf UI can display the tool correctly.
+    try:
+        with open(shelf_file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # 构建 toolMenuContext 块（让原生 TAB 菜单能正确显示）
+        parent_cat = nodes[0].parent().childTypeCategory().name()
+        node_type = nodes[0].type().name()
+        context_xml = f'\n    <toolMenuContext name="network">\n      <contextOpType>{parent_cat}/{node_type}</contextOpType>\n    </toolMenuContext>'
+        
+        # 构建 toolshelf 包装（让原生工具架 UI 能正确分组显示）
+        shelf_stem = os.path.splitext(os.path.basename(shelf_file_path))[0]
+        toolshelf_xml = f'\n  <toolshelf name="{shelf_stem}" label="{shelf_stem}">\n    <memberTool name="{tool_name}"/>\n  </toolshelf>\n'
+        
+        tag_re = re.compile(
+            r'(<tool\s+name="' + re.escape(tool_name) + r'"[^>]*?)>'
+        )
+        def _inject_attrs(m):
+            tag = m.group(1)
+            # 去掉旧 label/icon，写入新值
+            tag = re.sub(r'\s+label="[^"]*"', '', tag)
+            tag = re.sub(r'\s+icon="[^"]*"', '', tag)
+            tag += f' label="{label}"'
+            tag += f' icon="hicon:/SVGIcons.index?BUTTONS_mask_track.svg"'
+            return f'{tag}>{context_xml}'
+        new_content = tag_re.sub(_inject_attrs, content)
+        
+        # 注入 toolshelf 包装（在 </shelfDocument> 之前）
+        if toolshelf_xml not in new_content:
+            new_content = new_content.replace(
+                '</shelfDocument>',
+                f'{toolshelf_xml}</shelfDocument>'
             )
-            def _inject_label(m):
-                tag = m.group(1)
-                tag = re.sub(r'\s+label="[^"]*"', '', tag)  # 去掉旧 label
-                return f'{tag} label="{label}">'
-            new_content = tag_re.sub(_inject_label, content)
-            if new_content != content:
-                with open(shelf_file_path, 'w', encoding='utf-8') as f:
-                    f.write(new_content)
-        except Exception as exc:
-            logger.debug("Label fix skipped for '%s': %s", tool_name, exc)
+        
+        if new_content != content:
+            _atomic_write(shelf_file_path, new_content)
+    except Exception as exc:
+        logger.debug("Label/icon/context/toolshelf fix skipped for '%s': %s", tool_name, exc)
 
     logger.info(
         "Saved shelf tool '%s' to %s (%d node(s))",
@@ -369,8 +407,7 @@ def remove_tool_from_shelf(tool_name: str, shelf_file_path: str) -> bool:
         # 压缩多余空行
         new_content = re.sub(r'\n\s*\n\s*\n+', '\n\n', new_content)
 
-        with open(shelf_file_path, 'w', encoding='utf-8') as f:
-            f.write(new_content)
+        _atomic_write(shelf_file_path, new_content)
 
         # 检查是否还有剩余 tool 定义，若无则删除空的 .shelf 文件
         if not re.search(r'<tool\s+name="', new_content):
@@ -436,8 +473,7 @@ def update_tool_in_shelf(
                 tag += f' label="{new_label}"'
         new_content = content[:match.start()] + tag + '>' + content[match.end():]
 
-        with open(shelf_file, 'w', encoding='utf-8') as f:
-            f.write(new_content)
+        _atomic_write(shelf_file, new_content)
 
         logger.info(
             "Updated tool '%s' in %s (label=%s)",
