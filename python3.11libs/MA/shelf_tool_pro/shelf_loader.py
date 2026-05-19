@@ -4,13 +4,14 @@ import os
 import sys
 import glob
 import re
+import html
 
 import hou
 import MA
 
 _loaded_shelf_files = set()
 _TOOL_NAMES = []      # 唯一标识列表：["shelfA_cam", "shelfB_cam"]
-_TOOL_REGISTRY = {}   # 唯一标识 -> (shelf_stem, tool_name, shelf_path)
+_TOOL_REGISTRY = {}   # 唯一标识 -> (shelf_stem, tool_name, label, icon, shelf_path)
 
 
 def project_root():
@@ -19,7 +20,7 @@ def project_root():
 
 
 def scan_tool_names():
-    """解析 toolbar/*.shelf 文件，提取所有 tool name。
+    """解析 toolbar/*.shelf 文件，提取所有 tool name 和 label。
     
     Returns:
         list of str: 唯一标识列表，格式 "{shelf_stem}_{tool_name}"
@@ -33,9 +34,16 @@ def scan_tool_names():
                 content = fp.read()
             for m in re.finditer(r'<tool\s+name="([^"]+)"', content):
                 tool_name = m.group(1)
+                # 从同一 tag 中提取 label 和 icon 属性
+                tag_end = content.index('>', m.start())
+                tag_snippet = content[m.start():tag_end]
+                lbl_m = re.search(r'label="([^"]*)"', tag_snippet)
+                label = html.unescape(lbl_m.group(1)) if lbl_m else tool_name
+                ico_m = re.search(r'icon="([^"]*)"', tag_snippet)
+                icon = html.unescape(ico_m.group(1)) if ico_m else ""
                 unique_id = f"{shelf_stem}_{tool_name}"
                 names.append(unique_id)
-                _TOOL_REGISTRY[unique_id] = (shelf_stem, tool_name, f)
+                _TOOL_REGISTRY[unique_id] = (shelf_stem, tool_name, label, icon, f)
         except Exception:
             pass
     return names
@@ -64,7 +72,7 @@ def execute_tool(unique_id, extra_kwargs=None):
     
     # 解析唯一标识，获取实际 tool_name
     if unique_id in _TOOL_REGISTRY:
-        _, tool_name, _ = _TOOL_REGISTRY[unique_id]
+        _, tool_name, _, _, _ = _TOOL_REGISTRY[unique_id]
     else:
         # 兼容旧格式或回退
         tool_name = unique_id.split("_", 1)[-1] if "_" in unique_id else unique_id

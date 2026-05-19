@@ -1,5 +1,6 @@
 """MAShelfToolPro 主面板。"""
 
+import os
 import logging
 
 from PySide6 import QtWidgets, QtCore
@@ -9,7 +10,7 @@ try:
 except ImportError:
     hou = None
 
-from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
+from MA.common import ShelfToolsSettingsManager
 from MA.common.animation_helper import elastic_resize
 from MA.shelf_tool_pro.styles import (
     BG_PRIMARY, BG_SECONDARY, BG_INPUT, TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR,
@@ -134,8 +135,12 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
         self._save_dialog_open = True
         try:
-            from MA.shelf_tool_pro.save_tool_dialog import SaveToolDialog
-            dialog = SaveToolDialog(valid_paths, self)
+            from MA.shelf_tool_pro.save_tool_dialog import ToolSettingsDialog
+            dialog = ToolSettingsDialog(
+                mode="create",
+                node_paths=valid_paths,
+                parent=self,
+            )
             if dialog.exec() != QtWidgets.QDialog.Accepted:
                 return  # cancelled
 
@@ -152,26 +157,31 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             if check_name_conflict(tool_name, shelf_file):
                 reply = QtWidgets.QMessageBox.question(
                     self,
-                    "Tool Name Conflict",
-                    f"A tool named '{tool_name}' already exists in\n{shelf_file}\n\nDo you want to overwrite it?",
+                    "工具名称冲突",
+                    f"工具 '{tool_name}' 已存在于\n{shelf_file}\n\n是否覆盖？",
                     QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
                     QtWidgets.QMessageBox.No,
                 )
                 if reply != QtWidgets.QMessageBox.Yes:
-                    return  # user chose not to overwrite
+                    return
 
-            # Save to .shelf file
+            # Save to .shelf file (icon not written — only supports Houdini internal names)
             success = save_node_to_shelf(
                 node_paths=result["node_paths"],
                 tool_name=tool_name,
                 label=result["label"],
                 shelf_file_path=shelf_file,
-                icon_path=result.get("icon_path", ""),
             )
             if not success:
-                QtWidgets.QMessageBox.warning(self, "Error",
-                    "Failed to save tool to shelf file.")
+                QtWidgets.QMessageBox.warning(self, "错误",
+                    "保存工具到工具架文件失败。")
                 return
+
+            # Cache icon path (键用 unique_id = shelf_stem + tool_name)
+            from MA.common.settings import ShelfToolsCacheManager
+            shelf_stem = os.path.splitext(os.path.basename(shelf_file))[0]
+            unique_id = f"{shelf_stem}_{tool_name}"
+            ShelfToolsCacheManager.set_tool_icon(unique_id, result.get("icon_path", ""))
 
             # Load the .shelf file into Houdini
             if hou is not None:
@@ -183,38 +193,57 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             # Refresh panel
             self._refresh_tools()
 
-            QtWidgets.QMessageBox.information(self, "Success",
-                f"Tool '{result['label']}' saved to {result['shelf_file']}")
+            # 直接打印到控制台，代替弹窗
+            print(f"工具 '{result['label']}' 已保存到")
+            print(result['shelf_file'])
         finally:
             self._save_dialog_open = False
 
     # ── 工具缩略图助手 ────────────────────────────
 
-    def _build_thumb_widgets(self, layout, tool_names, size):
-        """向 layout 填充 ThumbnailWidget 实例。"""
+    @staticmethod
+    def _calc_grid_cols(container_width: int, thumb_size: int, spacing: int = 12) -> int:
+        """根据容器宽度和缩略图尺寸计算列数。"""
+        cell = thumb_size + spacing
+        return max(1, (container_width - spacing) // cell)
+
+    def _build_thumb_widgets(self, layout, tool_names, size, tool_registry=None):
+        """向 GridLayout 填充 ThumbnailWidget 实例（自动换行）。
+
+        Args:
+            tool_registry: 优先使用的注册表（解决刷新后引用过时问题），
+                           None 则回退到模块级 _TOOL_REGISTRY。
+        """
+        if tool_registry is None:
+            tool_registry = _TOOL_REGISTRY
         if not tool_names:
-            info = QtWidgets.QLabel("No tools found")
+            info = QtWidgets.QLabel("未找到工具")
             info.setAlignment(QtCore.Qt.AlignCenter)
             info.setStyleSheet(
                 "color: #888888; font-size: 14px; padding: 20px; background: transparent;")
-            layout.addWidget(info)
+            layout.addWidget(info, 0, 0)
             return
 
+        # 确定可用宽度
+        if self.scroll_area is not None:
+            avail = self.scroll_area.viewport().width()
+        else:
+            avail = self.width() - 12
+
+        cols = self._calc_grid_cols(avail, size)
         self._thumb_widgets = []
-        for unique_id in tool_names:
-            if unique_id in _TOOL_REGISTRY:
-                _, display_name, _ = _TOOL_REGISTRY[unique_id]
+
+        for idx, unique_id in enumerate(tool_names):
+            if unique_id in tool_registry:
+                _, _, label, icon, _ = tool_registry[unique_id]
+                display_name = label
             else:
                 display_name = unique_id.split("_", 1)[-1]
+                icon = ""
 
-            custom_name = ShelfToolsCacheManager.get_custom_name(unique_id)
-            custom_image = ShelfToolsCacheManager.get_custom_image(unique_id)
-            tw = ThumbnailWidget(unique_id, display_name, size,
-                                 custom_name=custom_name,
-                                 custom_image_info=custom_image)
+            tw = ThumbnailWidget(unique_id, display_name, size, icon_path=icon)
             self._thumb_widgets.append(tw)
-            layout.addWidget(tw)
-        layout.addStretch()
+            layout.addWidget(tw, idx // cols, idx % cols)
 
     # ── 面板刷新 ──────────────────────────────────
 
@@ -230,12 +259,12 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         old_container = self.tools_container
         new_container = QtWidgets.QWidget()
         new_container.setStyleSheet(f"background-color: {BG_SECONDARY};")
-        new_layout = QtWidgets.QHBoxLayout(new_container)
+        new_layout = QtWidgets.QGridLayout(new_container)
         new_layout.setContentsMargins(6, 6, 6, 6)
         new_layout.setSpacing(12)
         new_layout.setAlignment(QtCore.Qt.AlignTop)
 
-        self._build_thumb_widgets(new_layout, _TOOL_NAMES, self.thumb_slider.value())
+        self._build_thumb_widgets(new_layout, _TOOL_NAMES, self.thumb_slider.value(), _TOOL_REGISTRY)
 
         # Swap in new container
         self.tools_container = new_container
@@ -249,7 +278,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         layout = QtWidgets.QHBoxLayout()
         layout.setContentsMargins(8, 4, 8, 4)
 
-        self.settings_btn = QtWidgets.QPushButton("Settings")
+        self.settings_btn = QtWidgets.QPushButton("设置")
         self.settings_btn.setObjectName("settingsButton")
         self.settings_btn.setCursor(QtCore.Qt.PointingHandCursor)
         self.settings_btn.setStyleSheet(SETTINGS_BUTTON_STYLE)
@@ -258,7 +287,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
         layout.addSpacing(10)
 
-        lbl_thumb_size = QtWidgets.QLabel("Thumbnail Size")
+        lbl_thumb_size = QtWidgets.QLabel("缩略图大小")
         lbl_thumb_size.setStyleSheet(
             f"color: {TEXT_SECONDARY}; font-size: 13px; font-weight: bold; background-color: transparent;")
         layout.addWidget(lbl_thumb_size)
@@ -295,7 +324,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         settings_layout.setSpacing(8)
 
         dir_row = QtWidgets.QHBoxLayout()
-        dir_row.addWidget(QtWidgets.QLabel("Thumbnail Path:"))
+        dir_row.addWidget(QtWidgets.QLabel("缩略图路径："))
         self.thumb_path_edit = QtWidgets.QLineEdit()
         self.thumb_path_edit.setText(ShelfToolsSettingsManager.get_thumbnail_directory())
         self.thumb_path_edit.setStyleSheet(
@@ -303,7 +332,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             f"border-radius: 4px; padding: 4px 8px; font-size: 11px;")
         dir_row.addWidget(self.thumb_path_edit)
 
-        self.browse_btn = QtWidgets.QPushButton("Browse")
+        self.browse_btn = QtWidgets.QPushButton("浏览")
         self.browse_btn.setCursor(QtCore.Qt.PointingHandCursor)
         self.browse_btn.setStyleSheet(
             f"background-color: {BORDER_COLOR}; color: white; border: none; "
@@ -325,7 +354,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
         self.tools_container = QtWidgets.QWidget()
         self.tools_container.setStyleSheet(f"background-color: {BG_SECONDARY};")
-        tools_layout = QtWidgets.QHBoxLayout(self.tools_container)
+        tools_layout = QtWidgets.QGridLayout(self.tools_container)
         tools_layout.setContentsMargins(6, 6, 6, 6)
         tools_layout.setSpacing(12)
         tools_layout.setAlignment(QtCore.Qt.AlignTop)
@@ -335,6 +364,27 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.scroll_area.setWidget(self.tools_container)
         return self.scroll_area
 
+    # ── 重排网格（面板缩放 / 滑块调大小时） ─────
+
+    def _relayout_grid(self) -> None:
+        """保持现有 widgets，按当前宽度重新计算列数并重排。"""
+        if not hasattr(self, '_thumb_widgets') or not self._thumb_widgets:
+            return
+        layout = self.tools_container.layout()
+        if layout is None:
+            return
+        avail = self.scroll_area.viewport().width()
+        size = self.thumb_slider.value()
+        cols = self._calc_grid_cols(avail, size)
+        for idx, tw in enumerate(self._thumb_widgets):
+            row, col = idx // cols, idx % cols
+            layout.addWidget(tw, row, col)
+
+    def resizeEvent(self, event):
+        """面板缩放时自动重排网格。"""
+        super().resizeEvent(event)
+        self._relayout_grid()
+
     def _toggle_settings(self):
         is_visible = self.settings_widget.isVisible()
         elastic_resize(self.settings_widget, not is_visible)
@@ -342,7 +392,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
     def _browse_thumbnail_directory(self):
         current_dir = self.thumb_path_edit.text()
         dir_path = QtWidgets.QFileDialog.getExistingDirectory(
-            self, "Select Thumbnail Directory", current_dir)
+            self, "选择缩略图目录", current_dir)
         if dir_path:
             self.thumb_path_edit.setText(dir_path)
             ShelfToolsSettingsManager.set_thumbnail_directory(dir_path)
@@ -352,7 +402,11 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         save_thumb_size(value)
         if hasattr(self, '_thumb_widgets'):
             for tw in self._thumb_widgets:
-                tw.updateSize(value)
+                try:
+                    tw.updateSize(value)
+                except RuntimeError:
+                    pass  # widget 已被删除（例如最后 tool 被删后 shelf 文件已清空）
+        self._relayout_grid()
 
     def _on_size_edit(self):
         try:

@@ -86,34 +86,6 @@ class ShelfToolsCacheManager(BaseJsonManager):
     _file = SHELFTOOLS_CACHE_FILE
 
     @classmethod
-    def get_custom_image(cls, tool_name):
-        """获取工具的自定义图片信息，返回 {"path": "...", "is_gif": bool} 或 None。"""
-        data = cls.load()
-        return data.get("custom_images", {}).get(tool_name)
-
-    @classmethod
-    def set_custom_image(cls, tool_name, path, is_gif):
-        """设置工具的自定义图片。"""
-        data = cls.load()
-        images = data.setdefault("custom_images", {})
-        images[tool_name] = {"path": path, "is_gif": is_gif}
-        cls.save(data)
-
-    @classmethod
-    def get_custom_name(cls, tool_name):
-        """获取工具的自定义名称，未设置时返回 None。"""
-        data = cls.load()
-        return data.get("custom_names", {}).get(tool_name)
-
-    @classmethod
-    def set_custom_name(cls, tool_name, name):
-        """设置工具的自定义名称。"""
-        data = cls.load()
-        names = data.setdefault("custom_names", {})
-        names[tool_name] = name
-        cls.save(data)
-
-    @classmethod
     def get_note(cls, tool_name):
         """获取工具的备注内容，未设置时返回 None。"""
         note_path = os.path.join(SHELFTOOLS_NOTES_DIR, f"{tool_name}.md")
@@ -130,20 +102,27 @@ class ShelfToolsCacheManager(BaseJsonManager):
         with open(note_path, "w", encoding="utf-8") as f:
             f.write(note)
 
-    @classmethod
-    def remove_custom_image(cls, tool_name):
-        """Remove custom image entry from cache."""
-        data = cls.load()
-        images = data.get("custom_images", {})
-        if tool_name in images:
-            del images[tool_name]
-            cls.save(data)
+    # ── 图标缓存 ────────────────────────────────
+    _ICON_KEY = "icon_{}"
 
     @classmethod
-    def remove_custom_name(cls, tool_name):
-        """Remove custom name entry from cache."""
+    def get_tool_icon(cls, tool_name):
+        """获取工具自定义图标路径，未设置返回 None。"""
+        return cls.load().get(cls._ICON_KEY.format(tool_name))
+
+    @classmethod
+    def set_tool_icon(cls, tool_name, icon_path):
+        """设置工具图标路径（空字符串则清除）。"""
+        if icon_path:
+            cls.update(cls._ICON_KEY.format(tool_name), icon_path)
+        else:
+            cls.remove_tool_icon(tool_name)
+
+    @classmethod
+    def remove_tool_icon(cls, tool_name):
+        """清除工具图标缓存。"""
         data = cls.load()
-        names = data.get("custom_names", {})
-        if tool_name in names:
-            del names[tool_name]
+        key = cls._ICON_KEY.format(tool_name)
+        if key in data:
+            del data[key]
             cls.save(data)

@@ -175,7 +175,6 @@ def save_node_to_shelf(
     tool_name: str,
     label: str,
     shelf_file_path: str,
-    icon_path: str = "",
 ) -> bool:
     """Save Houdini nodes as a shelf tool in a .shelf file.
 
@@ -186,12 +185,14 @@ def save_node_to_shelf(
     4. Create tool via hou.shelves.newTool()
     5. The .shelf file is auto-written by Houdini API
 
+    Note: Custom icon paths are NOT written to the .shelf file.
+          Use ShelfToolsCacheManager for user icon storage.
+
     Args:
         node_paths: List of Houdini node paths (e.g., ["/obj/geo1/box1"])
         tool_name: Internal tool name (must match ``^[a-zA-Z_][a-zA-Z0-9_]*$``)
         label: Display label for the shelf tool
         shelf_file_path: Path to .shelf file
-        icon_path: Icon string (e.g., "SOP_box" from node.type().icon())
 
     Returns:
         bool: True if tool was saved successfully
@@ -297,13 +298,33 @@ def save_node_to_shelf(
         hou.shelves.newTool(
             file_path=shelf_file_path,
             name=tool_name,
-            label=label or tool_name,
+            label=tool_name,  # placeholder — Houdini API may garble non-ASCII
             script=full_script,
             language=hou.scriptLanguage.Python,
-            icon=icon_path,
         )
     except Exception as e:
         raise RuntimeError(f"Failed to create shelf tool: {e}")
+
+    # Houdini API may escape non-ASCII chars in label as XML entities.
+    # Overwrite with original Unicode via direct XML edit.
+    if label:
+        try:
+            with open(shelf_file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            # 找到 <tool name="tool_name"...> 标签并写入正确 label
+            tag_re = re.compile(
+                r'(<tool\s+name="' + re.escape(tool_name) + r'"[^>]*?)>'
+            )
+            def _inject_label(m):
+                tag = m.group(1)
+                tag = re.sub(r'\s+label="[^"]*"', '', tag)  # 去掉旧 label
+                return f'{tag} label="{label}">'
+            new_content = tag_re.sub(_inject_label, content)
+            if new_content != content:
+                with open(shelf_file_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+        except Exception as exc:
+            logger.debug("Label fix skipped for '%s': %s", tool_name, exc)
 
     logger.info(
         "Saved shelf tool '%s' to %s (%d node(s))",
@@ -351,8 +372,78 @@ def remove_tool_from_shelf(tool_name: str, shelf_file_path: str) -> bool:
         with open(shelf_file_path, 'w', encoding='utf-8') as f:
             f.write(new_content)
 
+        # 检查是否还有剩余 tool 定义，若无则删除空的 .shelf 文件
+        if not re.search(r'<tool\s+name="', new_content):
+            try:
+                os.remove(shelf_file_path)
+                logger.info(
+                    "Removed empty shelf file '%s' (last tool deleted)",
+                    shelf_file_path,
+                )
+            except OSError as exc:
+                logger.warning(
+                    "Failed to remove empty shelf file '%s': %s",
+                    shelf_file_path, exc,
+                )
+
         logger.info("Removed tool '%s' from %s", tool_name, shelf_file_path)
         return True
     except Exception as e:
         logger.error("Failed to remove tool '%s' from %s: %s", tool_name, shelf_file_path, e)
+        return False
+
+
+def update_tool_in_shelf(
+    shelf_file: str,
+    tool_name: str,
+    new_label: str | None = None,
+) -> bool:
+    """更新 .shelf 文件中指定 tool 的 label 属性。
+
+    Note: icon 属性只支持 Houdini 内部图标名，不支持文件路径。
+          自定义图标路径请通过 ShelfToolsCacheManager 缓存。
+
+    Args:
+        shelf_file: .shelf 文件路径
+        tool_name: 工具名称（<tool name="xxx">）
+        new_label: 新的 label 值，None 表示不修改
+
+    Returns:
+        True 成功，False 未找到或写入失败。
+    """
+    if not os.path.isfile(shelf_file):
+        return False
+
+    try:
+        with open(shelf_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # 匹配 <tool name="xxx" ...> 开始标签
+        pattern = re.compile(
+            r'(<tool\s+name="' + re.escape(tool_name) + r'"[^>]*?)>'
+        )
+        match = pattern.search(content)
+        if not match:
+            logger.warning("Tool '%s' not found in %s", tool_name, shelf_file)
+            return False
+
+        tag = match.group(1)
+        # 替换 label 属性
+        if new_label is not None:
+            if re.search(r'label="[^"]*"', tag):
+                tag = re.sub(r'label="[^"]*"', f'label="{new_label}"', tag)
+            else:
+                tag += f' label="{new_label}"'
+        new_content = content[:match.start()] + tag + '>' + content[match.end():]
+
+        with open(shelf_file, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+
+        logger.info(
+            "Updated tool '%s' in %s (label=%s)",
+            tool_name, shelf_file, new_label,
+        )
+        return True
+    except Exception as e:
+        logger.error("Failed to update tool '%s' in %s: %s", tool_name, shelf_file, e)
         return False

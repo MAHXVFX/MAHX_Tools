@@ -1,13 +1,11 @@
 """缩略图控件"""
 
 import os
-import gc
-import shutil
 import logging
 
 from PySide6 import QtWidgets, QtGui, QtCore
 
-from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
+from MA.common import ShelfToolsCacheManager
 from MA.shelf_tool_pro.shelf_loader import execute_tool, drop_at_cursor
 from MA.shelf_tool_pro.styles import TEXT_SECONDARY, CONTEXT_MENU_STYLE
 from MA.shelf_tool_pro.web_renderer import WebRenderer, WebRendererPool
@@ -25,17 +23,16 @@ class ThumbnailWidget(QtWidgets.QWidget):
     _NOTES_PANEL_HEIGHT = 600
     _NOTES_HIDE_DELAY = 100  # 鼠标离开备注面板后的延迟隐藏时间（ms）
 
-    def __init__(self, unique_id, display_name, size, parent=None, custom_name=None, custom_image_info=None):
+    def __init__(self, unique_id, display_name, size, parent=None, icon_path=""):
         super().__init__(parent)
         self._unique_id = unique_id
         self._display_name = display_name
         self._drag_start = None
         self._size = 0
-        self._movie = None
-        self._gif_timer_id = None
         self._notes_timer_id = None
-        self._custom_image_path = None
-        self._is_gif = False
+        self._icon_path = icon_path
+        self._movie = None        # QMovie 实例（GIF 动画）
+        self._movie_path = ""     # 当前 GIF 文件路径（用于对比更改）
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -47,8 +44,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self.image_label.setStyleSheet("background-color: transparent;")
         layout.addWidget(self.image_label)
 
-        name_to_display = custom_name if custom_name else display_name
-        self.name_label = QtWidgets.QLabel(name_to_display)
+        self.name_label = QtWidgets.QLabel(display_name)
         self.name_label.setAlignment(QtCore.Qt.AlignCenter)
         self.name_label.setStyleSheet(f"color: {TEXT_SECONDARY}; background-color: transparent;")
         layout.addWidget(self.name_label)
@@ -56,11 +52,6 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self.setToolTip(display_name)
         self.setCursor(QtCore.Qt.OpenHandCursor)
         self.updateSize(size)
-
-        if custom_image_info:
-            self._custom_image_path = custom_image_info.get("path")
-            self._is_gif = custom_image_info.get("is_gif", False)
-            self._load_custom_image()
 
     @staticmethod
     def _make_rounded_pixmap(size, radius, color):
@@ -117,10 +108,105 @@ class ThumbnailWidget(QtWidgets.QWidget):
         font.setPointSize(max(7, size // 16))
         self.name_label.setFont(font)
 
-        if self._custom_image_path:
-            self._load_custom_image()
-        else:
-            self.image_label.setPixmap(self._make_rounded_pixmap(size, radius, "#2d2d2d"))
+        self._render_thumbnail(size)
+
+    def _stop_gif(self):
+        """停止并清理 QMovie。"""
+        if self._movie:
+            self._movie.stop()
+            try:
+                self._movie.frameChanged.disconnect(self._on_movie_frame)
+            except (TypeError, RuntimeError):
+                pass
+            self._movie.deleteLater()
+            self._movie = None
+            self._movie_path = ""
+
+    def _paint_rounded_image(self, painter, src_pixmap, size, radius):
+        """在 painter 上绘制圆角图片：有透明通道则跳过背景色，否则铺背景。"""
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
+
+        scaled = src_pixmap.scaled(
+            size, size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+
+        # 有透明通道 → 跳过背景色，透明部分透出到面板
+        has_alpha = src_pixmap.hasAlphaChannel()
+        if not has_alpha:
+            painter.setBrush(QtGui.QColor("#2d2d2d"))
+            painter.setPen(QtCore.Qt.NoPen)
+            painter.drawRoundedRect(0, 0, size, size, radius, radius)
+
+        # 圆角 clip 画图像
+        path = QtGui.QPainterPath()
+        path.addRoundedRect(0, 0, size, size, radius, radius)
+        painter.setClipPath(path)
+
+        x = (size - scaled.width()) // 2
+        y = (size - scaled.height()) // 2
+        painter.drawPixmap(x, y, scaled)
+
+    def _on_movie_frame(self, _frame):
+        """QMovie 帧更新：用当前帧绘制圆角缩略图。"""
+        if not self._movie:
+            return
+        frame_pixmap = self._movie.currentPixmap()
+        if frame_pixmap.isNull():
+            return
+        size = self._size
+        if size <= 0:
+            return
+        radius = max(3, size // 8)
+
+        canvas = QtGui.QPixmap(size, size)
+        canvas.fill(QtCore.Qt.transparent)
+
+        painter = QtGui.QPainter(canvas)
+        self._paint_rounded_image(painter, frame_pixmap, size, radius)
+        painter.end()
+
+        self.image_label.setPixmap(canvas)
+
+    def _render_thumbnail(self, size):
+        """渲染缩略图：优先读缓存 GIF/PNG/JPG，其次 .shelf 图标路径，否则灰色占位图。"""
+        radius = max(3, size // 8)
+
+        # 从缓存取图标路径
+        from MA.common.settings import ShelfToolsCacheManager
+        cached_icon = ShelfToolsCacheManager.get_tool_icon(self._unique_id) or self._icon_path
+
+        if cached_icon and os.path.isfile(cached_icon):
+            # ── GIF：启用 QMovie ──
+            ext = os.path.splitext(cached_icon)[1].lower()
+            if ext == ".gif":
+                if self._movie_path != cached_icon:
+                    self._stop_gif()
+                    self._movie = QtGui.QMovie(cached_icon)
+                    self._movie_path = cached_icon
+                    self._movie.frameChanged.connect(self._on_movie_frame)
+                    # 默认不播放，hover 才播
+                    self._movie.stop()
+                # 跳转到第一帧并用当前 size 重绘
+                self._movie.jumpToFrame(0)
+                self._on_movie_frame(0)
+                return
+
+            # ── 静态图 ──
+            src = QtGui.QPixmap(cached_icon)
+            if not src.isNull():
+                canvas = QtGui.QPixmap(size, size)
+                canvas.fill(QtCore.Qt.transparent)
+                painter = QtGui.QPainter(canvas)
+                self._paint_rounded_image(painter, src, size, radius)
+                painter.end()
+                self.image_label.setPixmap(canvas)
+                # 上一步如果是 GIF 则停掉
+                self._stop_gif()
+                return
+
+        # 灰色占位图
+        self._stop_gif()
+        self.image_label.setPixmap(self._make_rounded_pixmap(size, radius, "#2d2d2d"))
 
     # ── 鼠标事件 ──────────────────────────────────
     def mousePressEvent(self, event):
@@ -158,51 +244,69 @@ class ThumbnailWidget(QtWidgets.QWidget):
     def contextMenuEvent(self, event):
         menu = QtWidgets.QMenu(self)
         menu.setStyleSheet(CONTEXT_MENU_STYLE)
-        rename_action = menu.addAction("Rename")
-        set_image_action = menu.addAction("Set Image")
-        notes_action = menu.addAction("Notes")
+        settings_action = menu.addAction("设置\u2026")
+        notes_action = menu.addAction("备注")
         menu.addSeparator()
-        delete_action = menu.addAction("Delete")
-        rename_action.triggered.connect(self._on_rename)
-        set_image_action.triggered.connect(self._on_set_image)
+        delete_action = menu.addAction("删除")
+        settings_action.triggered.connect(self._on_settings)
         notes_action.triggered.connect(self._on_edit_notes)
         delete_action.triggered.connect(self._on_delete_tool)
         menu.exec(event.globalPos())
 
-    def _on_rename(self):
-        """弹出改名对话框。"""
-        current_name = self.name_label.text()
-        new_name, ok = QtWidgets.QInputDialog.getText(
-            self, "Rename", "Enter new name:", text=current_name)
-        if ok and new_name.strip():
-            self.name_label.setText(new_name.strip())
-            ShelfToolsCacheManager.set_custom_name(self._unique_id, new_name.strip())
+    def _on_settings(self):
+        """打开工具设置对话框。"""
+        from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
+        if self._unique_id not in _TOOL_REGISTRY:
+            return
+        _, tool_name, label, _, shelf_path = _TOOL_REGISTRY[self._unique_id]
 
-    def _on_set_image(self):
-        """弹出文件选择对话框，设置自定义缩略图。"""
-        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Select Thumbnail Image", "", "Images (*.jpg *.jpeg *.png *.gif)")
-        if not file_path:
+        # 从缓存加载自定义图标（.shelf 的 icon 属性只存 Houdini 内部名）
+        from MA.common.settings import ShelfToolsCacheManager
+        icon_path = ShelfToolsCacheManager.get_tool_icon(self._unique_id) or ""
+
+        from MA.shelf_tool_pro.save_tool_dialog import ToolSettingsDialog
+        dialog = ToolSettingsDialog(
+            mode="edit",
+            node_paths=[],
+            tool_name=tool_name,
+            label=label,
+            shelf_file_path=shelf_path,
+            icon_path=icon_path,
+            parent=self,
+        )
+        if dialog.exec() != QtWidgets.QDialog.Accepted:
+            return
+        result = dialog.get_result()
+        if result is None:
             return
 
-        thumb_dir = ShelfToolsSettingsManager.get_thumbnail_directory()
-        os.makedirs(thumb_dir, exist_ok=True)
+        # 更新 .shelf 文件中的 label（icon 只支持 Houdini 内部图标名，不写入）
+        from MA.shelf_tool_pro.shelf_saver import update_tool_in_shelf
+        updated = update_tool_in_shelf(
+            shelf_file=result["shelf_file"],
+            tool_name=result["tool_name"],
+            new_label=result["label"],
+        )
+        if not updated:
+            QtWidgets.QMessageBox.warning(self, "错误",
+                "更新工具失败。")
+            return
 
-        # 清理旧格式的自定义缩略图
-        self._cleanup_old_thumbnails(thumb_dir)
+        # 缓存图标路径
+        from MA.common.settings import ShelfToolsCacheManager
+        new_icon = result.get("icon_path", "")
+        ShelfToolsCacheManager.set_tool_icon(self._unique_id, new_icon)
 
-        ext = os.path.splitext(file_path)[1].lower()
-        dest_filename = f"{self._unique_id}_custom{ext}"
-        dest_path = os.path.join(thumb_dir, dest_filename)
-
-        shutil.copy2(file_path, dest_path)
-
-        is_gif = ext == ".gif"
-        ShelfToolsCacheManager.set_custom_image(self._unique_id, dest_path, is_gif)
-
-        self._custom_image_path = dest_path
-        self._is_gif = is_gif
-        self._load_custom_image()
+        # 刷新面板
+        from MA.shelf_tool_pro.shelf_loader import refresh_tools
+        refresh_tools()
+        # 通知父级面板刷新（通过 parent chain 找到面板）
+        p = self.parent()
+        while p is not None:
+            if hasattr(p, '_refresh_tools'):
+                p._refresh_tools()
+                break
+            p = p.parent()
 
     def _on_edit_notes(self):
         """弹出分屏对话框：左侧编辑，右侧实时预览。"""
@@ -320,7 +424,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         """删除当前工具：确认 → 从 .shelf 移除 → 清理 → 刷新面板。"""
         from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY, refresh_tools
         from MA.shelf_tool_pro.shelf_saver import remove_tool_from_shelf
-        from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
+        from MA.common import ShelfToolsCacheManager
         from MA.common.constants import SHELFTOOLS_NOTES_DIR
 
         # 确认对话框
@@ -340,32 +444,18 @@ class ThumbnailWidget(QtWidgets.QWidget):
         # 从注册表获取工具信息
         if self._unique_id not in _TOOL_REGISTRY:
             logger.warning("Tool '%s' not found in registry", self._unique_id)
-            QtWidgets.QMessageBox.warning(self, "Error", "Tool not found in registry.")
+            QtWidgets.QMessageBox.warning(self, "错误", "未在注册表中找到该工具。")
             return
 
-        _, tool_name, shelf_path = _TOOL_REGISTRY[self._unique_id]
+        _, tool_name, _, _, shelf_path = _TOOL_REGISTRY[self._unique_id]
 
         # 1. 从 .shelf 文件移除
         if not remove_tool_from_shelf(tool_name, shelf_path):
-            QtWidgets.QMessageBox.warning(self, "Error",
-                f"Failed to remove tool from\n{shelf_path}")
+            QtWidgets.QMessageBox.warning(self, "错误",
+                f"从工具架移除工具失败\n{shelf_path}")
             return
 
-        # 2. 删除自定义缩略图文件
-        thumb_dir = ShelfToolsSettingsManager.get_thumbnail_directory()
-        for ext in (".jpg", ".jpeg", ".png", ".gif"):
-            thumb_path = os.path.join(thumb_dir, f"{self._unique_id}_custom{ext}")
-            if os.path.exists(thumb_path):
-                try:
-                    os.remove(thumb_path)
-                except OSError as e:
-                    logger.warning("Failed to remove thumbnail %s: %s", thumb_path, e)
-
-        # 3. 清理缓存
-        ShelfToolsCacheManager.remove_custom_image(self._unique_id)
-        ShelfToolsCacheManager.remove_custom_name(self._unique_id)
-
-        # 4. 删除备注文件
+        # 2. 删除备注文件
         note_path = os.path.join(SHELFTOOLS_NOTES_DIR, f"{self._unique_id}.md")
         if os.path.exists(note_path):
             try:
@@ -373,19 +463,23 @@ class ThumbnailWidget(QtWidgets.QWidget):
             except OSError as e:
                 logger.warning("Failed to remove notes %s: %s", note_path, e)
 
-        # 5. 删除自身控件
+        # 3. 清除图标缓存
+        from MA.common.settings import ShelfToolsCacheManager
+        ShelfToolsCacheManager.remove_tool_icon(self._unique_id)
+
+        # 5. 找到父 panel（在 detach 前保存引用）
+        panel = self.parent()
+        while panel is not None and not hasattr(panel, '_refresh_tools'):
+            panel = panel.parent()
+
+        # 6. 删除自身控件
         self.setParent(None)
         self.deleteLater()
 
-        # 6. 刷新面板
+        # 7. 刷新面板
         refresh_tools()
-        # 找到父 panel 并刷新 UI
-        parent = self.parent()
-        while parent is not None:
-            if hasattr(parent, '_refresh_tools'):
-                parent._refresh_tools()
-                break
-            parent = parent.parent()
+        if panel is not None:
+            panel._refresh_tools()
 
     def _open_notes_window(self):
         """以悬浮窗口方式打开备注（只读，渲染 markdown，带标题栏）。"""
@@ -451,125 +545,24 @@ class ThumbnailWidget(QtWidgets.QWidget):
 
         notes_renderer.render(current_note, _show_after_render, fade=True)
 
-    def _release_movie(self):
-        """彻底释放 QMovie 对象及其文件句柄。"""
-        if self._movie:
-            self._movie.stop()
-            # 清除引用 + 强制 GC，确保 Windows 文件句柄立即释放
-            self._movie = None
-            gc.collect()
-
-    def _cleanup_old_thumbnails(self, thumb_dir):
-        """清理同一 unique_id 下所有格式的自定义缩略图。
-        
-        如果当前有 QMovie 占用（GIF），先释放句柄再删除。
-        """
-        # 释放当前 QMovie（如果有），解除 GIF 文件锁定
-        if self._movie:
-            self._release_movie()
-
-        # 删除所有格式的旧文件
-        for ext in (".jpg", ".jpeg", ".png", ".gif"):
-            old_path = os.path.join(thumb_dir, f"{self._unique_id}_custom{ext}")
-            if os.path.exists(old_path):
-                try:
-                    os.remove(old_path)
-                    logger.debug("Cleaned up old thumbnail: %s", old_path)
-                except OSError as e:
-                    logger.warning("Failed to remove old thumbnail %s: %s", old_path, e)
-
-    def _load_custom_image(self):
-        """加载自定义图片到 image_label。GIF 默认显示第一帧。"""
-        if not self._custom_image_path or not os.path.exists(self._custom_image_path):
-            return
-
-        self._release_movie()
-
-        if self._is_gif:
-            self._movie = QtGui.QMovie(self._custom_image_path)
-            self._movie.setCacheMode(QtGui.QMovie.CacheAll)
-            self._movie.jumpToFrame(0)
-            self._movie.frameChanged.connect(self._on_gif_frame_changed)
-            self._on_gif_frame_changed()
-        else:
-            src_pixmap = QtGui.QPixmap(self._custom_image_path)
-            self._render_to_label(src_pixmap)
-
-    def _on_gif_frame_changed(self):
-        """GIF 帧变化时更新显示。"""
-        if not self._movie:
-            return
-        pixmap = self._movie.currentPixmap()
-        if not pixmap.isNull():
-            self._render_to_label(pixmap)
-
-    def _render_to_label(self, src_pixmap):
-        """将源图片缩放、居中、圆角化后显示在 image_label 上。"""
-        size = self._size
-        if size <= 0:
-            return
-        radius = max(3, size // 8)
-
-        # 缩放到适应 size x size 区域，保持比例
-        scaled = src_pixmap.scaled(
-            size, size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
-
-        # 创建精确大小的透明画布，居中绘制
-        canvas = QtGui.QPixmap(size, size)
-        canvas.fill(QtCore.Qt.transparent)
-        painter = QtGui.QPainter(canvas)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing)
-        x = (size - scaled.width()) // 2
-        y = (size - scaled.height()) // 2
-        painter.drawPixmap(x, y, scaled)
-        painter.end()
-
-        # 应用圆角遮罩（带灰色背景）
-        rounded = self._apply_rounded_mask_with_bg(canvas, radius, size)
-        self.image_label.setPixmap(rounded)
-
-    @staticmethod
-    def _apply_rounded_mask_with_bg(pixmap, radius, final_size):
-        """对图片应用圆角遮罩，并添加灰色背景以显示长方形图片的圆角。"""
-        result = QtGui.QPixmap(final_size, final_size)
-        result.fill(QtCore.Qt.transparent)
-
-        painter = QtGui.QPainter(result)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing)
-        painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
-
-        path = QtGui.QPainterPath()
-        path.addRoundedRect(0, 0, final_size, final_size, radius, radius)
-
-        # 1. 绘制灰色背景
-        painter.fillPath(path, QtGui.QColor("#2d2d2d"))
-        # 2. 裁剪并绘制图片
-        painter.setClipPath(path)
-        painter.drawPixmap(0, 0, pixmap)
-        painter.end()
-        return result
-
     def enterEvent(self, event):
-        """鼠标进入：启动 500ms 延迟定时器（GIF 动画 + 备注面板）。"""
+        """鼠标进入：启动 500ms 延迟定时器 + GIF 播放。"""
         super().enterEvent(event)
-        logger.debug("enterEvent: unique_id=%s, is_gif=%s, has_notes=%s", 
-                     self._unique_id, self._is_gif, 
-                     ShelfToolsCacheManager.get_note(self._unique_id))
-        if self._is_gif and self._movie:
-            self._gif_timer_id = self.startTimer(500)
-        # 始终启动 notes timer（无论是否有 GIF）
+        # 启动备注定时器
         self._notes_timer_id = self.startTimer(500)
+        # 播放 GIF
+        if self._movie:
+            self._movie.start()
 
     def leaveEvent(self, event):
-        """鼠标离开：停止定时器，停止 GIF 动画，检查是否移向备注面板。"""
+        """鼠标离开：停止定时器 + GIF + 检查是否移向备注面板。"""
         super().leaveEvent(event)
-        if self._gif_timer_id is not None:
-            self.killTimer(self._gif_timer_id)
-            self._gif_timer_id = None
-        self._stop_gif_animation()
         if self._notes_timer_id is not None:
             self.killTimer(self._notes_timer_id)
             self._notes_timer_id = None
+        # 停止 GIF
+        if self._movie:
+            self._movie.stop()
         
         # 检查鼠标是否移向备注面板
         if WebRendererPool.has_renderer():
@@ -581,54 +574,59 @@ class ThumbnailWidget(QtWidgets.QWidget):
                 WebRendererPool.hide_notes()
 
     def timerEvent(self, event):
-        """定时器触发：GIF 动画 / 备注面板显示。"""
-        # 处理 GIF timer
-        if self._gif_timer_id is not None and event.timerId() == self._gif_timer_id:
-            self._gif_timer_id = None
-            self._start_gif_animation()
-        # 处理 notes timer
+        """定时器触发：备注面板显示。"""
         if self._notes_timer_id is not None and event.timerId() == self._notes_timer_id:
             self._notes_timer_id = None
             logger.debug("timerEvent: notes timer triggered for %s", self._unique_id)
             self._show_notes_panel()
         super().timerEvent(event)
 
-    def _start_gif_animation(self):
-        """开始播放 GIF 动画。"""
-        if self._movie and self._is_gif:
-            if self._movie.state() == QtGui.QMovie.NotRunning:
-                self._movie.start()
-            elif self._movie.paused():
-                self._movie.setPaused(False)
-
-    def _stop_gif_animation(self):
-        """停止 GIF 动画，恢复显示第一帧。"""
-        if self._movie:
-            self._movie.stop()
-            self._movie.jumpToFrame(0)
-            self._on_gif_frame_changed()
-
     def _show_notes_panel(self):
-        """显示备注面板（如有备注内容）。"""
+        """显示备注面板：下方→右侧→左侧→上方，始终不遮挡缩略图。"""
         note_text = ShelfToolsCacheManager.get_note(self._unique_id)
         if not note_text or not note_text.strip():
             return
 
-        # 安装事件过滤器到所有已存在的渲染器面板上
         self._install_notes_event_filters()
 
-        # 智能定位
         panel_width = WebRendererPool._NOTES_PANEL_WIDTH
         panel_height = WebRendererPool._NOTES_PANEL_HEIGHT
-        pos_above = self.mapToGlobal(QtCore.QPoint(0, -panel_height))
+        gap = 10
         available = self._get_available_geometry()
 
-        if pos_above.y() < available.y():
-            pos = self.mapToGlobal(QtCore.QPoint(0, self.height()))
-        else:
-            pos = pos_above
+        # 缩略图在屏幕上的边界
+        tl = self.mapToGlobal(QtCore.QPoint(0, 0))
+        widget_rect = QtCore.QRect(tl, self.size())
 
-        pos = self._clamp_to_screen(pos, panel_width, panel_height)
+        pos = None
+
+        # 1. 下方（固定间距，不随缩略图大小变化）
+        below_y = widget_rect.bottom() + gap
+        if below_y + panel_height <= available.bottom():
+            pos = QtCore.QPoint(widget_rect.x(), below_y)
+
+        # 2. 上方
+        if pos is None:
+            above_y = widget_rect.top() - panel_height - gap
+            if above_y >= available.top():
+                pos = QtCore.QPoint(widget_rect.x(), above_y)
+
+        # 3. 右侧（垂直对齐顶部）
+        if pos is None:
+            right_x = widget_rect.right() + gap
+            if right_x + panel_width <= available.right():
+                pos = QtCore.QPoint(right_x, widget_rect.top())
+
+        # 4. 左侧（垂直对齐顶部）
+        if pos is None:
+            left_x = widget_rect.left() - panel_width - gap
+            if left_x >= available.left():
+                pos = QtCore.QPoint(left_x, widget_rect.top())
+
+        # 5. 保底
+        if pos is None:
+            pos = QtCore.QPoint(widget_rect.x(), below_y)
+            pos = self._clamp_to_screen(pos, panel_width, panel_height)
 
         WebRendererPool.show_notes(note_text, pos)
 
