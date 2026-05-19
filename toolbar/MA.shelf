@@ -832,9 +832,8 @@ def create_attribute_split_tool():
 create_attribute_split_tool()]]></script>
   </tool>
 
-  <tool name="ewe" label="ewe" icon="">
+  <tool name="aaa" label="aaa" icon="">
     <script scriptType="python"><![CDATA[# === MA_ShelfTools_Pro: kwargs-aware positioning ===
-_K8s_NODES = []
 _K8s_REQUESTED = {}  # requested_name â actual nodeï¼å¤çéå½ååºæ¯ï¼
 _K8s_REL_POS = {
     "color1": (0, 0),
@@ -858,7 +857,7 @@ _ny = _kwargs.get("nodepositiony")
 _has_pos = not _autoplace and _nx is not None and _ny is not None
 # === end preamble ===
 
-# Saved from MA_ShelfTools_Pro on 2026-05-19 13:04:18
+# Saved from MA_ShelfTools_Pro on 2026-05-19 13:07:26
 
 # Original node(s): /obj/geo1/color1, /obj/geo1/box1, /obj/geo1/scatter1, /obj/geo1/attribtransfer1, /obj/geo1/null1
 
@@ -872,9 +871,8 @@ if locals().get("hou_parent") is None:
 
 # Code for /obj/geo1/color1
 hou_node = hou_parent.createNode("color", "color1", run_init_scripts=False, load_contents=True, exact_type_name=True)
-_K8s_NODES.append(hou_node)
 _K8s_REQUESTED["color1"] = hou_node
-hou_node.move(hou.Vector2(0.82596, -1.92134))
+hou_node.move(hou.Vector2(-1.44294, -1.42665))
 hou_node.bypass(False)
 hou_node.setDisplayFlag(False)
 hou_node.hide(False)
@@ -924,9 +922,8 @@ if locals().get("hou_parent") is None:
 
 # Code for /obj/geo1/box1
 hou_node = hou_parent.createNode("box", "box1", run_init_scripts=False, load_contents=True, exact_type_name=True)
-_K8s_NODES.append(hou_node)
 _K8s_REQUESTED["box1"] = hou_node
-hou_node.move(hou.Vector2(0, 0))
+hou_node.move(hou.Vector2(-2.2689, 0.494683))
 hou_node.bypass(False)
 hou_node.setDisplayFlag(False)
 hou_node.hide(False)
@@ -977,9 +974,8 @@ if locals().get("hou_parent") is None:
 
 # Code for /obj/geo1/scatter1
 hou_node = hou_parent.createNode("scatter::2.0", "scatter1", run_init_scripts=False, load_contents=True, exact_type_name=True)
-_K8s_NODES.append(hou_node)
 _K8s_REQUESTED["scatter1"] = hou_node
-hou_node.move(hou.Vector2(0, -0.934446))
+hou_node.move(hou.Vector2(-2.2689, -0.439763))
 hou_node.bypass(False)
 hou_node.setDisplayFlag(False)
 hou_node.hide(False)
@@ -1004,9 +1000,8 @@ if locals().get("hou_parent") is None:
 
 # Code for /obj/geo1/attribtransfer1
 hou_node = hou_parent.createNode("attribtransfer", "attribtransfer1", run_init_scripts=False, load_contents=True, exact_type_name=True)
-_K8s_NODES.append(hou_node)
 _K8s_REQUESTED["attribtransfer1"] = hou_node
-hou_node.move(hou.Vector2(-1.68702, -2.80016))
+hou_node.move(hou.Vector2(-3.95592, -2.30547))
 hou_node.bypass(False)
 hou_node.setDisplayFlag(False)
 hou_node.hide(False)
@@ -1031,9 +1026,8 @@ if locals().get("hou_parent") is None:
 
 # Code for /obj/geo1/null1
 hou_node = hou_parent.createNode("null", "null1", run_init_scripts=False, load_contents=True, exact_type_name=True)
-_K8s_NODES.append(hou_node)
 _K8s_REQUESTED["null1"] = hou_node
-hou_node.move(hou.Vector2(-1.68357, -3.90286))
+hou_node.move(hou.Vector2(-3.95247, -3.40817))
 hou_node.bypass(False)
 hou_node.setDisplayFlag(True)
 hou_node.hide(False)

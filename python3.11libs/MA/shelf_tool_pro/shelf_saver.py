@@ -33,7 +33,6 @@ def _build_rel_pos_block(nodes: list) -> str:
 
 
 _PREAMBLE_TRACK_RELPOS = """# === MA_ShelfTools_Pro: kwargs-aware positioning ===
-_K8s_NODES = []
 _K8s_REQUESTED = {}  # requested_name → actual node（处理重命名场景）
 _K8s_REL_POS = %s  # name → (dx, dy) 相对位置偏移（类似 $arg2/arg3）
 _kwargs = globals().get("kwargs", {})
@@ -79,11 +78,10 @@ _NAME_IN_CREATENODE_RE = re.compile(r'createNode\([^,]+,\s*"([^"]+)"')
 
 
 def _inject_tracking(code: str) -> str:
-    """在 asCode 生成的每个 createNode 行后注入跟踪和请求名映射。
+    """在 asCode 生成的每个 createNode 行后注入请求名映射。
 
     注入内容：
-        _K8s_NODES.append(hou_node)            # 用于重定位
-        _K8s_REQUESTED["scatter1"] = hou_node  # 用于连接代码
+        _K8s_REQUESTED["scatter1"] = hou_node  # 请求名 → 实际节点
     """
     def _replacer(m: re.Match) -> str:
         line = m.group(1)
@@ -92,10 +90,9 @@ def _inject_tracking(code: str) -> str:
             req_name = name_m.group(1)
             return (
                 f'{line}\n'
-                f'_K8s_NODES.append(hou_node)\n'
                 f'_K8s_REQUESTED["{req_name}"] = hou_node'
             )
-        return f'{line}\n_K8s_NODES.append(hou_node)'
+        return line
     return _TRACK_RE.sub(_replacer, code)
 
 
