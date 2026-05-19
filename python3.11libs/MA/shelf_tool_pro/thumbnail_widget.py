@@ -324,15 +324,17 @@ class ThumbnailWidget(QtWidgets.QWidget):
         from MA.common.constants import SHELFTOOLS_NOTES_DIR
 
         # 确认对话框
-        reply = QtWidgets.QMessageBox.question(
-            self,
-            "Delete Tool",
-            f"Are you sure you want to delete '{self.name_label.text()}'?\n\n"
-            "This will remove the tool from the .shelf file and all related data.",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-            QtWidgets.QMessageBox.No,
+        msg_box = QtWidgets.QMessageBox(self)
+        msg_box.setWindowTitle("删除工具")
+        msg_box.setText(
+            f"确定要删除 '{self.name_label.text()}' 吗？\n\n"
+            "此操作将从 .shelf 文件中移除该工具及相关数据。"
         )
-        if reply != QtWidgets.QMessageBox.Yes:
+        cancel_btn = msg_box.addButton("取消", QtWidgets.QMessageBox.RejectRole)
+        ok_btn = msg_box.addButton("确定", QtWidgets.QMessageBox.AcceptRole)
+        msg_box.setDefaultButton(cancel_btn)
+        msg_box.exec()
+        if msg_box.clickedButton() != ok_btn:
             return
 
         # 从注册表获取工具信息

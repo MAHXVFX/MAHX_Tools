@@ -35,13 +35,23 @@ def _build_rel_pos_block(nodes: list) -> str:
 _PREAMBLE_TRACK_RELPOS = """# === MA_ShelfTools_Pro: kwargs-aware positioning ===
 _K8s_REQUESTED = {}  # requested_name → actual node（处理重命名场景）
 _K8s_REL_POS = %s  # name → (dx, dy) 相对位置偏移（类似 $arg2/arg3）
+_K8s_PARENT_CATEGORY = "%s"  # 保存时的父级网络类型（用于上下文兼容性校验）
 _kwargs = globals().get("kwargs", {})
 _pane = _kwargs.get("pane")
 
 # Override hou_parent to current context instead of asCode's hardcoded path.
 if _pane is not None:
     hou_parent = _pane.pwd()
-    # 清除旧选中状态（类似 Houdini 原生 toolutils 的 pattern）
+    # 校验上下文兼容性（类似 Houdini 原生 toolutils 的 pattern）
+    if hou_parent.childTypeCategory().name() != _K8s_PARENT_CATEGORY:
+        hou.ui.displayMessage(
+            "节点创建失败：当前网络类型不匹配\\n\\n"
+            "该工具需要放置在 " + _K8s_PARENT_CATEGORY + " 层级，"
+            "当前位于 " + hou_parent.childTypeCategory().name() + " 层级。\\n\\n"
+            "请切换到对应的网络编辑器后重试。"
+        )
+        import sys; sys.exit(0)
+    # 清除旧选中状态
     hou_parent.setSelected(False, True)
 
 _autoplace = _kwargs.get("autoplace", True)
@@ -253,10 +263,15 @@ def save_node_to_shelf(
     mapped_connections = [_use_new_nodes(c) for c in all_connections]
 
     # ------------------------------------------------------------------
-    # 5. Build relative position dict → assemble script
+    # 5. 获取节点所在网络类型（用于执行时校验上下文兼容性）
+    # ------------------------------------------------------------------
+    parent_category = nodes[0].parent().childTypeCategory().name()
+
+    # ------------------------------------------------------------------
+    # 6. Build relative position dict → assemble script
     # ------------------------------------------------------------------
     rel_pos_dict = _build_rel_pos_block(nodes)
-    preamble = _PREAMBLE_TRACK_RELPOS % rel_pos_dict
+    preamble = _PREAMBLE_TRACK_RELPOS % (rel_pos_dict, parent_category)
     full_script = (
         preamble
         + "\n\n".join(script_parts)

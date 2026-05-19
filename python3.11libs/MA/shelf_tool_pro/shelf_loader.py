@@ -1,6 +1,7 @@
 """Shelf 工具加载与执行。"""
 
 import os
+import sys
 import glob
 import re
 
@@ -92,8 +93,8 @@ def execute_tool(unique_id, extra_kwargs=None):
     if extra_kwargs:
         kwargs.update(extra_kwargs)
         
-    # 将 kwargs 注入执行上下文
-    exec(tool.script(), {"kwargs": kwargs, "hou": hou, "__builtins__": __builtins__})
+    # 将 kwargs 注入执行上下文（sys 注入以支持检查不兼容上下文时 sys.exit）
+    exec(tool.script(), {"kwargs": kwargs, "hou": hou, "sys": sys, "__builtins__": __builtins__})
 
 
 def drop_at_cursor(unique_id):
