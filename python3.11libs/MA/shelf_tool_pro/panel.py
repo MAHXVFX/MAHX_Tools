@@ -16,7 +16,7 @@ from MA.shelf_tool_pro.styles import (
     BG_PRIMARY, BG_SECONDARY, BG_INPUT, TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR,
     SETTINGS_BUTTON_STYLE, THUMB_SLIDER_STYLE,
 )
-from MA.shelf_tool_pro.shelf_loader import _TOOL_NAMES, _TOOL_REGISTRY, ensure_shelves
+from MA.shelf_tool_pro.shelf_loader import _TOOL_NAMES, _TOOL_REGISTRY
 from MA.shelf_tool_pro.thumbnail_widget import ThumbnailWidget
 
 _logger = logging.getLogger("MA")
@@ -58,9 +58,6 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         sep.setFrameShape(QtWidgets.QFrame.HLine)
         sep.setStyleSheet(f"color: {BORDER_COLOR}; background-color: {BORDER_COLOR}; max-height: 1px;")
         main_layout.addWidget(sep)
-
-        # 确保 shelf 文件已加载，图标信息已从 Houdini API 补充
-        ensure_shelves()
 
         main_layout.addWidget(self._create_scroll_area(init_size), 1)
 

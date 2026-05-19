@@ -1,18 +1,21 @@
-"""Shelf 工具加载与执行。"""
+"""Shelf 工具加载与执行。
+
+核心设计：直接解析 .shelf XML 文件提取脚本，不调用 hou.shelves.loadFile()。
+这样 Houdini 原生工具架不会加载 MA 创建的工具，但 MA 面板可以正常执行。
+"""
 
 import os
 import sys
 import glob
-import re
 import html
+import xml.etree.ElementTree as ET
 
 import hou
 import MA
 
-_loaded_shelf_files = set()
-_icons_enriched = False    # 防止 _enrich_icons() 被重复调用
 _TOOL_NAMES = []      # 唯一标识列表：["shelfA_cam", "shelfB_cam"]
 _TOOL_REGISTRY = {}   # 唯一标识 -> (shelf_stem, tool_name, label, icon, shelf_path)
+_TOOL_SCRIPTS = {}    # 唯一标识 -> script content (直接从 XML 解析)
 
 
 def project_root():
@@ -21,64 +24,42 @@ def project_root():
 
 
 def scan_tool_names():
-    """解析 toolbar/*.shelf 文件，提取所有 tool name 和 label。
+    """解析 MAtoolbar/*.shelf 文件，提取所有 tool name、label 和 script 内容。
     
     Returns:
         list of str: 唯一标识列表，格式 "{shelf_stem}_{tool_name}"
     """
+    global _TOOL_SCRIPTS
     names = []
+    _TOOL_SCRIPTS = {}
     shelf_dir = os.path.join(project_root(), "MAtoolbar")
     for f in sorted(glob.glob(os.path.join(shelf_dir, "*.shelf"))):
         shelf_stem = os.path.splitext(os.path.basename(f))[0]
         try:
             with open(f, "r", encoding="utf-8") as fp:
                 content = fp.read()
-            for m in re.finditer(r'<tool\s+name="([^"]+)"', content):
-                tool_name = m.group(1)
-                # 从同一 tag 中提取 label 和 icon 属性
-                tag_end = content.index('>', m.start())
-                tag_snippet = content[m.start():tag_end]
-                lbl_m = re.search(r'label="([^"]*)"', tag_snippet)
-                label = html.unescape(lbl_m.group(1)) if lbl_m else tool_name
-                ico_m = re.search(r'icon="([^"]*)"', tag_snippet)
-                icon = html.unescape(ico_m.group(1)) if ico_m else ""
+            # 解析 XML 提取 script 内容
+            root = ET.fromstring(content)
+            for tool_elem in root.findall('.//tool'):
+                tool_name = tool_elem.get('name', '')
+                if not tool_name:
+                    continue
+                label = html.unescape(tool_elem.get('label', tool_name))
+                icon = html.unescape(tool_elem.get('icon', ''))
+                
+                # 提取 script 内容
+                script_elem = tool_elem.find('script')
+                script_content = ''
+                if script_elem is not None and script_elem.text:
+                    script_content = script_elem.text
+                
                 unique_id = f"{shelf_stem}_{tool_name}"
                 names.append(unique_id)
                 _TOOL_REGISTRY[unique_id] = (shelf_stem, tool_name, label, icon, f)
+                _TOOL_SCRIPTS[unique_id] = script_content
         except Exception:
             pass
     return names
-
-
-def ensure_shelves():
-    """确保所有 shelf 文件已加载到 Houdini，并用 API 补充图标信息。"""
-    shelf_dir = os.path.join(project_root(), "MAtoolbar")
-    for f in sorted(glob.glob(os.path.join(shelf_dir, "*.shelf"))):
-        if f not in _loaded_shelf_files:
-            try:
-                hou.shelves.loadFile(f)
-            except Exception:
-                pass
-            _loaded_shelf_files.add(f)
-    # 加载完成后，用 Houdini API 补充/覆盖注册表中的 icon
-    _enrich_icons()
-
-
-def _enrich_icons():
-    """用 hou.shelves.tool().icon() 覆盖注册表中的 icon 信息（仅执行一次）。"""
-    global _icons_enriched
-    if _icons_enriched:
-        return
-    _icons_enriched = True
-    for unique_id, (shelf_stem, tool_name, label, _, shelf_path) in list(_TOOL_REGISTRY.items()):
-        try:
-            tool = hou.shelves.tool(tool_name)
-            if tool is not None:
-                api_icon = tool.icon()
-                if api_icon:
-                    _TOOL_REGISTRY[unique_id] = (shelf_stem, tool_name, label, api_icon, shelf_path)
-        except Exception:
-            pass  # 保留正则解析的原始值
 
 
 def execute_tool(unique_id, extra_kwargs=None):
@@ -88,17 +69,15 @@ def execute_tool(unique_id, extra_kwargs=None):
         unique_id: 工具唯一标识，格式 "{shelf_stem}_{tool_name}"
         extra_kwargs: 额外的 kwargs 传递给脚本上下文
     """
-    ensure_shelves()
-    
     # 解析唯一标识，获取实际 tool_name
     if unique_id in _TOOL_REGISTRY:
         _, tool_name, _, _, _ = _TOOL_REGISTRY[unique_id]
     else:
-        # 兼容旧格式或回退
         tool_name = unique_id.split("_", 1)[-1] if "_" in unique_id else unique_id
     
-    tool = hou.shelves.tool(tool_name)
-    if tool is None:
+    # 直接从缓存的 XML 解析结果获取脚本，不依赖 hou.shelves.tool()
+    script_content = _TOOL_SCRIPTS.get(unique_id)
+    if not script_content:
         return
         
     # 查找当前 NetworkEditor，确保节点放置在正确的层级
@@ -124,7 +103,7 @@ def execute_tool(unique_id, extra_kwargs=None):
     # 将 kwargs 注入执行上下文（sys 注入以支持检查不兼容上下文时 sys.exit）
     # 用 undo group 包装整个执行，确保 Ctrl+Z 一步撤销所有操作
     with hou.undos.group(f"MA Shelf: {tool_name}"):
-        exec(tool.script(), {"kwargs": kwargs, "hou": hou, "sys": sys, "__builtins__": __builtins__})
+        exec(script_content, {"kwargs": kwargs, "hou": hou, "sys": sys, "__builtins__": __builtins__})
 
 
 def drop_at_cursor(unique_id):
@@ -157,14 +136,11 @@ def refresh_tools():
     在创建新工具并写入 .shelf 文件后调用此函数。
     此函数会清除之前的注册信息，重新解析所有 .shelf 文件。
     """
-    global _TOOL_NAMES, _TOOL_REGISTRY, _icons_enriched
+    global _TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS
     _TOOL_NAMES = []
     _TOOL_REGISTRY = {}
-    _icons_enriched = False
+    _TOOL_SCRIPTS = {}
     _TOOL_NAMES = scan_tool_names()
-    # 重新加载 shelf 文件并补充图标
-    _loaded_shelf_files.clear()
-    ensure_shelves()
 
 
 # 模块加载时扫描工具名称
