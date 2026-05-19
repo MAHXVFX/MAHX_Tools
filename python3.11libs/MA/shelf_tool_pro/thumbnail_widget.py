@@ -495,6 +495,22 @@ class ThumbnailWidget(QtWidgets.QWidget):
         cancel_btn = msg_box.addButton("取消", QtWidgets.QMessageBox.RejectRole)
         ok_btn = msg_box.addButton("确定", QtWidgets.QMessageBox.AcceptRole)
         msg_box.setDefaultButton(cancel_btn)
+
+        # 设置按钮样式
+        from MA.shelf_tool_pro import styles
+        ok_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {styles.ACCENT_BLUE}; color: {styles.TEXT_PRIMARY}; "
+            f"border: none; padding: 6px 10px; border-radius: 10px; font-weight: bold; min-width: 40px; }}"
+            f"QPushButton:hover {{ background-color: #0a4d7a; }}"
+            f"QPushButton:pressed {{ background-color: #083a5f; }}"
+        )
+        cancel_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {styles.BG_INPUT}; color: {styles.TEXT_PRIMARY}; "
+            f"border: 1px solid {styles.BORDER_COLOR}; padding: 6px 10px; border-radius: 10px; min-width: 40px; }}"
+            f"QPushButton:hover {{ background-color: {styles.BG_HOVER}; }}"
+            f"QPushButton:pressed {{ background-color: #252525; }}"
+        )
+
         msg_box.exec()
         if msg_box.clickedButton() != ok_btn:
             return
