@@ -194,13 +194,15 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self.image_label.setPixmap(pixmap)
 
     def _stop_gif(self):
-        """停止并清理 QMovie。"""
+        """停止并清理 QMovie，显式释放文件句柄。"""
         if self._movie:
             self._movie.stop()
             try:
                 self._movie.frameChanged.disconnect(self._on_movie_frame)
             except (TypeError, RuntimeError):
                 pass
+            # 显式清空文件名释放文件句柄（Windows 文件锁定问题）
+            self._movie.setFileName("")
             self._movie.deleteLater()
             self._movie = None
             self._movie_path = ""
@@ -410,6 +412,11 @@ class ThumbnailWidget(QtWidgets.QWidget):
         # 从缓存加载自定义图标（.shelf 的 icon 属性只存 Houdini 内部名）
         from MA.common.settings import ShelfToolsCacheManager
         icon_path = ShelfToolsCacheManager.get_tool_icon(self._unique_id) or ""
+
+        # 停止 GIF 释放文件锁（防止替换时 Windows 文件锁定）
+        self._stop_gif()
+        # 强制处理 deleteLater 事件，确保 QMovie 句柄立即释放
+        QtWidgets.QApplication.processEvents()
 
         from MA.shelf_tool_pro.save_tool_dialog import ToolSettingsDialog
         dialog = ToolSettingsDialog(
@@ -627,7 +634,8 @@ class ThumbnailWidget(QtWidgets.QWidget):
             except OSError as e:
                 logger.warning("Failed to remove notes %s: %s", note_path, e)
 
-        # 3. 清除图标缓存（顶部已 import ShelfToolsCacheManager）
+        # 3. 停止 GIF 释放文件锁，再清除图标缓存并删除文件
+        self._stop_gif()
         ShelfToolsCacheManager.remove_tool_icon(self._unique_id)
 
         # 4. 找到父 panel（在 detach 前保存引用，否则 parent() 返回 None）

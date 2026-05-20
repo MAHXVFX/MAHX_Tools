@@ -400,6 +400,8 @@ class ToolSettingsDialog(QtWidgets.QDialog):
                 self._preview_movie.frameChanged.disconnect()
             except (TypeError, RuntimeError):
                 pass
+            # 显式清空文件名释放文件句柄（Windows 文件锁定问题）
+            self._preview_movie.setFileName("")
             self._preview_movie.deleteLater()
             self._preview_movie = None
 
@@ -496,6 +498,9 @@ class ToolSettingsDialog(QtWidgets.QDialog):
     # ── Slot: 保存 ────────────────────────────────
 
     def _on_save(self) -> None:
+        # 先停止预览动画，释放 GIF 文件锁（Windows 下 QMovie 会锁定文件）
+        self._stop_preview_movie()
+
         tool_name = self._tool_name if self._mode == "edit" else self._name_input.text().strip()
         label = self._label_input.text().strip() or tool_name
 

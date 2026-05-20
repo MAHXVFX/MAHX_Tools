@@ -1,6 +1,7 @@
 import os
 import json
 import copy
+import shutil
 import logging
 
 from .constants import HDR_SETTINGS_FILE, HDR_CACHE_FILE, SHELFTOOLS_SETTINGS_FILE, SHELFTOOLS_CACHE_FILE, SHELFTOOLS_NOTES_DIR, DEFAULT_SHELFTOOLS_THUMBNAIL_DIR
@@ -155,16 +156,70 @@ class ShelfToolsCacheManager(BaseJsonManager):
         return cls.load().get(cls._ICON_KEY.format(tool_name))
 
     @classmethod
+    def _cleanup_old_thumbnails(cls, tool_name, thumb_dir, skip_path=""):
+        """清理该工具的旧缩略图文件（按缓存路径删除，O(1)）。
+        
+        优先使用缓存中的旧路径删除，不扫描目录，不盲目尝试扩展名。
+        静默处理文件锁定（QMovie 占用）。
+        """
+        old_icon_path = cls.get_tool_icon(tool_name)
+        if not old_icon_path:
+            return
+        
+        abs_skip = os.path.abspath(skip_path) if skip_path else ""
+        old_abs = os.path.abspath(old_icon_path)
+        
+        # 跳过即将使用的新文件（同扩展名替换时）
+        if abs_skip and old_abs == abs_skip:
+            return
+        
+        # 仅当旧文件在缩略图目录中时才删除（不碰用户原始文件）
+        if os.path.dirname(old_abs) == os.path.abspath(thumb_dir) and os.path.isfile(old_icon_path):
+            try:
+                os.remove(old_icon_path)
+            except OSError:
+                # 文件被 QMovie 锁定，跳过
+                pass
+
+    @classmethod
     def set_tool_icon(cls, tool_name, icon_path):
-        """设置工具图标路径（空字符串则清除）。"""
-        if icon_path:
-            cls.update(cls._ICON_KEY.format(tool_name), icon_path)
-        else:
+        """设置工具图标路径（空字符串则清除）。
+        
+        将用户选择的图标复制到缩略图目录 {tool_name}.{ext}，
+        清理所有旧扩展名残留文件，缓存中存储复制后的新路径。
+        """
+        if not icon_path:
             cls.remove_tool_icon(tool_name)
+            return
+        
+        # 确保缩略图目录存在
+        thumb_dir = ShelfToolsSettingsManager.get_thumbnail_directory()
+        os.makedirs(thumb_dir, exist_ok=True)
+        
+        # 构建新路径：保持原始扩展名
+        ext = os.path.splitext(icon_path)[1]
+        new_icon_path = os.path.join(thumb_dir, f"{tool_name}{ext}")
+        
+        # 先清理旧文件（不同扩展名残留），再复制新文件
+        cls._cleanup_old_thumbnails(tool_name, thumb_dir, skip_path=new_icon_path)
+        
+        # 复制文件
+        try:
+            shutil.copy2(icon_path, new_icon_path)
+        except Exception as e:
+            logger.warning("Failed to copy icon %s to %s: %s", icon_path, new_icon_path, e)
+            return
+        
+        # 缓存新路径
+        cls.update(cls._ICON_KEY.format(tool_name), new_icon_path)
 
     @classmethod
     def remove_tool_icon(cls, tool_name):
-        """清除工具图标缓存。"""
+        """清除工具图标缓存，同时删除磁盘上的缩略图文件。"""
+        # 先删除磁盘文件（使用缓存中的路径）
+        cls._cleanup_old_thumbnails(tool_name, "")
+        
+        # 再清除缓存
         data = cls.load()
         key = cls._ICON_KEY.format(tool_name)
         if key in data:
