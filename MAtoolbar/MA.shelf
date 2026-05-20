@@ -314,7 +314,7 @@ network_box.setColor(mycolor)
 network_box.setComment(text)]]></script>
   </tool>
 
-  <tool name="Example Instancer " label="" icon="hicon:/SVGIcons.index?BUTTONS_light_solo.svg">
+  <tool name="Example Instancer " label="啊啊啊" icon="hicon:/SVGIcons.index?BUTTONS_light_solo.svg">
     <script scriptType="python"><![CDATA[
 import sys
 import toolutils
