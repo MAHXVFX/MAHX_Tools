@@ -1,4 +1,12 @@
-"""将 Houdini 节点保存为 .shelf 工具。"""
+"""将 Houdini 节点保存为 .shelf 工具。
+
+重构方案：使用 hscript 命令（与 Houdini 官方原生工具架一致）
+- opadd 创建节点
+- opparm 设置参数
+- opset 设置 flags
+- opwire 连接节点
+- hou.hscript() 执行所有命令
+"""
 
 import os
 import re
@@ -7,6 +15,8 @@ import tempfile
 from datetime import datetime
 
 import hou
+
+from .hscript_builder import HScriptBuilder
 
 logger = logging.getLogger("MA")
 
@@ -49,9 +59,7 @@ def _build_rel_pos_block(nodes: list) -> str:
     return "{\n" + ",\n".join(lines) + "\n}"
 
 
-_PREAMBLE_TRACK_RELPOS = """# === MA_ShelfTools_Pro: kwargs-aware positioning ===
-_K8s_REQUESTED = {}  # requested_name -> actual node (handles rename scenarios)
-_K8s_REL_POS = %s  # name -> (dx, dy) relative position offset (like $arg2/$arg3)
+_PREAMBLE_TRACK_RELPOS = """# === MA_ShelfTools_Pro: context validation ===
 _K8s_PARENT_CATEGORY = "%s"  # parent network type at save time (for context compatibility check)
 _kwargs = globals().get("kwargs", {})
 _pane = _kwargs.get("pane")
@@ -70,27 +78,8 @@ if _pane is not None:
         import sys; sys.exit(0)
     # Clear old selection state
     hou_parent.setSelected(False, True)
-
-_autoplace = _kwargs.get("autoplace", True)
-_nx = _kwargs.get("nodepositionx")
-_ny = _kwargs.get("nodepositiony")
-_has_pos = not _autoplace and _nx is not None and _ny is not None
 # === end preamble ===
 
-"""
-
-_POSTAMBLE_RELPOS = """
-# === MA_ShelfTools_Pro: drag reposition ===
-# 用保存时的相对偏移（_K8s_REL_POS）+ 光标位置直接定位。
-# 和 Houdini 原生工具架一致：position = cursor + relative_offset
-if _has_pos and _K8s_REL_POS:
-    _cx = float(_nx)
-    _cy = float(_ny)
-    for _name, _n in _K8s_REQUESTED.items():
-        _rel = _K8s_REL_POS.get(_name)
-        if _rel is not None:
-            _n.setPosition(hou.Vector2(_cx + _rel[0], _cy + _rel[1]))
-# === end reposition ===
 """
 
 # 匹配 asCode 中的 createNode 行，在其后插入节点跟踪
@@ -195,15 +184,12 @@ def save_node_to_shelf(
 ) -> bool:
     """Save Houdini nodes as a shelf tool in a .shelf file.
 
-    Steps:
+    使用 hscript 命令（与 Houdini 官方原生工具架一致）：
     1. Validate all node paths exist via hou.node()
-    2. Generate Python script using hou.Node.asCode() for each node
-    3. Assemble complete tool script
+    2. Generate hscript commands using HScriptBuilder
+    3. Assemble complete tool script with Python wrapper
     4. Create tool via hou.shelves.newTool()
     5. The .shelf file is auto-written by Houdini API
-
-    Note: Custom icon paths are NOT written to the .shelf file.
-          Use ShelfToolsCacheManager for user icon storage.
 
     Args:
         node_paths: List of Houdini node paths (e.g., ["/obj/geo1/box1"])
@@ -238,64 +224,76 @@ def save_node_to_shelf(
         nodes.append(node)
 
     # ------------------------------------------------------------------
-    # 3. Generate Python script header
+    # 3. Generate hscript commands
     # ------------------------------------------------------------------
-    script_parts = [
-        f"# Saved from MA_ShelfTools_Pro on "
-        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-    ]
-    script_parts.append(f"# Original node(s): {', '.join(node_paths)}")
-    script_parts.append("")
+    builder = HScriptBuilder(nodes)
+    hscript_cmd = builder.build()
 
     # ------------------------------------------------------------------
-    # 4. Generate code for each node, inject node tracking
-    # ------------------------------------------------------------------
-    all_connections: list[str] = []
-    for node in nodes:
-        if hasattr(node, "isHDA") and node.isHDA():
-            try:
-                lib_path = node.type().definition().libraryFilePath()
-                script_parts.append(f"# Requires OTL: {lib_path}")
-            except Exception:
-                pass
-
-        script_parts.append(f"# Code for {node.path()}")
-        try:
-            code = node.asCode(
-                brief=True,
-                recurse=True,
-                save_creation_commands=True,
-                save_spare_parms=True,
-                save_outgoing_wires=True,
-            )
-            node_code, conn_code = _split_connections(code)
-            node_code = _inject_tracking(node_code)
-            script_parts.append(node_code)
-            if conn_code:
-                all_connections.append(conn_code)
-        except Exception as e:
-            raise RuntimeError(
-                f"Failed to generate script for {node.path()}: {e}"
-            )
-
-    mapped_connections = [_use_new_nodes(c) for c in all_connections]
-
-    # ------------------------------------------------------------------
-    # 5. 获取节点所在网络类型（用于执行时校验上下文兼容性）
+    # 4. 获取节点所在网络类型（用于执行时校验上下文兼容性）
     # ------------------------------------------------------------------
     parent_category = nodes[0].parent().childTypeCategory().name()
 
     # ------------------------------------------------------------------
-    # 6. Build relative position dict → assemble script
+    # 5. Assemble script
     # ------------------------------------------------------------------
-    rel_pos_dict = _build_rel_pos_block(nodes)
-    preamble = _PREAMBLE_TRACK_RELPOS % (rel_pos_dict, parent_category)
+    preamble = _PREAMBLE_TRACK_RELPOS % (parent_category,)
+
+    # 构建完整脚本：Python wrapper + hscript 执行
+    # 与 Houdini 原生工具架一致：通过 hscript 变量 $arg1/$arg2/$arg3 传递位置。
+    # Python 层读取 kwargs 中的光标位置，设置 hscript 变量，
+    # hscript 中的 backtick 表达式 `$arg2 + dx` 由 hscript 引擎自然求值。
+    
     full_script = (
         preamble
-        + "\n\n".join(script_parts)
-        + "\n\n"
-        + "\n\n".join(mapped_connections)
-        + _POSTAMBLE_RELPOS
+        + f"""
+import hou
+
+# 获取执行时的上下文和光标位置（与 Houdini 原生工具架一致）
+_kwargs = globals().get("kwargs", {{}})
+_pane = _kwargs.get("pane")
+
+# 获取父节点路径
+if _pane is not None:
+    _path = _pane.pwd().path()
+else:
+    _path = hou.pwd().path() if hou.pwd() else "/obj"
+
+# 获取光标位置并调整（与原生 toolutils 一致）
+_nx = _kwargs.get("nodepositionx")
+_ny = _kwargs.get("nodepositiony")
+if _nx is not None and _ny is not None:
+    cx = float(_nx)
+    cy = float(_ny)
+    # 原生工具架的 bbox 偏移调整
+    if "node_bbox" in _kwargs:
+        size = _kwargs["node_bbox"]
+        cx -= size[0] / 2
+        cy -= size[1] / 2
+    else:
+        cx -= 0.573625
+        cy -= 0.220625
+else:
+    cx = 0.0
+    cy = 0.0
+
+# hscript 命令
+_hscript_cmd = r'''
+{hscript_cmd}
+'''
+
+# 设置 hscript 变量（$arg1=路径, $arg2=X, $arg3=Y）
+# 与 Houdini 原生工具架完全一致
+_hscript_preamble = (
+    'set arg1 = "' + _path + '"\\n'
+    + 'set arg2 = ' + str(cx) + '\\n'
+    + 'set arg3 = ' + str(cy) + '\\n'
+    + 'set argc = 3\\n'
+)
+
+# 执行 hscript
+hou.hscript(_hscript_preamble + _hscript_cmd)
+"""
     )
 
     # ------------------------------------------------------------------

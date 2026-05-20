@@ -4,7 +4,7 @@ import copy
 import shutil
 import logging
 
-from .constants import HDR_SETTINGS_FILE, HDR_CACHE_FILE, SHELFTOOLS_SETTINGS_FILE, SHELFTOOLS_CACHE_FILE, SHELFTOOLS_NOTES_DIR, DEFAULT_SHELFTOOLS_THUMBNAIL_DIR
+from .constants import HDR_SETTINGS_FILE, HDR_CACHE_FILE, SHELFTOOLS_SETTINGS_FILE, SHELFTOOLS_CACHE_FILE, SHELFTOOLS_NOTES_DIR, DEFAULT_SHELFTOOLS_THUMBNAIL_DIR, _MA_TOOLS_DIR
 
 logger = logging.getLogger("MA")
 
@@ -151,9 +151,35 @@ class ShelfToolsCacheManager(BaseJsonManager):
     _ICON_KEY = "icon_{}"
 
     @classmethod
+    def _to_relative(cls, abs_path):
+        """将绝对路径转换为相对于 _MA_TOOLS_DIR 的相对路径。"""
+        if not abs_path:
+            return abs_path
+        abs_path = os.path.abspath(abs_path)
+        tools_dir = os.path.abspath(_MA_TOOLS_DIR)
+        # 确保路径以分隔符结尾，避免前缀匹配错误
+        if not tools_dir.endswith(os.sep):
+            tools_dir += os.sep
+        if abs_path.startswith(tools_dir):
+            return abs_path[len(tools_dir):]
+        return abs_path
+
+    @classmethod
+    def _to_absolute(cls, rel_path):
+        """将相对路径转换为绝对路径。"""
+        if not rel_path:
+            return rel_path
+        if os.path.isabs(rel_path):
+            return rel_path
+        return os.path.join(_MA_TOOLS_DIR, rel_path)
+
+    @classmethod
     def get_tool_icon(cls, tool_name):
-        """获取工具自定义图标路径，未设置返回 None。"""
-        return cls.load().get(cls._ICON_KEY.format(tool_name))
+        """获取工具自定义图标路径（绝对路径），未设置返回 None。"""
+        rel_path = cls.load().get(cls._ICON_KEY.format(tool_name))
+        if not rel_path:
+            return None
+        return cls._to_absolute(rel_path)
 
     @classmethod
     def _cleanup_old_thumbnails(cls, tool_name, thumb_dir, skip_path=""):
@@ -162,21 +188,22 @@ class ShelfToolsCacheManager(BaseJsonManager):
         优先使用缓存中的旧路径删除，不扫描目录，不盲目尝试扩展名。
         静默处理文件锁定（QMovie 占用）。
         """
-        old_icon_path = cls.get_tool_icon(tool_name)
-        if not old_icon_path:
+        old_icon_rel = cls.load().get(cls._ICON_KEY.format(tool_name))
+        if not old_icon_rel:
             return
         
+        old_icon_abs = cls._to_absolute(old_icon_rel)
         abs_skip = os.path.abspath(skip_path) if skip_path else ""
-        old_abs = os.path.abspath(old_icon_path)
+        old_abs = os.path.abspath(old_icon_abs)
         
         # 跳过即将使用的新文件（同扩展名替换时）
         if abs_skip and old_abs == abs_skip:
             return
         
         # 仅当旧文件在缩略图目录中时才删除（不碰用户原始文件）
-        if os.path.dirname(old_abs) == os.path.abspath(thumb_dir) and os.path.isfile(old_icon_path):
+        if os.path.dirname(old_abs) == os.path.abspath(thumb_dir) and os.path.isfile(old_icon_abs):
             try:
-                os.remove(old_icon_path)
+                os.remove(old_icon_abs)
             except OSError:
                 # 文件被 QMovie 锁定，跳过
                 pass
@@ -186,7 +213,7 @@ class ShelfToolsCacheManager(BaseJsonManager):
         """设置工具图标路径（空字符串则清除）。
         
         将用户选择的图标复制到缩略图目录 {tool_name}.{ext}，
-        清理所有旧扩展名残留文件，缓存中存储复制后的新路径。
+        清理旧文件，缓存中存储相对路径（相对于 MAHX_Tools 根目录）。
         """
         if not icon_path:
             cls.remove_tool_icon(tool_name)
@@ -210,8 +237,8 @@ class ShelfToolsCacheManager(BaseJsonManager):
             logger.warning("Failed to copy icon %s to %s: %s", icon_path, new_icon_path, e)
             return
         
-        # 缓存新路径
-        cls.update(cls._ICON_KEY.format(tool_name), new_icon_path)
+        # 缓存相对路径
+        cls.update(cls._ICON_KEY.format(tool_name), cls._to_relative(new_icon_path))
 
     @classmethod
     def remove_tool_icon(cls, tool_name):
