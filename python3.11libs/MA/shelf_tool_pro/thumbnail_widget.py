@@ -31,6 +31,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._size = 0
         self._notes_timer_id = None
         self._icon_path = icon_path
+        self._rendered_pixmap = None
         self._movie = None        # QMovie 实例（GIF 动画）
         self._movie_path = ""     # 当前 GIF 文件路径（用于对比更改）
 
@@ -110,6 +111,31 @@ class ThumbnailWidget(QtWidgets.QWidget):
 
         self._render_thumbnail(size)
 
+    def previewSize(self, size):
+        """Cheap live resize while dragging; final render happens on release."""
+        name_h = max(14, size // 6)
+        self.setFixedSize(size, size + 4 + name_h + 8)
+        self.image_label.setFixedSize(size + 2, size + 2)
+        self.name_label.setFixedHeight(name_h)
+        font = self.name_label.font()
+        font.setPointSize(max(7, size // 16))
+        self.name_label.setFont(font)
+
+        pixmap = self._rendered_pixmap
+        if pixmap is None or pixmap.isNull():
+            pixmap = self.image_label.pixmap()
+        if pixmap is None or pixmap.isNull():
+            return
+        self.image_label.setPixmap(pixmap.scaled(
+            size, size,
+            QtCore.Qt.KeepAspectRatio,
+            QtCore.Qt.FastTransformation,
+        ))
+
+    def _set_thumbnail_pixmap(self, pixmap):
+        self._rendered_pixmap = QtGui.QPixmap(pixmap)
+        self.image_label.setPixmap(pixmap)
+
     def _stop_gif(self):
         """停止并清理 QMovie。"""
         if self._movie:
@@ -165,7 +191,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._paint_rounded_image(painter, frame_pixmap, size, radius)
         painter.end()
 
-        self.image_label.setPixmap(canvas)
+        self._set_thumbnail_pixmap(canvas)
 
     def _render_thumbnail(self, size):
         """渲染缩略图：优先读缓存 GIF/PNG/JPG，其次 Houdini 内部图标，否则灰色占位图。"""
@@ -199,7 +225,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
                 painter = QtGui.QPainter(canvas)
                 self._paint_rounded_image(painter, src, size, radius)
                 painter.end()
-                self.image_label.setPixmap(canvas)
+                self._set_thumbnail_pixmap(canvas)
                 # 上一步如果是 GIF 则停掉
                 self._stop_gif()
                 return
@@ -213,13 +239,13 @@ class ThumbnailWidget(QtWidgets.QWidget):
                 painter = QtGui.QPainter(canvas)
                 self._paint_rounded_image(painter, icon_pixmap, size, radius)
                 painter.end()
-                self.image_label.setPixmap(canvas)
+                self._set_thumbnail_pixmap(canvas)
                 self._stop_gif()
                 return
 
         # 灰色占位图
         self._stop_gif()
-        self.image_label.setPixmap(self._make_rounded_pixmap(size, radius, "#2d2d2d"))
+        self._set_thumbnail_pixmap(self._make_rounded_pixmap(size, radius, "#2d2d2d"))
 
     def _load_houdini_icon(self, icon_ref, size):
         """从 Houdini 内部图标名加载 QPixmap（高 DPI 优化）。

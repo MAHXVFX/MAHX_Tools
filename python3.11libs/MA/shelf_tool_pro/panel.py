@@ -42,6 +42,11 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         super().__init__()
         self.setAcceptDrops(True)
         self._save_dialog_open = False
+        self._pending_thumb_size = None
+        self._preview_update_timer = QtCore.QTimer(self)
+        self._preview_update_timer.setSingleShot(True)
+        self._preview_update_timer.setInterval(16)
+        self._preview_update_timer.timeout.connect(self._preview_pending_thumb_size)
         self.setMinimumWidth(350)
         self.setStyleSheet(f"background-color: {BG_PRIMARY};")
 
@@ -300,6 +305,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.thumb_slider.setStyleSheet(THUMB_SLIDER_STYLE)
         self.thumb_slider.setCursor(QtCore.Qt.PointingHandCursor)
         self.thumb_slider.valueChanged.connect(self._on_size_changed)
+        self.thumb_slider.sliderReleased.connect(self._commit_thumb_size)
         layout.addSpacing(10)
         layout.addWidget(self.thumb_slider)
 
@@ -399,7 +405,35 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
     def _on_size_changed(self, value):
         self.size_label.setText(str(value))
-        save_thumb_size(value)
+        self._pending_thumb_size = value
+
+        if self.thumb_slider.isSliderDown():
+            if not self._preview_update_timer.isActive():
+                self._preview_update_timer.start()
+            return
+
+        self._apply_pending_thumb_size()
+
+    def _preview_pending_thumb_size(self):
+        value = self._pending_thumb_size
+        if value is None:
+            return
+        if hasattr(self, '_thumb_widgets'):
+            for tw in self._thumb_widgets:
+                try:
+                    tw.previewSize(value)
+                except RuntimeError:
+                    pass
+        self._relayout_grid()
+
+    def _apply_pending_thumb_size(self):
+        value = self._pending_thumb_size
+        if value is None:
+            value = self.thumb_slider.value()
+        self._pending_thumb_size = None
+        self._apply_thumb_size(value)
+
+    def _apply_thumb_size(self, value):
         if hasattr(self, '_thumb_widgets'):
             for tw in self._thumb_widgets:
                 try:
@@ -408,10 +442,18 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                     pass  # widget 已被删除（例如最后 tool 被删后 shelf 文件已清空）
         self._relayout_grid()
 
+    def _commit_thumb_size(self):
+        if self._preview_update_timer.isActive():
+            self._preview_update_timer.stop()
+        if self._pending_thumb_size is not None:
+            self._apply_pending_thumb_size()
+        save_thumb_size(self.thumb_slider.value())
+
     def _on_size_edit(self):
         try:
             v = int(self.size_label.text().strip())
             v = max(70, min(250, v))
             self.thumb_slider.setValue(v)
+            self._commit_thumb_size()
         except ValueError:
             self.size_label.setText(str(self.thumb_slider.value()))
