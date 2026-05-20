@@ -81,6 +81,50 @@ class ShelfToolsSettingsManager(BaseJsonManager):
         os.makedirs(path, exist_ok=True)
         cls.update("thumbnail_directory", path)
 
+    # ── 收藏管理 ────────────────────────────────
+    _FAVORITES_KEY = "favorite_tools"
+
+    @classmethod
+    def get_favorites(cls) -> list:
+        """获取收藏的工具 unique_id 列表。"""
+        return cls.load().get(cls._FAVORITES_KEY, [])
+
+    @classmethod
+    def set_favorites(cls, fav_list: list):
+        """设置收藏列表。"""
+        cls.update(cls._FAVORITES_KEY, fav_list)
+
+    @classmethod
+    def toggle_favorite(cls, unique_id: str) -> bool:
+        """切换收藏状态。返回 True=已收藏, False=已取消。"""
+        favs = cls.get_favorites()
+        if unique_id in favs:
+            favs.remove(unique_id)
+            cls.set_favorites(favs)
+            return False
+        else:
+            favs.insert(0, unique_id)
+            cls.set_favorites(favs)
+            return True
+
+    @classmethod
+    def is_favorite(cls, unique_id: str) -> bool:
+        """检查是否已收藏。"""
+        return unique_id in cls.get_favorites()
+
+    # ── 筛选状态 ────────────────────────────────
+    _FILTER_KEY = "last_filter"
+
+    @classmethod
+    def get_filter(cls) -> str:
+        """获取上次关闭时的筛选项。"""
+        return cls.load().get(cls._FILTER_KEY, "all")
+
+    @classmethod
+    def set_filter(cls, filter_value: str):
+        """保存当前筛选项。"""
+        cls.update(cls._FILTER_KEY, filter_value)
+
 
 class ShelfToolsCacheManager(BaseJsonManager):
     _file = SHELFTOOLS_CACHE_FILE

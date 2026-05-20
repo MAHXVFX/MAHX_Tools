@@ -42,6 +42,11 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         super().__init__()
         self.setAcceptDrops(True)
         self._save_dialog_open = False
+        self._pending_thumb_size = None
+        self._preview_update_timer = QtCore.QTimer(self)
+        self._preview_update_timer.setSingleShot(True)
+        self._preview_update_timer.setInterval(16)
+        self._preview_update_timer.timeout.connect(self._preview_pending_thumb_size)
         self.setMinimumWidth(350)
         self.setStyleSheet(f"background-color: {BG_PRIMARY};")
 
@@ -256,6 +261,20 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         # Re-import to bind locally updated _TOOL_NAMES / _TOOL_REGISTRY
         from MA.shelf_tool_pro.shelf_loader import _TOOL_NAMES, _TOOL_REGISTRY
 
+        # 获取当前筛选状态
+        current_filter = self.filter_combo.itemData(self.filter_combo.currentIndex())
+
+        # 根据筛选条件获取工具列表
+        if current_filter == "all":
+            filtered_names = list(_TOOL_NAMES)
+        elif current_filter == "favorites":
+            filtered_names = [uid for uid in ShelfToolsSettingsManager.get_favorites() if uid in _TOOL_REGISTRY]
+        else:
+            shelf_name = current_filter
+            filtered_names = [uid for uid in _TOOL_NAMES if uid in _TOOL_REGISTRY and _TOOL_REGISTRY[uid][0] == shelf_name]
+
+        size = self.thumb_slider.value()
+
         old_container = self.tools_container
         new_container = QtWidgets.QWidget()
         new_container.setStyleSheet(f"background-color: {BG_SECONDARY};")
@@ -264,7 +283,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         new_layout.setSpacing(12)
         new_layout.setAlignment(QtCore.Qt.AlignTop)
 
-        self._build_thumb_widgets(new_layout, _TOOL_NAMES, self.thumb_slider.value(), _TOOL_REGISTRY)
+        self._build_thumb_widgets(new_layout, filtered_names, size, _TOOL_REGISTRY)
 
         # Swap in new container
         self.tools_container = new_container
@@ -300,6 +319,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.thumb_slider.setStyleSheet(THUMB_SLIDER_STYLE)
         self.thumb_slider.setCursor(QtCore.Qt.PointingHandCursor)
         self.thumb_slider.valueChanged.connect(self._on_size_changed)
+        self.thumb_slider.sliderReleased.connect(self._commit_thumb_size)
         layout.addSpacing(10)
         layout.addWidget(self.thumb_slider)
 
@@ -312,6 +332,28 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.size_label.returnPressed.connect(self._on_size_edit)
         layout.addSpacing(6)
         layout.addWidget(self.size_label)
+
+        layout.addSpacing(10)
+
+        # 筛选下拉菜单
+        filter_lbl = QtWidgets.QLabel("筛选")
+        filter_lbl.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: 13px; font-weight: bold; background-color: transparent;")
+        layout.addWidget(filter_lbl)
+        layout.addSpacing(4)
+
+        self.filter_combo = QtWidgets.QComboBox()
+        self.filter_combo.setMinimumWidth(120)
+        self.filter_combo.setStyleSheet(
+            f"QComboBox {{ background-color: {BG_INPUT}; color: white; border: 1px solid {BORDER_COLOR}; "
+            f"border-radius: 4px; padding: 3px 8px; font-size: 11px; }} "
+            f"QComboBox::drop-down {{ border: none; }} "
+            f"QComboBox QAbstractItemView {{ background-color: {BG_INPUT}; color: white; "
+            f"selection-background-color: #0d6399; }}")
+        self.filter_combo.setCursor(QtCore.Qt.PointingHandCursor)
+        self._populate_filter_combo(restore_filter=True)
+        self.filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        layout.addWidget(self.filter_combo)
 
         layout.addStretch()
         return layout
@@ -359,7 +401,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         tools_layout.setSpacing(12)
         tools_layout.setAlignment(QtCore.Qt.AlignTop)
 
-        self._build_thumb_widgets(tools_layout, _TOOL_NAMES, init_size)
+        self._build_thumb_widgets(tools_layout, self._get_filtered_tool_names(), init_size)
 
         self.scroll_area.setWidget(self.tools_container)
         return self.scroll_area
@@ -399,7 +441,35 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
     def _on_size_changed(self, value):
         self.size_label.setText(str(value))
-        save_thumb_size(value)
+        self._pending_thumb_size = value
+
+        if self.thumb_slider.isSliderDown():
+            if not self._preview_update_timer.isActive():
+                self._preview_update_timer.start()
+            return
+
+        self._apply_pending_thumb_size()
+
+    def _preview_pending_thumb_size(self):
+        value = self._pending_thumb_size
+        if value is None:
+            return
+        if hasattr(self, '_thumb_widgets'):
+            for tw in self._thumb_widgets:
+                try:
+                    tw.previewSize(value)
+                except RuntimeError:
+                    pass
+        self._relayout_grid()
+
+    def _apply_pending_thumb_size(self):
+        value = self._pending_thumb_size
+        if value is None:
+            value = self.thumb_slider.value()
+        self._pending_thumb_size = None
+        self._apply_thumb_size(value)
+
+    def _apply_thumb_size(self, value):
         if hasattr(self, '_thumb_widgets'):
             for tw in self._thumb_widgets:
                 try:
@@ -408,10 +478,125 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                     pass  # widget 已被删除（例如最后 tool 被删后 shelf 文件已清空）
         self._relayout_grid()
 
+    def _commit_thumb_size(self):
+        if self._preview_update_timer.isActive():
+            self._preview_update_timer.stop()
+        if self._pending_thumb_size is not None:
+            self._apply_pending_thumb_size()
+        save_thumb_size(self.thumb_slider.value())
+
     def _on_size_edit(self):
         try:
             v = int(self.size_label.text().strip())
             v = max(70, min(250, v))
             self.thumb_slider.setValue(v)
+            self._commit_thumb_size()
         except ValueError:
             self.size_label.setText(str(self.thumb_slider.value()))
+
+    # ── 筛选功能 ──────────────────────────────────
+
+    def _populate_filter_combo(self, restore_filter=False):
+        """填充筛选下拉菜单：全部、收藏、各 shelf 名称。
+        
+        Args:
+            restore_filter: 是否恢复上次关闭时的筛选状态。
+        """
+        # 保存当前筛选状态（防止 clear() 丢失选择）
+        current_filter = None
+        if self.filter_combo.count() > 0:
+            current_filter = self.filter_combo.itemData(self.filter_combo.currentIndex())
+
+        self.filter_combo.blockSignals(True)
+        self.filter_combo.clear()
+
+        # ItemData values: 'all', 'favorites', or shelf_stem string
+        self.filter_combo.addItem("全部", userData="all")
+        self.filter_combo.addItem("★ 收藏", userData="favorites")
+
+        # 收集唯一的 shelf 名称
+        shelf_names = set()
+        for uid, info in _TOOL_REGISTRY.items():
+            shelf_stem = info[0]  # (shelf_stem, tool_name, label, icon, shelf_path)
+            shelf_names.add(shelf_stem)
+
+        for name in sorted(shelf_names):
+            self.filter_combo.addItem(name, userData=name)
+
+        # 确定要恢复的筛选项
+        if restore_filter:
+            saved_filter = ShelfToolsSettingsManager.get_filter()
+            index = self.filter_combo.findData(saved_filter)
+            if index >= 0:
+                self.filter_combo.setCurrentIndex(index)
+            else:
+                self.filter_combo.setCurrentIndex(0)
+        elif current_filter is not None:
+            # 非首次加载时，恢复调用前的选择
+            index = self.filter_combo.findData(current_filter)
+            if index >= 0:
+                self.filter_combo.setCurrentIndex(index)
+
+        self.filter_combo.blockSignals(False)
+
+        # 信号被 block，手动应用筛选
+        self._apply_filter()
+
+    def _on_filter_changed(self, index):
+        """筛选项变化时触发。"""
+        self._apply_filter()
+
+    def _get_filtered_tool_names(self):
+        """根据当前筛选项返回工具名列表。"""
+        data = self.filter_combo.itemData(self.filter_combo.currentIndex())
+
+        if data == "all":
+            return list(_TOOL_NAMES)
+
+        if data == "favorites":
+            favorites = ShelfToolsSettingsManager.get_favorites()
+            # 只保留仍然存在的收藏工具
+            return [uid for uid in favorites if uid in _TOOL_REGISTRY]
+
+        # shelf 名称过滤
+        shelf_name = data
+        return [uid for uid in _TOOL_NAMES if uid in _TOOL_REGISTRY and _TOOL_REGISTRY[uid][0] == shelf_name]
+
+    def _apply_filter(self):
+        """应用当前筛选条件，重新构建缩略图网格。"""
+        if not hasattr(self, 'tools_container'):
+            return  # 面板尚未初始化完成，跳过
+        filtered_names = self._get_filtered_tool_names()
+        size = self.thumb_slider.value()
+
+        old_container = self.tools_container
+        new_container = QtWidgets.QWidget()
+        new_container.setStyleSheet(f"background-color: {BG_SECONDARY};")
+        new_layout = QtWidgets.QGridLayout(new_container)
+        new_layout.setContentsMargins(6, 6, 6, 6)
+        new_layout.setSpacing(12)
+        new_layout.setAlignment(QtCore.Qt.AlignTop)
+
+        self._build_thumb_widgets(new_layout, filtered_names, size, _TOOL_REGISTRY)
+
+        self.tools_container = new_container
+        self.scroll_area.setWidget(new_container)
+        try:
+            old_container.deleteLater()
+        except RuntimeError:
+            pass
+
+    def _on_favorite_changed(self):
+        """收藏状态变化时的回调（由 ThumbnailWidget 调用）。"""
+        # 如果当前是收藏筛选，刷新显示
+        data = self.filter_combo.itemData(self.filter_combo.currentIndex())
+        if data == "favorites":
+            self._apply_filter()
+        # 更新下拉菜单中的 shelf 列表（以防新增/删除工具）
+        self._populate_filter_combo()
+
+    def closeEvent(self, event):
+        """面板关闭时保存当前筛选状态。"""
+        current_filter = self.filter_combo.itemData(self.filter_combo.currentIndex())
+        ShelfToolsSettingsManager.set_filter(current_filter)
+        super().closeEvent(event)

@@ -5,7 +5,7 @@ import logging
 
 from PySide6 import QtWidgets, QtGui, QtCore
 
-from MA.common import ShelfToolsCacheManager
+from MA.common import ShelfToolsCacheManager, ShelfToolsSettingsManager
 from MA.shelf_tool_pro.shelf_loader import execute_tool, drop_at_cursor
 from MA.shelf_tool_pro.styles import TEXT_SECONDARY, CONTEXT_MENU_STYLE
 from MA.shelf_tool_pro.web_renderer import WebRenderer, WebRendererPool
@@ -31,6 +31,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._size = 0
         self._notes_timer_id = None
         self._icon_path = icon_path
+        self._rendered_pixmap = None
         self._movie = None        # QMovie 实例（GIF 动画）
         self._movie_path = ""     # 当前 GIF 文件路径（用于对比更改）
 
@@ -39,10 +40,30 @@ class ThumbnailWidget(QtWidgets.QWidget):
         layout.setSpacing(4)
         layout.setAlignment(QtCore.Qt.AlignCenter)
 
-        self.image_label = QtWidgets.QLabel()
+        # 图片容器（QWidget 容器用于叠加星标）
+        self.image_container = QtWidgets.QWidget()
+        self.image_container.setFixedSize(size + 2, size + 2)
+        self.image_container.setStyleSheet("background-color: transparent;")
+        
+        self.image_label = QtWidgets.QLabel(self.image_container)
         self.image_label.setAlignment(QtCore.Qt.AlignCenter)
         self.image_label.setStyleSheet("background-color: transparent;")
-        layout.addWidget(self.image_label)
+        self.image_label.setGeometry(0, 0, size + 2, size + 2)
+        
+        # 收藏星标（叠加在缩略图右上角，手动定位）
+        self.favorite_star = QtWidgets.QLabel(self.image_container)
+        self.favorite_star.setText("★")
+        star_size = max(16, size // 5)
+        self.favorite_star.setFixedSize(star_size, star_size)
+        self.favorite_star.move(size + 2 - star_size - 2, 2)
+        self.favorite_star.setAlignment(QtCore.Qt.AlignCenter)
+        self.favorite_star.setStyleSheet(
+            "color: #fbbf24; font-size: %dpx; font-weight: bold; background-color: transparent;" % max(12, size // 8))
+        self.favorite_star.hide()  # 默认隐藏
+        self.favorite_star.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
+        self.favorite_star.raise_()  # 确保在最上层
+        
+        layout.addWidget(self.image_container)
 
         self.name_label = QtWidgets.QLabel(display_name)
         self.name_label.setAlignment(QtCore.Qt.AlignCenter)
@@ -52,6 +73,29 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self.setToolTip(display_name)
         self.setCursor(QtCore.Qt.OpenHandCursor)
         self.updateSize(size)
+
+        # 初始化收藏状态
+        self._update_favorite_star()
+
+    def _update_favorite_star(self):
+        """更新收藏星标显示状态和大小。"""
+        if ShelfToolsSettingsManager.is_favorite(self._unique_id):
+            self.favorite_star.show()
+        else:
+            self.favorite_star.hide()
+
+    def _on_toggle_favorite(self):
+        """切换收藏状态并刷新面板。"""
+        is_fav = ShelfToolsSettingsManager.toggle_favorite(self._unique_id)
+        self._update_favorite_star()
+        
+        # 通知面板刷新（用于筛选状态更新）
+        p = self.parent()
+        while p is not None:
+            if hasattr(p, '_on_favorite_changed'):
+                p._on_favorite_changed()
+                break
+            p = p.parent()
 
     @staticmethod
     def _make_rounded_pixmap(size, radius, color):
@@ -102,13 +146,52 @@ class ThumbnailWidget(QtWidgets.QWidget):
         radius = max(3, size // 8)
         self.setFixedSize(size, size + 4 + name_h + 8)
         # +2 缓冲防止右边缘圆角被裁剪
-        self.image_label.setFixedSize(size + 2, size + 2)
+        self.image_container.setFixedSize(size + 2, size + 2)
         self.name_label.setFixedHeight(name_h)
         font = self.name_label.font()
         font.setPointSize(max(7, size // 16))
         self.name_label.setFont(font)
 
+        # 更新星标大小
+        star_size = max(16, size // 5)
+        self.favorite_star.setFixedSize(star_size, star_size)
+        self.favorite_star.setStyleSheet(
+            f"color: #fbbf24; font-size: {star_size}px; font-weight: bold; background-color: transparent;")
+
         self._render_thumbnail(size)
+        self._update_favorite_star()
+
+    def previewSize(self, size):
+        """Cheap live resize while dragging; final render happens on release."""
+        name_h = max(14, size // 6)
+        self.setFixedSize(size, size + 4 + name_h + 8)
+        self.image_container.setFixedSize(size + 2, size + 2)
+        self.image_label.setGeometry(0, 0, size + 2, size + 2)
+        # 更新星标位置和大小
+        star_size = max(16, size // 5)
+        self.favorite_star.setFixedSize(star_size, star_size)
+        self.favorite_star.move(size + 2 - star_size - 2, 2)
+        self.favorite_star.setStyleSheet(
+            f"color: #fbbf24; font-size: {star_size}px; font-weight: bold; background-color: transparent;")
+        self.name_label.setFixedHeight(name_h)
+        font = self.name_label.font()
+        font.setPointSize(max(7, size // 16))
+        self.name_label.setFont(font)
+
+        pixmap = self._rendered_pixmap
+        if pixmap is None or pixmap.isNull():
+            pixmap = self.image_label.pixmap()
+        if pixmap is None or pixmap.isNull():
+            return
+        self.image_label.setPixmap(pixmap.scaled(
+            size, size,
+            QtCore.Qt.KeepAspectRatio,
+            QtCore.Qt.FastTransformation,
+        ))
+
+    def _set_thumbnail_pixmap(self, pixmap):
+        self._rendered_pixmap = QtGui.QPixmap(pixmap)
+        self.image_label.setPixmap(pixmap)
 
     def _stop_gif(self):
         """停止并清理 QMovie。"""
@@ -165,7 +248,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._paint_rounded_image(painter, frame_pixmap, size, radius)
         painter.end()
 
-        self.image_label.setPixmap(canvas)
+        self._set_thumbnail_pixmap(canvas)
 
     def _render_thumbnail(self, size):
         """渲染缩略图：优先读缓存 GIF/PNG/JPG，其次 Houdini 内部图标，否则灰色占位图。"""
@@ -199,7 +282,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
                 painter = QtGui.QPainter(canvas)
                 self._paint_rounded_image(painter, src, size, radius)
                 painter.end()
-                self.image_label.setPixmap(canvas)
+                self._set_thumbnail_pixmap(canvas)
                 # 上一步如果是 GIF 则停掉
                 self._stop_gif()
                 return
@@ -213,13 +296,13 @@ class ThumbnailWidget(QtWidgets.QWidget):
                 painter = QtGui.QPainter(canvas)
                 self._paint_rounded_image(painter, icon_pixmap, size, radius)
                 painter.end()
-                self.image_label.setPixmap(canvas)
+                self._set_thumbnail_pixmap(canvas)
                 self._stop_gif()
                 return
 
         # 灰色占位图
         self._stop_gif()
-        self.image_label.setPixmap(self._make_rounded_pixmap(size, radius, "#2d2d2d"))
+        self._set_thumbnail_pixmap(self._make_rounded_pixmap(size, radius, "#2d2d2d"))
 
     def _load_houdini_icon(self, icon_ref, size):
         """从 Houdini 内部图标名加载 QPixmap（高 DPI 优化）。
@@ -301,6 +384,13 @@ class ThumbnailWidget(QtWidgets.QWidget):
     def contextMenuEvent(self, event):
         menu = QtWidgets.QMenu(self)
         menu.setStyleSheet(CONTEXT_MENU_STYLE)
+        
+        # 收藏菜单项（根据当前状态显示"收藏"或"取消收藏"）
+        is_fav = ShelfToolsSettingsManager.is_favorite(self._unique_id)
+        fav_action = menu.addAction("取消收藏" if is_fav else "收藏")
+        fav_action.triggered.connect(self._on_toggle_favorite)
+        
+        menu.addSeparator()
         settings_action = menu.addAction("设置\u2026")
         notes_action = menu.addAction("备注")
         menu.addSeparator()
