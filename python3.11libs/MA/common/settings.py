@@ -112,6 +112,19 @@ class ShelfToolsSettingsManager(BaseJsonManager):
         """检查是否已收藏。"""
         return unique_id in cls.get_favorites()
 
+    # ── 筛选状态 ────────────────────────────────
+    _FILTER_KEY = "last_filter"
+
+    @classmethod
+    def get_filter(cls) -> str:
+        """获取上次关闭时的筛选项。"""
+        return cls.load().get(cls._FILTER_KEY, "all")
+
+    @classmethod
+    def set_filter(cls, filter_value: str):
+        """保存当前筛选项。"""
+        cls.update(cls._FILTER_KEY, filter_value)
+
 
 class ShelfToolsCacheManager(BaseJsonManager):
     _file = SHELFTOOLS_CACHE_FILE

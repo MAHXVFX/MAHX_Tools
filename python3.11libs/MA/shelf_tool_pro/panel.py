@@ -351,7 +351,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             f"QComboBox QAbstractItemView {{ background-color: {BG_INPUT}; color: white; "
             f"selection-background-color: #0d6399; }}")
         self.filter_combo.setCursor(QtCore.Qt.PointingHandCursor)
-        self._populate_filter_combo()
+        self._populate_filter_combo(restore_filter=True)
         self.filter_combo.currentIndexChanged.connect(self._on_filter_changed)
         layout.addWidget(self.filter_combo)
 
@@ -401,7 +401,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         tools_layout.setSpacing(12)
         tools_layout.setAlignment(QtCore.Qt.AlignTop)
 
-        self._build_thumb_widgets(tools_layout, _TOOL_NAMES, init_size)
+        self._build_thumb_widgets(tools_layout, self._get_filtered_tool_names(), init_size)
 
         self.scroll_area.setWidget(self.tools_container)
         return self.scroll_area
@@ -496,8 +496,17 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
     # ── 筛选功能 ──────────────────────────────────
 
-    def _populate_filter_combo(self):
-        """填充筛选下拉菜单：全部、收藏、各 shelf 名称。"""
+    def _populate_filter_combo(self, restore_filter=False):
+        """填充筛选下拉菜单：全部、收藏、各 shelf 名称。
+        
+        Args:
+            restore_filter: 是否恢复上次关闭时的筛选状态。
+        """
+        # 保存当前筛选状态（防止 clear() 丢失选择）
+        current_filter = None
+        if self.filter_combo.count() > 0:
+            current_filter = self.filter_combo.itemData(self.filter_combo.currentIndex())
+
         self.filter_combo.blockSignals(True)
         self.filter_combo.clear()
 
@@ -514,7 +523,24 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         for name in sorted(shelf_names):
             self.filter_combo.addItem(name, userData=name)
 
+        # 确定要恢复的筛选项
+        if restore_filter:
+            saved_filter = ShelfToolsSettingsManager.get_filter()
+            index = self.filter_combo.findData(saved_filter)
+            if index >= 0:
+                self.filter_combo.setCurrentIndex(index)
+            else:
+                self.filter_combo.setCurrentIndex(0)
+        elif current_filter is not None:
+            # 非首次加载时，恢复调用前的选择
+            index = self.filter_combo.findData(current_filter)
+            if index >= 0:
+                self.filter_combo.setCurrentIndex(index)
+
         self.filter_combo.blockSignals(False)
+
+        # 信号被 block，手动应用筛选
+        self._apply_filter()
 
     def _on_filter_changed(self, index):
         """筛选项变化时触发。"""
@@ -538,6 +564,8 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
     def _apply_filter(self):
         """应用当前筛选条件，重新构建缩略图网格。"""
+        if not hasattr(self, 'tools_container'):
+            return  # 面板尚未初始化完成，跳过
         filtered_names = self._get_filtered_tool_names()
         size = self.thumb_slider.value()
 
@@ -566,3 +594,9 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             self._apply_filter()
         # 更新下拉菜单中的 shelf 列表（以防新增/删除工具）
         self._populate_filter_combo()
+
+    def closeEvent(self, event):
+        """面板关闭时保存当前筛选状态。"""
+        current_filter = self.filter_combo.itemData(self.filter_combo.currentIndex())
+        ShelfToolsSettingsManager.set_filter(current_filter)
+        super().closeEvent(event)
