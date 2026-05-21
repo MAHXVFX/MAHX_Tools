@@ -176,6 +176,33 @@ def check_name_conflict(tool_name: str, shelf_file_path: str) -> bool:
         return False  # 读取失败时保守处理，假设无冲突
 
 
+def _expand_with_children(nodes: list[hou.Node]) -> list[hou.Node]:
+    """展开节点列表，仅包含选中节点的直接子节点（一级深度）。
+
+    与 Houdini 原生"Save to Shelf"行为一致：
+    选中一个子网络（如 dopnet/attribvop）时，
+    仅将其直接子节点包含进来，不递归到孙子节点。
+    """
+    result = []
+    seen: set[str] = set()
+
+    for n in nodes:
+        path = n.path()
+        if path in seen:
+            continue
+        seen.add(path)
+        result.append(n)
+        # 仅添加直接子节点（一级深度），不递归
+        for child in n.children():
+            child_path = child.path()
+            if child_path in seen:
+                continue
+            seen.add(child_path)
+            result.append(child)
+
+    return result
+
+
 def save_node_to_shelf(
     node_paths: list[str],
     tool_name: str,
@@ -186,10 +213,10 @@ def save_node_to_shelf(
 
     使用 hscript 命令（与 Houdini 官方原生工具架一致）：
     1. Validate all node paths exist via hou.node()
-    2. Generate hscript commands using HScriptBuilder
-    3. Assemble complete tool script with Python wrapper
-    4. Create tool via hou.shelves.newTool()
-    5. The .shelf file is auto-written by Houdini API
+    2. Expand selection to include sub-network children (native behavior)
+    3. Generate hscript commands using HScriptBuilder
+    4. Assemble complete tool script with Python wrapper
+    5. Create tool via hou.shelves.newTool()
 
     Args:
         node_paths: List of Houdini node paths (e.g., ["/obj/geo1/box1"])
@@ -224,18 +251,25 @@ def save_node_to_shelf(
         nodes.append(node)
 
     # ------------------------------------------------------------------
-    # 3. Generate hscript commands
+    # 3. Expand selection to include sub-network children
+    #    （与原生行为一致：子网络内部节点也全部保存）
+    # ------------------------------------------------------------------
+    nodes = _expand_with_children(nodes)
+
+    # ------------------------------------------------------------------
+    # 4. Generate hscript commands
     # ------------------------------------------------------------------
     builder = HScriptBuilder(nodes)
     hscript_cmd = builder.build()
 
     # ------------------------------------------------------------------
-    # 4. 获取节点所在网络类型（用于执行时校验上下文兼容性）
+    # 5. 获取节点所在网络类型（用于执行时校验上下文兼容性）
     # ------------------------------------------------------------------
-    parent_category = nodes[0].parent().childTypeCategory().name()
+    # 使用第一个顶级选中节点的父网络类型作为 context type
+    parent_category = hou.node(node_paths[0]).parent().childTypeCategory().name()
 
     # ------------------------------------------------------------------
-    # 5. Assemble script
+    # 6. Assemble script
     # ------------------------------------------------------------------
     preamble = _PREAMBLE_TRACK_RELPOS % (parent_category,)
 
@@ -259,7 +293,8 @@ if _pane is not None:
 else:
     _path = hou.pwd().path() if hou.pwd() else "/obj"
 
-# 获取光标位置并调整（与原生 toolutils 一致）
+# 获取光标位置（兼容点击执行和拖拽放置）
+# 优先使用显式传入的 nodepositionx/y（拖拽放置时由 drop_at_cursor 提供）
 _nx = _kwargs.get("nodepositionx")
 _ny = _kwargs.get("nodepositiony")
 if _nx is not None and _ny is not None:
@@ -274,8 +309,18 @@ if _nx is not None and _ny is not None:
         cx -= 0.573625
         cy -= 0.220625
 else:
-    cx = 0.0
-    cy = 0.0
+    # 点击执行时（无光标位置），使用 NetworkEditor 的 last cursor position
+    if _pane is not None:
+        try:
+            _cursor_pos = _pane.cursorPosition()
+            cx = float(_cursor_pos[0])
+            cy = float(_cursor_pos[1])
+        except Exception:
+            cx = 0.0
+            cy = 0.0
+    else:
+        cx = 0.0
+        cy = 0.0
 
 # hscript 命令
 _hscript_cmd = r'''
@@ -297,7 +342,7 @@ hou.hscript(_hscript_preamble + _hscript_cmd)
     )
 
     # ------------------------------------------------------------------
-    # 6. Ensure parent directory exists
+    # 7. Ensure parent directory exists
     # ------------------------------------------------------------------
     try:
         os.makedirs(os.path.dirname(shelf_file_path), exist_ok=True)
@@ -307,7 +352,7 @@ hou.hscript(_hscript_preamble + _hscript_cmd)
         )
 
     # ------------------------------------------------------------------
-    # 7. Create shelf tool (API auto-writes to .shelf file)
+    # 8. Create shelf tool (API auto-writes to .shelf file)
     # ------------------------------------------------------------------
     try:
         hou.shelves.newTool(
