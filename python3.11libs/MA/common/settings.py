@@ -97,8 +97,11 @@ class ShelfToolsSettingsManager(BaseJsonManager):
 
     @classmethod
     def toggle_favorite(cls, unique_id: str) -> bool:
-        """切换收藏状态。返回 True=已收藏, False=已取消。"""
-        favs = cls.get_favorites()
+        """切换收藏状态。返回 True=已收藏, False=已取消。
+        
+        注意：必须复制列表，避免因同一个对象引用导致 update() 跳过写入。
+        """
+        favs = list(cls.get_favorites())  # 复制，确保 set_favorites → update 能检测到变化
         if unique_id in favs:
             favs.remove(unique_id)
             cls.set_favorites(favs)
@@ -151,9 +154,33 @@ class ShelfToolsCacheManager(BaseJsonManager):
     _ICON_KEY = "icon_{}"
 
     @classmethod
+    def _get_tools_root(cls):
+        """获取项目根目录（_MA_TOOLS_DIR），用作相对路径的基准。"""
+        return os.path.dirname(cls._file)  # SHELFTOOLS_CACHE_FILE 所在目录
+
+    @classmethod
+    def _abs_icon_path(cls, path):
+        """将缓存中的路径解析为绝对路径：相对路径拼接根目录，绝对路径直接返回（向后兼容）。"""
+        if not path or os.path.isabs(path):
+            return path
+        return os.path.normpath(os.path.join(cls._get_tools_root(), path))
+
+    @classmethod
+    def _rel_icon_path(cls, path):
+        """将绝对路径转为相对于项目根目录的路径；跨盘符时返回原路径。"""
+        if not path:
+            return path
+        root = cls._get_tools_root()
+        try:
+            return os.path.relpath(path, root)
+        except ValueError:
+            return path
+
+    @classmethod
     def get_tool_icon(cls, tool_name):
-        """获取工具自定义图标路径，未设置返回 None。"""
-        return cls.load().get(cls._ICON_KEY.format(tool_name))
+        """获取工具自定义图标路径，未设置返回 None。自动解析相对路径为绝对路径。"""
+        path = cls.load().get(cls._ICON_KEY.format(tool_name))
+        return cls._abs_icon_path(path)
 
     @classmethod
     def _cleanup_old_thumbnails(cls, tool_name, thumb_dir, skip_path=""):
@@ -210,8 +237,8 @@ class ShelfToolsCacheManager(BaseJsonManager):
             logger.warning("Failed to copy icon %s to %s: %s", icon_path, new_icon_path, e)
             return
         
-        # 缓存新路径
-        cls.update(cls._ICON_KEY.format(tool_name), new_icon_path)
+        # 缓存新路径（存储相对路径，便于跨机器/用户共享）
+        cls.update(cls._ICON_KEY.format(tool_name), cls._rel_icon_path(new_icon_path))
 
     @classmethod
     def remove_tool_icon(cls, tool_name):
