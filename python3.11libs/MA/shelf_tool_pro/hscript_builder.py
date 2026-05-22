@@ -373,13 +373,16 @@ class HScriptBuilder:
         )
 
         # 3-9. 子序列
+        # 注意：opcolor 必须在最后，因为 opuserdata 写入 __last_invoked_recipes__
+        # 等 recipe 数据后，Houdini 的 recipe preset 系统可能回调重设颜色。
+        # 把颜色放在最后确保不会被任何后续命令覆盖。
         self._append_parm_commands(node, var_name, cmds)
         self._append_spareparm_commands(node, var_name, cmds)
         self._append_expression_commands(node, var_name, cmds)
-        self._append_color_command(node, var_name, cmds)
         self._append_flag_command(var_name, node, cmds)
         self._append_exprlang_command(node, var_name, cmds)
         self._append_userdata_commands(node, var_name, cmds)
+        self._append_color_command(node, var_name, cmds)
 
     # ── 参数命令 ───────────────────────────────────────────────
 
@@ -527,6 +530,32 @@ class HScriptBuilder:
 
     # ── Spare Parm 命令 ──────────────────────────────────────────
 
+    def _spare_has_real_parms(self, templates: list) -> bool:
+        """递归检测模板列表中是否有非容器类型的实际参数。
+
+        某些 spare 参数（如 attribwrangle 的 Generated Channel Parameters）
+        嵌套在 Folder / FolderSet / groupsimple 内部，需要递归检测。
+        """
+        for t in templates:
+            ttype = t.type()
+            if ttype not in (
+                hou.parmTemplateType.FolderSet,
+                hou.parmTemplateType.Folder,
+                hou.parmTemplateType.Label,
+                hou.parmTemplateType.Separator,
+            ):
+                return True
+            # 递归检查文件夹内部的子模板
+            if ttype in (hou.parmTemplateType.FolderSet, hou.parmTemplateType.Folder):
+                try:
+                    if hasattr(t, 'parmTemplates'):
+                        child_templates = t.parmTemplates()
+                        if child_templates and self._spare_has_real_parms(child_templates):
+                            return True
+                except Exception:
+                    pass
+        return False
+
     def _append_spareparm_commands(
         self, node: hou.Node, var_name: str, cmds: list
     ) -> None:
@@ -537,17 +566,10 @@ class HScriptBuilder:
                 return
 
             templates = spare_group.parmTemplates()
-            has_real_spare = False
-            for t in templates:
-                if t.type() not in (
-                    hou.parmTemplateType.FolderSet,
-                    hou.parmTemplateType.Folder,
-                    hou.parmTemplateType.Label,
-                    hou.parmTemplateType.Separator,
-                ):
-                    has_real_spare = True
-                    break
-            if not has_real_spare:
+            if not templates:
+                return
+
+            if not self._spare_has_real_parms(templates):
                 return
 
             xml_def = spare_group.asCode()
@@ -625,6 +647,11 @@ class HScriptBuilder:
         - output: (0.6, 0.6, 0.6)
         - popsolver: (0.5, 0.8, 0.5)
         等等。
+
+        颜色检测策略（按优先级）：
+        1. 直接读取 node.color() 获取当前实际颜色（最可靠）
+        2. 如果 node.color() 不可用，从 asCode 中解析 setColor 调用
+        3. 与类型默认色比较，差异超过 0.001 则生成 opcolor 命令
         """
         node_path = node.path()
 
@@ -635,38 +662,37 @@ class HScriptBuilder:
         except Exception:
             dr, dg, db = 0.8, 0.8, 0.8
 
-        # 1. asCode 路径：检测 setColor 调用
-        try:
-            code_str = node.asCode()
-            rgb = _extract_color_from_ascode(code_str)
-            if rgb is not None:
-                if (
-                    abs(rgb[0] - dr) > 0.001
-                    or abs(rgb[1] - dg) > 0.001
-                    or abs(rgb[2] - db) > 0.001
-                ):
-                    cmds.append(
-                        f"opcolor -c {rgb[0]:.16g} {rgb[1]:.16g} {rgb[2]:.16g} ${var_name}"
-                    )
-                return
-        except Exception:
-            pass
-
-        # 2. fallback：检测 node.color() 是否与类型默认色不同
+        # 1. 主路径：直接读取 node.color()（最可靠，不受 asCode 输出格式影响）
+        color_rgb = None
         try:
             color = node.color()
             if color is not None:
-                cr, cg, cb = color.rgb()
-                if (
-                    abs(cr - dr) > 0.001
-                    or abs(cg - dg) > 0.001
-                    or abs(cb - db) > 0.001
-                ):
-                    cmds.append(
-                        f"opcolor -c {cr:.16g} {cg:.16g} {cb:.16g} ${var_name}"
-                    )
-        except Exception:
-            pass
+                color_rgb = color.rgb()
+        except Exception as e:
+            logger.debug("node.color() failed for %s: %s", node_path, e)
+
+        # 2. 备路径：从 asCode 中解析 setColor（当 node.color() 不可用时）
+        if color_rgb is None:
+            try:
+                code_str = node.asCode()
+                color_rgb = _extract_color_from_ascode(code_str)
+            except Exception as e:
+                logger.debug("asCode color extraction failed for %s: %s", node_path, e)
+
+        # 3. 比较并生成 opcolor 命令
+        if color_rgb is not None:
+            cr, cg, cb = color_rgb
+            if (
+                abs(cr - dr) > 0.001
+                or abs(cg - dg) > 0.001
+                or abs(cb - db) > 0.001
+            ):
+                cmds.append(
+                    f"opcolor -c {cr:.16g} {cg:.16g} {cb:.16g} ${var_name}"
+                )
+        else:
+            # 两个路径都失败了，记录警告
+            logger.debug("Could not determine color for %s (no node.color() or asCode setColor)", node_path)
 
     # ── 标志命令 ────────────────────────────────────────────────
 
@@ -726,13 +752,29 @@ class HScriptBuilder:
     def _append_userdata_commands(
         self, node: hou.Node, var_name: str, cmds: list
     ) -> None:
-        """生成 opuserdata 命令。"""
-        for key in ("___Version___", "___toolcount___", "___toolid___"):
-            val = node.userData(key)
-            if val:
+        """生成 opuserdata 命令。
+        
+        捕获节点上的所有自定义 userdata，包括：
+        - ___Version___ / ___toolcount___ / ___toolid___（工具追踪数据）
+        - __last_invoked_recipes__（ramp recipe 预设数据，影响颜色等参数外观）
+        - 其他第三方脚本添加的自定义 userdata
+        
+        使用 node.userDataDict() 获取全部 userdata 键值对。
+        """
+        try:
+            user_data_dict = node.userDataDict()
+            if not user_data_dict:
+                return
+            for key, val in user_data_dict.items():
+                if not val:
+                    continue
+                # 转义单引号，防止 hscript 解析错误
+                safe_val = str(val).replace("'", "'\\''")
                 cmds.append(
-                    f"opuserdata -n '{key}' -v '{val}' ${var_name}"
+                    f"opuserdata -n '{key}' -v '{safe_val}' ${var_name}"
                 )
+        except Exception as e:
+            logger.debug("Failed to get userdata for %s: %s", node.path(), e)
 
     # ── 连接命令 ──────────────────────────────────────────────
 
