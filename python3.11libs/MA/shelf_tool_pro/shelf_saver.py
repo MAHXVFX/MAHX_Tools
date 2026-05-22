@@ -328,21 +328,19 @@ _hscript_cmd = r'''
 '''
 
 # 设置 hscript 变量（$arg1=路径, $arg2=X, $arg3=Y）
-# 与 Houdini 原生工具架完全一致
+# 与 Houdini 原生工具架完全一致 — arg2/arg3 是裸数字，不加引号
 _hscript_preamble = (
-    '\\\\set noalias = 1\\n'
-    + 'set saved_path = `execute("oppwf")`\\n'
-    + 'set arg1 = "' + _path + '"\\n'
-    + 'set arg2 = "' + str(cx) + '"\\n'
-    + 'set arg3 = "' + str(cy) + '"\\n'
+    'set arg1 = "' + _path + '"\\n'
+    + 'set arg2 = ' + str(cx) + '\\n'
+    + 'set arg3 = ' + str(cy) + '\\n'
     + 'set argc = 3\\n'
 )
 
 # 执行 hscript
 try:
     hou.hscript(_hscript_preamble + _hscript_cmd)
-except Exception as _k8s_err:
-    print(f"[MA ShelfTools Pro] hscript execution error: {{_k8s_err}}")
+except Exception as _hs_err:
+    logger.error("hscript execution error: %s", _hs_err)
 """
     )
 

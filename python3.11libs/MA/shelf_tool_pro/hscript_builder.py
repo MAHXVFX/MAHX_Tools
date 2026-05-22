@@ -33,8 +33,15 @@ logger = logging.getLogger("MA")
 
 
 def _escape_hscript(value: str) -> str:
-    """转义 hscript 字符串中特殊字符。"""
-    return value.replace("'", "\\'").replace('"', '\\"')
+    """转义 hscript 字符串值中的特殊字符。
+
+    hscript 在单引号字符串内不支持 \\' 转义。
+    在单引号字符串中包含字面单引号的正确方式是：
+      断串 → 字面引号 → 开新串，即 '"'"'（等价于 '\''）。
+
+    Note: 双引号在 hscript 单引号字符串内无需转义。
+    """
+    return value.replace("'", "'\\''")
 
 
 # ── asCode 输出解析 ──────────────────────────────────────────────
@@ -372,10 +379,10 @@ class HScriptBuilder:
             f"oplocate -x `$arg2 + {dx_str}` -y `$arg3 + {dy_str}` ${var_name}"
         )
 
-        # 3-9. 子序列
-        # 注意：opcolor 必须在最后，因为 opuserdata 写入 __last_invoked_recipes__
+        # 3-9. 后续命令（顺序重要）
+        # opcolor 必须在最后，因为 opuserdata 写入 __last_invoked_recipes__
         # 等 recipe 数据后，Houdini 的 recipe preset 系统可能回调重设颜色。
-        # 把颜色放在最后确保不会被任何后续命令覆盖。
+        # 执行顺序：parm → spareparm → expr → flag → exprl → userdata → color
         self._append_parm_commands(node, var_name, cmds)
         self._append_spareparm_commands(node, var_name, cmds)
         self._append_expression_commands(node, var_name, cmds)
