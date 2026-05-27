@@ -154,7 +154,13 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                 return
 
             # Check name conflict before saving
-            from MA.shelf_tool_pro.shelf_saver import check_name_conflict, save_node_to_shelf
+            import importlib
+            import MA.shelf_tool_pro.hscript_builder as hscript_builder
+            import MA.shelf_tool_pro.shelf_saver as shelf_saver
+            importlib.reload(hscript_builder)
+            shelf_saver = importlib.reload(shelf_saver)
+            check_name_conflict = shelf_saver.check_name_conflict
+            save_node_to_shelf = shelf_saver.save_node_to_shelf
 
             shelf_file = result["shelf_file"]
             tool_name = result["tool_name"]

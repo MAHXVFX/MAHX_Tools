@@ -202,7 +202,10 @@ def _extract_color_from_ascode(code_str: str) -> Optional[tuple]:
 
 def _format_opparm_value(name: str, value) -> str:
     """将单个参数格式化为 'name ( value )' 格式，与原生完全一致。"""
+    value = _normalize_ramp_value(value)
     if isinstance(value, str):
+        if _RAW_HSCRIPT_TOKEN_RE.match(value):
+            return f"{name} ( {value} )"
         return f"{name} ( '{_escape_hscript(value)}' )"
     elif isinstance(value, bool):
         return f"{name} ( {'on' if value else 'off'} )"
@@ -217,7 +220,24 @@ def _format_opparm_value(name: str, value) -> str:
         return f"{name} ( '{_escape_hscript(str(value))}' )"
 
 
-_RAMP_STR_RE = re.compile(r"<hou\.Ramp[^>]*num_keys=(\d+)")
+_RAMP_STR_RE = re.compile(r"<?hou\.Ramp[^>]*num_keys=(\d+)")
+_RAMP_COLOR_COMPONENT_RE = re.compile(r"^(.+?)(\d+)c([rgb])$")
+_RAMP_INTERP_RE = re.compile(r"^(.+?)(\d+)interp$")
+_RAMP_INTERP_NAMES = {
+    0: "constant",
+    1: "linear",
+    2: "catmull-rom",
+    3: "monotone-cubic",
+    4: "bezier",
+    5: "bspline",
+}
+_VEX_EXPRESSION_PARAM_RE = re.compile(
+    r"(?:^snippet$|^vexsnippet$|local.*expression$|.*vex.*expression$)",
+    re.IGNORECASE,
+)
+_RAW_HSCRIPT_TOKEN_RE = re.compile(
+    r"^(constant|linear|catmull-rom|monotone-cubic|bezier|bspline)$"
+)
 
 
 def _normalize_ramp_value(value) -> object:
@@ -228,11 +248,56 @@ def _normalize_ramp_value(value) -> object:
     '<hou.Ramp is_color=False num_keys=2 data=((t=0, 0), (t=1, 1))>' → '2'
     非 ramp 字符串原样返回。
     """
+    try:
+        if isinstance(value, hou.Ramp):
+            return len(value.keys())
+    except Exception:
+        pass
+
     if isinstance(value, str):
-        m = _RAMP_STR_RE.search(value)
+        m = _RAMP_STR_RE.search(value.strip("'\""))
         if m:
-            return m.group(1)  # 只返回键数，如 "2"
+            return int(m.group(1))  # 只返回键数，如 2
     return value
+
+
+def _canonicalize_params_for_hscript(params: dict) -> dict:
+    """Convert Houdini parm names/enum values to native hscript opparm form."""
+    if not params:
+        return params
+
+    result = {}
+    consumed: set[str] = set()
+
+    for name, value in params.items():
+        if name in consumed:
+            continue
+
+        color_match = _RAMP_COLOR_COMPONENT_RE.match(name)
+        if color_match and color_match.group(3) == "r":
+            prefix, key_index = color_match.group(1), color_match.group(2)
+            r_name = f"{prefix}{key_index}cr"
+            g_name = f"{prefix}{key_index}cg"
+            b_name = f"{prefix}{key_index}cb"
+            if r_name in params and g_name in params and b_name in params:
+                result[f"{prefix}{key_index}c"] = (
+                    params[r_name],
+                    params[g_name],
+                    params[b_name],
+                )
+                consumed.update({r_name, g_name, b_name})
+                continue
+
+        if color_match and name.endswith(("cg", "cb")):
+            continue
+
+        interp_match = _RAMP_INTERP_RE.match(name)
+        if interp_match and isinstance(value, int):
+            value = _RAMP_INTERP_NAMES.get(value, value)
+
+        result[name] = _normalize_ramp_value(value)
+
+    return result
 
 
 class HScriptBuilder:
@@ -382,9 +447,10 @@ class HScriptBuilder:
         # 3-9. 后续命令（顺序重要）
         # opcolor 必须在最后，因为 opuserdata 写入 __last_invoked_recipes__
         # 等 recipe 数据后，Houdini 的 recipe preset 系统可能回调重设颜色。
-        # 执行顺序：parm → spareparm → expr → flag → exprl → userdata → color
-        self._append_parm_commands(node, var_name, cmds)
+        # 执行顺序：spareparm → parm → expr → flag → exprl → userdata → color
+        # Generated VOP/wrangle parms must exist before opparm can restore values.
         self._append_spareparm_commands(node, var_name, cmds)
+        self._append_parm_commands(node, var_name, cmds)
         self._append_expression_commands(node, var_name, cmds)
         self._append_flag_command(var_name, node, cmds)
         self._append_exprlang_command(node, var_name, cmds)
@@ -404,7 +470,9 @@ class HScriptBuilder:
         3. 支持 ___Version___ 版本标记
         """
         params = self._get_modified_params_via_ascode(node)
-        if not params:
+        if params:
+            params.update(self._get_critical_params_fallback(node, params))
+        else:
             params = self._get_modified_params_fallback(node)
         if not params:
             return
@@ -413,8 +481,8 @@ class HScriptBuilder:
         version = node.userData("___Version___")
         has_version = bool(version and version.strip())
 
-        # 规范化 ramp 值：<hou.Ramp ...> → 键数
-        params = {k: _normalize_ramp_value(v) for k, v in params.items()}
+        # 规范化 ramp/vex 相关参数为 hscript 可恢复的原生格式。
+        params = _canonicalize_params_for_hscript(params)
 
         # 分组，每行最多 6 个参数
         items = list(params.items())
@@ -493,6 +561,65 @@ class HScriptBuilder:
 
         return result
 
+    def _get_critical_params_fallback(self, node, existing: dict) -> dict:
+        """补回 asCode() 容易漏掉但 shelf 还原必需的参数。
+
+        POP/VOP 的 VEX expression、generated ramp 等参数有时是隐藏参数或
+        动态 spare 参数，asCode().setParms({...}) 不一定包含它们。
+        """
+        result = {}
+        existing_names = set(existing)
+
+        for parm in node.parms():
+            try:
+                name = parm.name()
+                if name in existing_names:
+                    continue
+
+                template = parm.parmTemplate()
+                if template is None:
+                    continue
+
+                ptype = template.type()
+
+                if ptype == hou.parmTemplateType.Ramp:
+                    result[name] = self._parm_get_value(parm, template, ptype)
+                    continue
+
+                if not _VEX_EXPRESSION_PARAM_RE.search(name):
+                    continue
+
+                value = self._parm_string_value(parm, template, ptype)
+                if isinstance(value, str) and value:
+                    result[name] = value
+            except Exception as e:
+                logger.debug(
+                    "Critical parm fallback error for %s on %s: %s",
+                    getattr(parm, "name", lambda: "<unknown>")(),
+                    node.path(),
+                    e,
+                )
+
+        return result
+
+    def _parm_string_value(self, parm, template, ptype):
+        """Return text parm contents, including multiline editor parms."""
+        for method_name in ("unexpandedString", "rawValue", "evalAsString", "eval"):
+            try:
+                method = getattr(parm, method_name, None)
+                if method is None:
+                    continue
+                value = method()
+                if isinstance(value, str) and value:
+                    return value
+            except Exception:
+                pass
+
+        value = self._parm_get_value(parm, template, ptype)
+        if isinstance(value, str):
+            return value
+        return ""
+
     def _is_parm_modified(
         self, parm, template, ptype
     ) -> bool:
@@ -568,24 +695,113 @@ class HScriptBuilder:
     ) -> None:
         """如果节点有自定义 spare 参数，生成 opspareds 命令。"""
         try:
-            spare_group = node.spareParmTemplateGroup()
-            if spare_group is None:
+            parm_group = self._opspareds_parm_template_group(node)
+            if parm_group is None:
                 return
 
-            templates = spare_group.parmTemplates()
+            templates = parm_group.parmTemplates()
             if not templates:
                 return
 
             if not self._spare_has_real_parms(templates):
                 return
 
-            xml_def = spare_group.asCode()
-            safe_xml = xml_def.replace("'", "'\\''")
-            cmds.append(f"opspareds '{safe_xml}' ${var_name}")
+            spare_def = self._parm_template_group_to_dialog_script(parm_group)
+            if not spare_def:
+                return
+            if "hou.ParmTemplateGroup" in spare_def or "hou_parm_template_group" in spare_def:
+                logger.debug(
+                    "Skipping opspareds for %s: template group serialized as Python code",
+                    node.path(),
+                )
+                return
+
+            spare_def = self._compact_dialog_script(
+                self._strip_dialog_script_header(spare_def)
+            )
+            safe_def = spare_def.replace("'", "'\\''")
+            cmds.append(f"opspareds '{safe_def}' ${var_name}")
         except Exception as e:
             logger.debug(
                 "Failed to get spare parms for %s: %s", node.path(), e,
             )
+
+    def _parm_template_group_to_dialog_script(self, parm_group) -> str:
+        """Return dialog script text accepted by hscript opspareds."""
+        try:
+            if hasattr(parm_group, "asDialogScript"):
+                return self._strip_dialog_script_wrapper(parm_group.asDialogScript())
+        except Exception:
+            pass
+
+        try:
+            return self._strip_dialog_script_wrapper(parm_group.asCode())
+        except Exception:
+            return ""
+
+    def _strip_dialog_script_wrapper(self, text: str) -> str:
+        """Remove a top-level ParmTemplateGroup wrapper not accepted by opspareds."""
+        if not text:
+            return ""
+
+        stripped = self._strip_dialog_script_header(text)
+
+        if not (stripped.startswith("{") and stripped.endswith("}")):
+            return stripped
+
+        inner = stripped[1:-1].strip()
+        return inner
+
+    def _strip_dialog_script_header(self, text: str) -> str:
+        """Drop the full-dialog header that hscript opspareds cannot parse."""
+        return re.sub(
+            r"^\s*name\s+parameters\s*(?:\r?\n|$)",
+            "",
+            text,
+            count=1,
+            flags=re.IGNORECASE,
+        ).strip()
+
+    def _compact_dialog_script(self, text: str) -> str:
+        """Keep opspareds payload on one hscript line, matching native shelf output."""
+        return re.sub(r"\s+", " ", text).strip()
+
+    def _opspareds_parm_template_group(self, node: hou.Node):
+        """Return the parm template group that must be restored with opspareds."""
+        try:
+            if self._needs_full_parm_template_group(node):
+                return node.parmTemplateGroup()
+        except Exception:
+            pass
+
+        spare_group = node.spareParmTemplateGroup()
+        if spare_group is not None:
+            try:
+                if self._spare_has_real_parms(spare_group.parmTemplates()):
+                    return spare_group
+            except Exception:
+                pass
+
+        return None
+
+    def _needs_full_parm_template_group(self, node: hou.Node) -> bool:
+        """Whether native shelf output needs full parm templates for this node."""
+        try:
+            child_category = node.childTypeCategory()
+            if child_category is not None and child_category.name() == "Vop":
+                return True
+        except Exception:
+            pass
+
+        for parm in node.parms():
+            try:
+                name = parm.name()
+                if _VEX_EXPRESSION_PARAM_RE.search(name):
+                    return True
+            except Exception:
+                continue
+
+        return False
 
     # ── 表达式命令 ──────────────────────────────────────────────
 

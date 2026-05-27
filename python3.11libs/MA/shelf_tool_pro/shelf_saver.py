@@ -22,6 +22,14 @@ logger = logging.getLogger("MA")
 
 # 共享验证正则（save_tool_dialog.py 也引用）
 _VALID_TOOL_NAME_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+_OPSPAREDS_HEADER_RE = re.compile(
+    r"(opspareds\s+')\s*name\s+parameters\s*(?:\r?\n)",
+    re.IGNORECASE,
+)
+_OPSPAREDS_BLOCK_RE = re.compile(
+    r"(opspareds\s+')(.*?)('\s+\$[A-Za-z0-9_]+)",
+    re.DOTALL,
+)
 
 
 def _atomic_write(file_path: str, content: str) -> None:
@@ -40,6 +48,17 @@ def _atomic_write(file_path: str, content: str) -> None:
         raise
 
 # ── 相对位置偏移（类似原生工具架的 $arg2/arg3 + offset） ──
+
+def _sanitize_hscript_for_shelf(hscript_cmd: str) -> str:
+    """Clean generated hscript before embedding it in a shelf tool."""
+    hscript_cmd = _OPSPAREDS_HEADER_RE.sub(r"\1", hscript_cmd)
+
+    def _compact_opspareds(match: re.Match) -> str:
+        payload = re.sub(r"\s+", " ", match.group(2)).strip()
+        return match.group(1) + payload + match.group(3)
+
+    return _OPSPAREDS_BLOCK_RE.sub(_compact_opspareds, hscript_cmd)
+
 
 def _build_rel_pos_block(nodes: list) -> str:
     """计算所有节点的相对位置（相对于第一个节点），生成 _K8s_REL_POS 字典代码。
@@ -260,7 +279,7 @@ def save_node_to_shelf(
     # 4. Generate hscript commands
     # ------------------------------------------------------------------
     builder = HScriptBuilder(nodes)
-    hscript_cmd = builder.build()
+    hscript_cmd = _sanitize_hscript_for_shelf(builder.build())
 
     # ------------------------------------------------------------------
     # 5. 获取节点所在网络类型（用于执行时校验上下文兼容性）
