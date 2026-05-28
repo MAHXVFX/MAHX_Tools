@@ -394,20 +394,115 @@ class ThumbnailWidget(QtWidgets.QWidget):
         
         menu.addSeparator()
         settings_action = menu.addAction("设置\u2026")
+        tags_action = menu.addAction("标签\u2026")
         notes_action = menu.addAction("备注")
         menu.addSeparator()
         delete_action = menu.addAction("删除")
         settings_action.triggered.connect(self._on_settings)
+        tags_action.triggered.connect(self._on_edit_tags)
         notes_action.triggered.connect(self._on_edit_notes)
         delete_action.triggered.connect(self._on_delete_tool)
         menu.exec(event.globalPos())
+
+    def _on_edit_tags(self):
+        """打开标签设置对话框。"""
+        from MA.common.settings import ShelfToolsCacheManager
+        
+        # 获取当前标签
+        current_tags = ShelfToolsCacheManager.get_tags(self._unique_id)
+        
+        # 创建标签设置对话框
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle(f"设置标签 — {self.name_label.text()}")
+        dialog.setMinimumWidth(400)
+        dialog.setStyleSheet(
+            f"QDialog {{ background-color: #1D1D20; color: white; }}"
+        )
+        
+        layout = QtWidgets.QVBoxLayout(dialog)
+        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # 标签输入区域
+        tags_group = QtWidgets.QGroupBox("标签")
+        tags_group.setStyleSheet(
+            f"QGroupBox {{ color: #cccccc; font-size: 12px; border: 1px solid #3d3d3d; "
+            f"border-radius: 6px; margin-top: 12px; padding: 16px 12px 12px 12px; }}"
+            f"QGroupBox::title {{ subcontrol-origin: margin; left: 12px; padding: 0 4px; }}"
+        )
+        group_layout = QtWidgets.QVBoxLayout(tags_group)
+        group_layout.setSpacing(8)
+        
+        # 标签输入框
+        tags_input = QtWidgets.QLineEdit()
+        tags_input.setPlaceholderText("输入标签，用逗号分隔（如：建模,角色,rigging）")
+        tags_input.setStyleSheet(
+            f"QLineEdit {{ background-color: #2d2d2d; color: white; border: 1px solid #3d3d3d; "
+            f"border-radius: 4px; padding: 6px; }}"
+            f"QLineEdit:focus {{ border-color: #0d6399; }}"
+        )
+        if current_tags:
+            tags_input.setText(",".join(current_tags))
+        
+        group_layout.addWidget(tags_input)
+        
+        # 标签提示
+        hint_lbl = QtWidgets.QLabel("支持中英文标签，多个标签用逗号分隔")
+        hint_lbl.setStyleSheet("color: #888888; font-size: 11px;")
+        group_layout.addWidget(hint_lbl)
+        
+        layout.addWidget(tags_group)
+        
+        # 按钮区域
+        button_layout = QtWidgets.QHBoxLayout()
+        button_layout.addStretch()
+        
+        cancel_btn = QtWidgets.QPushButton("取消")
+        cancel_btn.setStyleSheet(
+            f"QPushButton {{ background-color: #2d2d2d; color: white; border: 1px solid #3d3d3d; "
+            f"border-radius: 4px; padding: 8px 16px; }}"
+            f"QPushButton:hover {{ background-color: #3d3d3d; }}"
+        )
+        cancel_btn.clicked.connect(dialog.reject)
+        
+        ok_btn = QtWidgets.QPushButton("确定")
+        ok_btn.setStyleSheet(
+            f"QPushButton {{ background-color: #4CAF50; color: white; border: none; "
+            f"border-radius: 4px; padding: 8px 16px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background-color: #45a049; }}"
+        )
+        ok_btn.clicked.connect(dialog.accept)
+        
+        button_layout.addWidget(cancel_btn)
+        button_layout.addWidget(ok_btn)
+        layout.addLayout(button_layout)
+        
+        # 显示对话框
+        if dialog.exec() == QtWidgets.QDialog.Accepted:
+            # 解析标签（支持中英文逗号分隔）
+            import re
+            tags_text = tags_input.text().strip()
+            new_tags = []
+            if tags_text:
+                new_tags = [t.strip() for t in re.split(r'[,，]', tags_text) if t.strip()]
+            
+            # 保存标签
+            ShelfToolsCacheManager.set_tags(self._unique_id, new_tags)
+            
+            # 通知面板刷新（用于标签筛选更新）
+            p = self.parent()
+            while p is not None:
+                if hasattr(p, '_on_tags_changed'):
+                    p._on_tags_changed()
+                    break
+                p = p.parent()
 
     def _on_settings(self):
         """打开工具设置对话框。"""
         from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
         if self._unique_id not in _TOOL_REGISTRY:
             return
-        _, tool_name, label, _, shelf_path = _TOOL_REGISTRY[self._unique_id]
+        shelf_stem, tool_name, label, _, shelf_path = _TOOL_REGISTRY[self._unique_id]
 
         # 从缓存加载自定义图标（.shelf 的 icon 属性只存 Houdini 内部名）
         from MA.common.settings import ShelfToolsCacheManager
@@ -429,6 +524,8 @@ class ThumbnailWidget(QtWidgets.QWidget):
             parent=self,
         )
         if dialog.exec() != QtWidgets.QDialog.Accepted:
+            # 用户取消，重新加载GIF恢复播放
+            self._render_thumbnail(self._size)
             return
         result = dialog.get_result()
         if result is None:
@@ -439,19 +536,72 @@ class ThumbnailWidget(QtWidgets.QWidget):
         new_icon = result.get("icon_path", "")
         ShelfToolsCacheManager.set_tool_icon(self._unique_id, new_icon)
 
-        # 仅当 label 改变时才更新 .shelf 文件
-        _, _, old_label, _, shelf_path = _TOOL_REGISTRY[self._unique_id]
-        if result["label"] != old_label:
-            from MA.shelf_tool_pro.shelf_saver import update_tool_in_shelf
-            updated = update_tool_in_shelf(
-                shelf_file=result["shelf_file"],
-                tool_name=result["tool_name"],
-                new_label=result["label"],
-            )
+        # 检查名称或标签是否改变
+        new_tool_name = result["tool_name"]
+        new_label = result["label"]
+        name_changed = new_tool_name != tool_name
+        label_changed = new_label != label
+
+        if name_changed or label_changed:
+            from MA.shelf_tool_pro.shelf_saver import rename_tool_in_shelf, update_tool_in_shelf
+            
+            if name_changed:
+                # 重命名工具（同时更新 label）
+                updated = rename_tool_in_shelf(
+                    shelf_file=shelf_path,
+                    old_name=tool_name,
+                    new_name=new_tool_name,
+                    new_label=new_label,
+                )
+            else:
+                # 仅更新 label
+                updated = update_tool_in_shelf(
+                    shelf_file=shelf_path,
+                    tool_name=tool_name,
+                    new_label=new_label,
+                )
+            
             if not updated:
                 QtWidgets.QMessageBox.warning(self, "错误",
-                    "更新工具名称失败。")
+                    "更新工具失败。")
                 return
+            
+            # 如果名称改变了，需要迁移缓存数据
+            if name_changed:
+                old_unique_id = self._unique_id
+                new_unique_id = f"{shelf_stem}_{new_tool_name}"
+                
+                # 迁移图标缓存
+                old_icon = ShelfToolsCacheManager.get_tool_icon(old_unique_id)
+                if old_icon:
+                    ShelfToolsCacheManager.set_tool_icon(new_unique_id, old_icon)
+                    ShelfToolsCacheManager.remove_tool_icon(old_unique_id)
+                
+                # 迁移标签缓存
+                old_tags = ShelfToolsCacheManager.get_tags(old_unique_id)
+                if old_tags:
+                    ShelfToolsCacheManager.set_tags(new_unique_id, old_tags)
+                
+                # 迁移收藏状态
+                if ShelfToolsSettingsManager.is_favorite(old_unique_id):
+                    # 从旧位置移除，添加到新位置
+                    favs = list(ShelfToolsSettingsManager.get_favorites())
+                    if old_unique_id in favs:
+                        favs.remove(old_unique_id)
+                    if new_unique_id not in favs:
+                        favs.insert(0, new_unique_id)
+                    ShelfToolsSettingsManager.set_favorites(favs)
+                
+                # 迁移备注文件
+                from MA.common.constants import SHELFTOOLS_NOTES_DIR
+                import os
+                old_note_path = os.path.join(SHELFTOOLS_NOTES_DIR, f"{old_unique_id}.md")
+                new_note_path = os.path.join(SHELFTOOLS_NOTES_DIR, f"{new_unique_id}.md")
+                if os.path.exists(old_note_path):
+                    try:
+                        os.rename(old_note_path, new_note_path)
+                    except OSError:
+                        pass
 
         # 刷新面板
         from MA.shelf_tool_pro.shelf_loader import refresh_tools

@@ -11,7 +11,7 @@ import hou
 logger = logging.getLogger("MA")
 
 # 共享验证正则（save_tool_dialog.py 也引用）
-_VALID_TOOL_NAME_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+_VALID_TOOL_NAME_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_ ]*$')
 
 
 def _atomic_write(file_path: str, content: str) -> None:
@@ -482,4 +482,65 @@ def update_tool_in_shelf(
         return True
     except Exception as e:
         logger.error("Failed to update tool '%s' in %s: %s", tool_name, shelf_file, e)
+        return False
+
+
+def rename_tool_in_shelf(
+    shelf_file: str,
+    old_name: str,
+    new_name: str,
+    new_label: str | None = None,
+) -> bool:
+    """重命名 .shelf 文件中的工具名称。
+
+    Args:
+        shelf_file: .shelf 文件路径
+        old_name: 原工具名称（<tool name="xxx">）
+        new_name: 新工具名称
+        new_label: 新的 label 值，None 表示不修改
+
+    Returns:
+        True 成功，False 未找到或写入失败。
+    """
+    if not os.path.isfile(shelf_file):
+        return False
+
+    try:
+        with open(shelf_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # 匹配 <tool name="xxx" ...> 开始标签
+        pattern = re.compile(
+            r'(<tool\s+name=")' + re.escape(old_name) + r'"([^>]*?)>'
+        )
+        match = pattern.search(content)
+        if not match:
+            logger.warning("Tool '%s' not found in %s", old_name, shelf_file)
+            return False
+
+        # 构建新的标签
+        prefix = match.group(1)  # '<tool name="'
+        attrs = match.group(2)   # 其他属性
+        
+        # 替换 name
+        new_tag = prefix + new_name + '"' + attrs
+        
+        # 替换 label 属性
+        if new_label is not None:
+            if re.search(r'label="[^"]*"', new_tag):
+                new_tag = re.sub(r'label="[^"]*"', f'label="{new_label}"', new_tag)
+            else:
+                new_tag += f' label="{new_label}"'
+        
+        new_content = content[:match.start()] + new_tag + '>' + content[match.end():]
+
+        _atomic_write(shelf_file, new_content)
+
+        logger.info(
+            "Renamed tool '%s' to '%s' in %s",
+            old_name, new_name, shelf_file,
+        )
+        return True
+    except Exception as e:
+        logger.error("Failed to rename tool '%s' in %s: %s", old_name, shelf_file, e)
         return False

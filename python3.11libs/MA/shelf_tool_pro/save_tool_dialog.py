@@ -206,13 +206,8 @@ class ToolSettingsDialog(QtWidgets.QDialog):
 
         self._name_input = QtWidgets.QLineEdit()
         self._name_input.setText(tool_name)
-        if self._mode == "edit":
-            self._name_input.setReadOnly(True)
-            self._name_input.setStyleSheet(_INPUT_READONLY_STYLE)
-            self._name_input.setToolTip("创建后不可修改")
-        else:
-            self._name_input.setPlaceholderText("例如 my_custom_tool")
-            self._name_input.setStyleSheet(_INPUT_STYLE)
+        self._name_input.setPlaceholderText("例如 my_custom_tool")
+        self._name_input.setStyleSheet(_INPUT_STYLE)
 
         self._name_hint = QtWidgets.QLabel("")
         self._name_hint.setStyleSheet("color: #ef4444; font-size: 11px;")
@@ -434,19 +429,41 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         hint = ""
         valid = True
 
-        if self._mode == "create":
-            if not name:
-                hint = "请输入工具名称"
-                valid = False
-            elif not _TOOL_NAME_REGEX.match(name):
-                hint = "只允许字母、数字和下划线"
-                valid = False
+        if not name:
+            hint = "请输入工具名称"
+            valid = False
+        elif not _TOOL_NAME_REGEX.match(name):
+            hint = "只允许字母、数字和下划线和空格"
+            valid = False
+        else:
+            # 检查同 shelf 中是否已存在同名工具
+            from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
+            
+            # 确定目标 shelf 文件
+            if self._mode == "create":
+                shelf_name = self._shelf_name_edit.text().strip()
+                shelf_file = next(
+                    (path for stem, path in self._shelf_file_items if stem == shelf_name),
+                    os.path.join(_toolbar_dir(), shelf_name + ".shelf"),
+                )
+            else:
+                shelf_file = self._shelf_file_path
+            
+            # 检查是否重名（编辑模式下排除自身）
+            for uid, info in _TOOL_REGISTRY.items():
+                shelf_stem, tool_name, _, _, reg_shelf_path = info
+                if tool_name == name and reg_shelf_path == shelf_file:
+                    # 编辑模式下，如果名称没变则允许
+                    if self._mode == "edit" and self._tool_name == name:
+                        continue
+                    hint = f"同名工具已存在于 {os.path.basename(shelf_file)}"
+                    valid = False
+                    break
 
         self._name_hint.setText(hint)
-        if self._mode == "create":
-            self._name_input.setStyleSheet(
-                _INPUT_INVALID_STYLE if (name and not valid) else _INPUT_STYLE
-            )
+        self._name_input.setStyleSheet(
+            _INPUT_INVALID_STYLE if (name and not valid) else _INPUT_STYLE
+        )
 
         # Shelf file validation（create mode only）
         if valid and self._mode == "create":
@@ -501,7 +518,7 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         # 先停止预览动画，释放 GIF 文件锁（Windows 下 QMovie 会锁定文件）
         self._stop_preview_movie()
 
-        tool_name = self._tool_name if self._mode == "edit" else self._name_input.text().strip()
+        tool_name = self._name_input.text().strip()
         label = self._label_input.text().strip() or tool_name
 
         if self._mode == "create":

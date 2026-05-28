@@ -315,6 +315,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.thumb_slider.setObjectName("thumbSizeSlider")
         self.thumb_slider.setMinimum(70)
         self.thumb_slider.setMaximum(250)
+        self.thumb_slider.setMaximumWidth(200)
         self.thumb_slider.setValue(init_size)
         self.thumb_slider.setStyleSheet(THUMB_SLIDER_STYLE)
         self.thumb_slider.setCursor(QtCore.Qt.PointingHandCursor)
@@ -354,6 +355,27 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self._populate_filter_combo(restore_filter=True)
         self.filter_combo.currentIndexChanged.connect(self._on_filter_changed)
         layout.addWidget(self.filter_combo)
+
+        # 标签筛选下拉菜单
+        layout.addSpacing(10)
+        tag_lbl = QtWidgets.QLabel("标签")
+        tag_lbl.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: 13px; font-weight: bold; background-color: transparent;")
+        layout.addWidget(tag_lbl)
+        layout.addSpacing(4)
+
+        self.tag_filter_combo = QtWidgets.QComboBox()
+        self.tag_filter_combo.setMinimumWidth(100)
+        self.tag_filter_combo.setStyleSheet(
+            f"QComboBox {{ background-color: {BG_INPUT}; color: white; border: 1px solid {BORDER_COLOR}; "
+            f"border-radius: 4px; padding: 3px 8px; font-size: 11px; }} "
+            f"QComboBox::drop-down {{ border: none; }} "
+            f"QComboBox QAbstractItemView {{ background-color: {BG_INPUT}; color: white; "
+            f"selection-background-color: #0d6399; }}")
+        self.tag_filter_combo.setCursor(QtCore.Qt.PointingHandCursor)
+        self._populate_tag_filter_combo()
+        self.tag_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        layout.addWidget(self.tag_filter_combo)
 
         layout.addStretch()
         return layout
@@ -497,7 +519,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
     # ── 筛选功能 ──────────────────────────────────
 
     def _populate_filter_combo(self, restore_filter=False):
-        """填充筛选下拉菜单：全部、收藏、各 shelf 名称。
+        """填充筛选下拉菜单：全部、各 shelf 名称。
         
         Args:
             restore_filter: 是否恢复上次关闭时的筛选状态。
@@ -510,9 +532,8 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.filter_combo.blockSignals(True)
         self.filter_combo.clear()
 
-        # ItemData values: 'all', 'favorites', or shelf_stem string
+        # ItemData values: 'all' or shelf_stem string
         self.filter_combo.addItem("全部", userData="all")
-        self.filter_combo.addItem("★ 收藏", userData="favorites")
 
         # 收集唯一的 shelf 名称
         shelf_names = set()
@@ -542,6 +563,35 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         # 信号被 block，手动应用筛选
         self._apply_filter()
 
+    def _populate_tag_filter_combo(self):
+        """填充标签筛选下拉菜单：全部标签、★ 收藏、各唯一标签。"""
+        # 保存当前筛选状态（防止 clear() 丢失选择）
+        current_tag = None
+        if self.tag_filter_combo.count() > 0:
+            current_tag = self.tag_filter_combo.itemData(self.tag_filter_combo.currentIndex())
+
+        self.tag_filter_combo.blockSignals(True)
+        self.tag_filter_combo.clear()
+
+        # 添加"全部"和"收藏"选项
+        self.tag_filter_combo.addItem("全部标签", userData="all")
+        self.tag_filter_combo.addItem("★ 收藏", userData="favorites")
+
+        # 从缓存获取所有唯一标签
+        from MA.common.settings import ShelfToolsCacheManager
+        all_tags = ShelfToolsCacheManager.get_all_tags()
+
+        for tag in all_tags:
+            self.tag_filter_combo.addItem(tag, userData=tag)
+
+        # 恢复之前的选择
+        if current_tag is not None:
+            index = self.tag_filter_combo.findData(current_tag)
+            if index >= 0:
+                self.tag_filter_combo.setCurrentIndex(index)
+
+        self.tag_filter_combo.blockSignals(False)
+
     def _on_filter_changed(self, index):
         """筛选项变化时触发。"""
         self._apply_filter()
@@ -549,18 +599,30 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
     def _get_filtered_tool_names(self):
         """根据当前筛选项返回工具名列表。"""
         data = self.filter_combo.itemData(self.filter_combo.currentIndex())
+        tag_data = self.tag_filter_combo.itemData(self.tag_filter_combo.currentIndex())
 
+        # 首先按 shelf 筛选
         if data == "all":
-            return list(_TOOL_NAMES)
+            filtered_names = list(_TOOL_NAMES)
+        else:
+            # shelf 名称过滤
+            shelf_name = data
+            filtered_names = [uid for uid in _TOOL_NAMES if uid in _TOOL_REGISTRY and _TOOL_REGISTRY[uid][0] == shelf_name]
 
-        if data == "favorites":
+        # 然后按标签/收藏筛选
+        if tag_data == "favorites":
+            # 收藏筛选
             favorites = ShelfToolsSettingsManager.get_favorites()
-            # 只保留仍然存在的收藏工具
-            return [uid for uid in favorites if uid in _TOOL_REGISTRY]
+            filtered_names = [uid for uid in filtered_names if uid in favorites]
+        elif tag_data != "all":
+            # 标签筛选
+            from MA.common.settings import ShelfToolsCacheManager
+            filtered_names = [
+                uid for uid in filtered_names
+                if tag_data in ShelfToolsCacheManager.get_tags(uid)
+            ]
 
-        # shelf 名称过滤
-        shelf_name = data
-        return [uid for uid in _TOOL_NAMES if uid in _TOOL_REGISTRY and _TOOL_REGISTRY[uid][0] == shelf_name]
+        return filtered_names
 
     def _apply_filter(self):
         """应用当前筛选条件，重新构建缩略图网格。"""
@@ -589,11 +651,20 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
     def _on_favorite_changed(self):
         """收藏状态变化时的回调（由 ThumbnailWidget 调用）。"""
         # 如果当前是收藏筛选，刷新显示
-        data = self.filter_combo.itemData(self.filter_combo.currentIndex())
-        if data == "favorites":
+        tag_data = self.tag_filter_combo.itemData(self.tag_filter_combo.currentIndex())
+        if tag_data == "favorites":
             self._apply_filter()
         # 更新下拉菜单中的 shelf 列表（以防新增/删除工具）
         self._populate_filter_combo()
+
+    def _on_tags_changed(self):
+        """标签变化时的回调（由 ThumbnailWidget 调用）。"""
+        # 更新标签筛选下拉菜单
+        self._populate_tag_filter_combo()
+        # 如果当前是标签筛选，刷新显示
+        tag_data = self.tag_filter_combo.itemData(self.tag_filter_combo.currentIndex())
+        if tag_data != "all":
+            self._apply_filter()
 
     def closeEvent(self, event):
         """面板关闭时保存当前筛选状态。"""

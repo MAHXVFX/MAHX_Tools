@@ -27,7 +27,7 @@ folder_path = normalized_path
 subprocess.run(['explorer.exe', folder_path], shell=True)]]></script>
   </tool>
 
-  <tool name="Cam images" label="Cam images" icon="hicon:/SVGIcons.index?BUTTONS_add_image.svg">
+  <tool name="Cam images" label="相机背景序列" icon="hicon:/SVGIcons.index?BUTTONS_add_image.svg">
     <script scriptType="python"><![CDATA[import sys
 import toolutils
 
@@ -314,7 +314,7 @@ network_box.setColor(mycolor)
 network_box.setComment(text)]]></script>
   </tool>
 
-  <tool name="Example Instancer " label="啊啊啊" icon="hicon:/SVGIcons.index?BUTTONS_light_solo.svg">
+  <tool name="aaaa" label="啊啊啊" icon="hicon:/SVGIcons.index?BUTTONS_light_solo.svg">
     <script scriptType="python"><![CDATA[
 import sys
 import toolutils

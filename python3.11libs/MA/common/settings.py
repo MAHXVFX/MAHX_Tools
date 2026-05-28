@@ -150,6 +150,49 @@ class ShelfToolsCacheManager(BaseJsonManager):
         with open(note_path, "w", encoding="utf-8") as f:
             f.write(note)
 
+    # ── 标签管理 ────────────────────────────────
+    _TAGS_KEY = "tags_{}"
+
+    @classmethod
+    def get_tags(cls, tool_name: str) -> list:
+        """获取工具的标签列表。"""
+        return cls.load().get(cls._TAGS_KEY.format(tool_name), [])
+
+    @classmethod
+    def set_tags(cls, tool_name: str, tags: list):
+        """设置工具的标签列表。"""
+        cls.update(cls._TAGS_KEY.format(tool_name), tags)
+
+    @classmethod
+    def add_tag(cls, tool_name: str, tag: str) -> bool:
+        """为工具添加标签。返回 True=已添加, False=已存在。"""
+        tags = list(cls.get_tags(tool_name))
+        if tag in tags:
+            return False
+        tags.append(tag)
+        cls.set_tags(tool_name, tags)
+        return True
+
+    @classmethod
+    def remove_tag(cls, tool_name: str, tag: str) -> bool:
+        """从工具移除标签。返回 True=已移除, False=不存在。"""
+        tags = list(cls.get_tags(tool_name))
+        if tag not in tags:
+            return False
+        tags.remove(tag)
+        cls.set_tags(tool_name, tags)
+        return True
+
+    @classmethod
+    def get_all_tags(cls) -> list:
+        """获取所有工具中使用过的唯一标签列表（按字母排序）。"""
+        data = cls.load()
+        all_tags = set()
+        for key, value in data.items():
+            if key.startswith("tags_") and isinstance(value, list):
+                all_tags.update(value)
+        return sorted(all_tags)
+
     # ── 图标缓存 ────────────────────────────────
     _ICON_KEY = "icon_{}"
 
@@ -226,6 +269,14 @@ class ShelfToolsCacheManager(BaseJsonManager):
         # 构建新路径：保持原始扩展名
         ext = os.path.splitext(icon_path)[1]
         new_icon_path = os.path.join(thumb_dir, f"{tool_name}{ext}")
+        
+        # 检查源文件和目标文件是否相同（避免复制到自身）
+        abs_icon_path = os.path.abspath(icon_path)
+        abs_new_path = os.path.abspath(new_icon_path)
+        if abs_icon_path == abs_new_path:
+            # 文件已在目标位置，只需更新缓存
+            cls.update(cls._ICON_KEY.format(tool_name), cls._rel_icon_path(new_icon_path))
+            return
         
         # 先清理旧文件（不同扩展名残留），再复制新文件
         cls._cleanup_old_thumbnails(tool_name, thumb_dir, skip_path=new_icon_path)
