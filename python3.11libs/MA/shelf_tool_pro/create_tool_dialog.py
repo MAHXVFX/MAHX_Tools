@@ -2,14 +2,14 @@
 
 两步流程：
 1. 输入 Python 代码（带语法高亮）
-2. 设置工具属性（名称、显示名称、shelf 文件）
+2. 设置工具属性（名称、显示名称、shelf 文件、缩略图）
 """
 
 import os
 import glob
 import logging
 
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtWidgets, QtGui, QtCore
 
 from MA.shelf_tool_pro.styles import (
     ACCENT_BLUE,
@@ -115,6 +115,17 @@ _CANCEL_BUTTON_STYLE = (
     f"}}"
 )
 
+_THUMB_BG = "#2d2d2d"
+
+
+def _make_thumb_pixmap(file_path: str, size: int = 100) -> QtGui.QPixmap:
+    """从文件加载图片并缩放到指定尺寸，失败时返回灰色占位图。"""
+    pixmap = QtGui.QPixmap(file_path)
+    if pixmap.isNull():
+        pixmap = QtGui.QPixmap(size, size)
+        pixmap.fill(QtGui.QColor(_THUMB_BG))
+    return pixmap.scaled(size, size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+
 
 class CreateToolDialog(QtWidgets.QDialog):
     """创建工具对话框。
@@ -129,6 +140,8 @@ class CreateToolDialog(QtWidgets.QDialog):
     def __init__(self, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
         self._result: dict | None = None
+        self._icon_path = ""
+        self._preview_movie = None
         self._shelf_file_items: list[tuple[str, str]] = []  # (显示名, 完整路径)
 
         self.setWindowTitle("创建工具")
@@ -248,6 +261,31 @@ class CreateToolDialog(QtWidgets.QDialog):
         shelf_layout.addStretch()
         props_layout.addLayout(shelf_layout)
 
+        # 缩略图选择
+        thumb_layout = QtWidgets.QVBoxLayout()
+        thumb_layout.setSpacing(4)
+
+        thumb_lbl = QtWidgets.QLabel("缩略图")
+        thumb_lbl.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 12px;")
+        thumb_layout.addWidget(thumb_lbl)
+
+        # 可点击预览图
+        self._thumb_preview = QtWidgets.QLabel()
+        self._thumb_preview.setFixedSize(100, 100)
+        self._thumb_preview.setAlignment(QtCore.Qt.AlignCenter)
+        self._thumb_preview.setStyleSheet(f"background-color: {_THUMB_BG}; border-radius: 6px;")
+        self._thumb_preview.setCursor(QtCore.Qt.PointingHandCursor)
+        self._thumb_preview.setToolTip("点击选择图标（可选）")
+        self._thumb_preview.installEventFilter(self)
+        self._update_thumb_preview()
+
+        preview_row = QtWidgets.QHBoxLayout()
+        preview_row.addWidget(self._thumb_preview)
+        preview_row.addStretch()
+        thumb_layout.addLayout(preview_row)
+
+        props_layout.addLayout(thumb_layout)
+
         layout.addWidget(props_group)
 
         # 按钮区域
@@ -305,6 +343,99 @@ class CreateToolDialog(QtWidgets.QDialog):
         self._shelf_name_edit.textChanged.connect(self._validate_inputs)
         self._code_edit.textChanged.connect(self._validate_inputs)
 
+    # ── 事件过滤器（缩略图预览点击） ───────────────
+
+    def eventFilter(self, obj, event):
+        if obj is self._thumb_preview and event.type() == QtCore.QEvent.Type.MouseButtonPress:
+            if event.button() == QtCore.Qt.LeftButton:
+                self._on_browse_icon()
+                return True
+            if event.button() == QtCore.Qt.RightButton:
+                self._show_thumb_context_menu(event.globalPosition().toPoint())
+                return True
+        return super().eventFilter(obj, event)
+
+    def _show_thumb_context_menu(self, pos: QtCore.QPoint) -> None:
+        """缩略图预览的右键菜单：清除图标。"""
+        menu = QtWidgets.QMenu(self)
+        menu.setStyleSheet(
+            f"QMenu {{ background-color: {BG_INPUT}; color: {TEXT_PRIMARY};"
+            f"  border: 1px solid {BORDER_COLOR}; border-radius: 4px; padding: 4px; }}"
+            f"QMenu::item {{ padding: 6px 20px; border-radius: 3px; }}"
+            f"QMenu::item:selected {{ background-color: {BG_HOVER}; }}"
+        )
+        clear_action = menu.addAction("清除图标")
+        clear_action.triggered.connect(self._on_clear_icon)
+        menu.exec(pos)
+
+    def _on_clear_icon(self) -> None:
+        """清除自定义图标，恢复默认。"""
+        self._icon_path = ""
+        self._update_thumb_preview()
+
+    # ── 对话框关闭时清理 GIF ──────────────────────
+
+    def reject(self):
+        self._stop_preview_movie()
+        super().reject()
+
+    def accept(self):
+        self._stop_preview_movie()
+        super().accept()
+
+    def _stop_preview_movie(self):
+        if self._preview_movie:
+            self._preview_movie.stop()
+            try:
+                self._preview_movie.frameChanged.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+            # 显式清空文件名释放文件句柄（Windows 文件锁定问题）
+            self._preview_movie.setFileName("")
+            self._preview_movie.deleteLater()
+            self._preview_movie = None
+
+    # ── Slot: 浏览图标 ───────────────────────────
+
+    def _on_browse_icon(self) -> None:
+        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "选择图标",
+            "",
+            "图片 (*.png *.jpg *.jpeg *.svg *.gif)",
+        )
+        if not file_path:
+            return
+        self._icon_path = file_path
+        self._update_thumb_preview()
+
+    def _update_thumb_preview(self) -> None:
+        """更新缩略图预览区域：GIF 持续播放，静态图固定显示。"""
+        # 清理旧动画
+        self._stop_preview_movie()
+
+        if not self._icon_path or not os.path.exists(self._icon_path):
+            pixmap = QtGui.QPixmap(100, 100)
+            pixmap.fill(QtGui.QColor(_THUMB_BG))
+            self._thumb_preview.setPixmap(pixmap)
+            return
+
+        ext = os.path.splitext(self._icon_path)[1].lower()
+        if ext == ".gif":
+            # GIF：持续播放直到对话框关闭，保持宽高比
+            self._preview_movie = QtGui.QMovie(self._icon_path)
+            movie_size = QtGui.QImageReader(self._icon_path).size()
+            if movie_size.isValid():
+                scaled = movie_size.scaled(100, 100, QtCore.Qt.KeepAspectRatio)
+                self._preview_movie.setScaledSize(scaled)
+            else:
+                self._preview_movie.setScaledSize(QtCore.QSize(100, 100))
+            self._thumb_preview.setMovie(self._preview_movie)
+            self._preview_movie.start()
+        else:
+            pixmap = _make_thumb_pixmap(self._icon_path, 100)
+            self._thumb_preview.setPixmap(pixmap)
+
     def _validate_inputs(self):
         """验证输入。"""
         name = self._name_input.text().strip()
@@ -324,19 +455,27 @@ class CreateToolDialog(QtWidgets.QDialog):
             hint = "只允许字母、数字、下划线和空格"
             valid = False
         else:
-            # 检查是否重名
+            # 检查是否重名（同时检查已加载的注册表和 .shelf 文件）
             from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
+            from MA.shelf_tool_pro.shelf_saver import check_name_conflict
             shelf_name = self._shelf_name_edit.text().strip()
             shelf_file = next(
                 (path for stem, path in self._shelf_file_items if stem == shelf_name),
                 os.path.join(_toolbar_dir(), shelf_name + ".shelf"),
             )
+            
+            # 检查已加载的注册表
             for uid, info in _TOOL_REGISTRY.items():
                 _, tool_name, _, _, reg_shelf_path = info
                 if tool_name == name and reg_shelf_path == shelf_file:
                     hint = f"同名工具已存在于 {os.path.basename(shelf_file)}"
                     valid = False
                     break
+            
+            # 检查 .shelf 文件（防止未加载的工具）
+            if valid and check_name_conflict(name, shelf_file):
+                hint = f"同名工具已存在于 {os.path.basename(shelf_file)}"
+                valid = False
 
         self._name_hint.setText(hint)
         self._name_input.setStyleSheet(
@@ -351,6 +490,9 @@ class CreateToolDialog(QtWidgets.QDialog):
 
     def _on_create(self):
         """点击创建按钮。"""
+        # 先停止预览动画，释放 GIF 文件锁
+        self._stop_preview_movie()
+
         code = self._code_edit.toPlainText().strip()
         tool_name = self._name_input.text().strip()
         label = self._label_input.text().strip() or tool_name
@@ -366,6 +508,7 @@ class CreateToolDialog(QtWidgets.QDialog):
             "tool_name": tool_name,
             "label": label,
             "shelf_file": shelf_file,
+            "icon_path": self._icon_path,
         }
         self.accept()
 
@@ -378,6 +521,7 @@ class CreateToolDialog(QtWidgets.QDialog):
                 "tool_name": str,      # 工具名称
                 "label": str,          # 显示名称
                 "shelf_file": str,     # .shelf 文件路径
+                "icon_path": str,      # 缩略图路径（可选）
             }
             None 如果用户取消对话框。
         """

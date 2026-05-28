@@ -488,6 +488,13 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             QtWidgets.QMessageBox.warning(self, "错误", "保存工具失败。")
             return
         
+        # 保存缩略图缓存
+        icon_path = result.get("icon_path", "")
+        if icon_path:
+            shelf_stem = os.path.splitext(os.path.basename(result["shelf_file"]))[0]
+            unique_id = f"{shelf_stem}_{result['tool_name']}"
+            ShelfToolsCacheManager.set_tool_icon(unique_id, icon_path)
+        
         # 加载 .shelf 文件到 Houdini
         if hou is not None:
             try:
