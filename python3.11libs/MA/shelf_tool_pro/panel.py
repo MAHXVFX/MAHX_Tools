@@ -449,6 +449,59 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         super().resizeEvent(event)
         self._relayout_grid()
 
+    # ── 右键菜单 ──────────────────────────────────
+
+    def contextMenuEvent(self, event):
+        """面板空白区域右键菜单。"""
+        from MA.shelf_tool_pro.styles import CONTEXT_MENU_STYLE
+        
+        menu = QtWidgets.QMenu(self)
+        menu.setStyleSheet(CONTEXT_MENU_STYLE)
+        
+        create_action = menu.addAction("创建工具\u2026")
+        create_action.triggered.connect(self._on_create_tool)
+        
+        menu.exec(event.globalPos())
+
+    def _on_create_tool(self):
+        """打开创建工具对话框。"""
+        from MA.shelf_tool_pro.create_tool_dialog import CreateToolDialog
+        
+        dialog = CreateToolDialog(parent=self)
+        if dialog.exec() != QtWidgets.QDialog.Accepted:
+            return
+        
+        result = dialog.get_result()
+        if result is None:
+            return
+        
+        # 保存代码到 .shelf 文件
+        from MA.shelf_tool_pro.shelf_saver import save_code_to_shelf
+        success = save_code_to_shelf(
+            code=result["code"],
+            tool_name=result["tool_name"],
+            label=result["label"],
+            shelf_file_path=result["shelf_file"],
+        )
+        
+        if not success:
+            QtWidgets.QMessageBox.warning(self, "错误", "保存工具失败。")
+            return
+        
+        # 加载 .shelf 文件到 Houdini
+        if hou is not None:
+            try:
+                hou.shelves.loadFile(result["shelf_file"])
+            except Exception as exc:
+                _logger.warning("hou.shelves.loadFile failed: %s", exc)
+        
+        # 刷新面板
+        self._refresh_tools()
+        
+        # 提示成功
+        print(f"工具 '{result['label']}' 已创建")
+        print(result['shelf_file'])
+
     def _toggle_settings(self):
         is_visible = self.settings_widget.isVisible()
         elastic_resize(self.settings_widget, not is_visible)

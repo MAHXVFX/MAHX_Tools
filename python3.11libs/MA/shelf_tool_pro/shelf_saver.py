@@ -392,18 +392,26 @@ def remove_tool_from_shelf(tool_name: str, shelf_file_path: str) -> bool:
             content = f.read()
 
         # 匹配整个 <tool name="xxx" ...>...</tool> 块（非贪婪）
-        pattern = re.compile(
+        tool_pattern = re.compile(
             r'<tool\s+name="' + re.escape(tool_name) + r'"'
             r'[^>]*>.*?</tool>',
             re.DOTALL,
         )
-        match = pattern.search(content)
-        if not match:
+        tool_match = tool_pattern.search(content)
+        if not tool_match:
             logger.warning("Tool '%s' not found in %s", tool_name, shelf_file_path)
             return False
 
-        # 移除匹配块
-        new_content = content[:match.start()] + content[match.end():]
+        # 移除 tool 块
+        new_content = content[:tool_match.start()] + content[tool_match.end():]
+
+        # 移除 <memberTool name="xxx"/> 引用
+        member_pattern = re.compile(
+            r'\s*<memberTool\s+name="' + re.escape(tool_name) + r'"\s*/>\s*',
+            re.DOTALL,
+        )
+        new_content = member_pattern.sub('\n', new_content)
+
         # 压缩多余空行
         new_content = re.sub(r'\n\s*\n\s*\n+', '\n\n', new_content)
 
@@ -557,4 +565,105 @@ def rename_tool_in_shelf(
         return True
     except Exception as e:
         logger.error("Failed to rename tool '%s' in %s: %s", old_name, shelf_file, e)
+        return False
+
+
+def save_code_to_shelf(
+    code: str,
+    tool_name: str,
+    label: str,
+    shelf_file_path: str,
+) -> bool:
+    """将 Python 代码保存为 shelf 工具。
+
+    直接将用户输入的代码写入 .shelf 文件，不使用 hou.Node.asCode()。
+
+    Args:
+        code: Python 代码内容
+        tool_name: 工具名称
+        label: 显示标签
+        shelf_file_path: .shelf 文件路径
+
+    Returns:
+        True 成功，False 失败。
+    """
+    if not tool_name or not _VALID_TOOL_NAME_RE.match(tool_name):
+        logger.error("Invalid tool name: %s", tool_name)
+        return False
+
+    if not code.strip():
+        logger.error("Code cannot be empty")
+        return False
+
+    try:
+        # 确保目录存在
+        os.makedirs(os.path.dirname(shelf_file_path), exist_ok=True)
+
+        # 读取现有内容（如果文件存在）
+        existing_content = ""
+        if os.path.isfile(shelf_file_path):
+            with open(shelf_file_path, 'r', encoding='utf-8') as f:
+                existing_content = f.read()
+
+        # 构建 tool XML
+        # 对代码进行 XML 转义
+        import html
+        escaped_code = html.escape(code)
+
+        tool_xml = f'''  <tool name="{tool_name}" label="{label}">
+    <script scriptType="python"><![CDATA[{code}]]></script>
+  </tool>'''
+
+        if existing_content:
+            # 在 </shelfDocument> 之前插入新 tool
+            if '</shelfDocument>' in existing_content:
+                # 移除现有的 toolshelf 包装（如果有）
+                toolshelf_re = re.compile(
+                    r'\s*<toolshelf\s+name="[^"]*"[^>]*>.*?</toolshelf>\s*',
+                    re.DOTALL,
+                )
+                clean_content = toolshelf_re.sub('', existing_content)
+
+                # 在 </shelfDocument> 之前插入新 tool
+                new_content = clean_content.replace(
+                    '</shelfDocument>',
+                    f'{tool_xml}\n</shelfDocument>'
+                )
+
+                # 重新添加 toolshelf 包装
+                shelf_stem = os.path.splitext(os.path.basename(shelf_file_path))[0]
+                toolshelf_xml = f'\n  <toolshelf name="{shelf_stem}" label="{shelf_stem}">\n    <memberTool name="{tool_name}"/>\n  </toolshelf>\n'
+                new_content = new_content.replace(
+                    '</shelfDocument>',
+                    f'{toolshelf_xml}</shelfDocument>'
+                )
+            else:
+                # 没有 </shelfDocument>，创建新的 shelf 文件
+                new_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<shelfDocument>
+{tool_xml}
+  <toolshelf name="{os.path.splitext(os.path.basename(shelf_file_path))[0]}" label="{os.path.splitext(os.path.basename(shelf_file_path))[0]}">
+    <memberTool name="{tool_name}"/>
+  </toolshelf>
+</shelfDocument>'''
+        else:
+            # 创建新的 shelf 文件
+            shelf_stem = os.path.splitext(os.path.basename(shelf_file_path))[0]
+            new_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<shelfDocument>
+{tool_xml}
+  <toolshelf name="{shelf_stem}" label="{shelf_stem}">
+    <memberTool name="{tool_name}"/>
+  </toolshelf>
+</shelfDocument>'''
+
+        _atomic_write(shelf_file_path, new_content)
+
+        logger.info(
+            "Saved code tool '%s' to %s",
+            tool_name, shelf_file_path,
+        )
+        return True
+    except Exception as e:
+        logger.error("Failed to save code tool '%s' to %s: %s", tool_name, shelf_file_path, e)
         return False
