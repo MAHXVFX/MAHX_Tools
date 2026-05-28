@@ -3,7 +3,7 @@
 import os
 import logging
 
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtWidgets, QtGui, QtCore
 
 try:
     import hou
@@ -22,6 +22,17 @@ from MA.shelf_tool_pro.thumbnail_widget import ThumbnailWidget
 _logger = logging.getLogger("MA")
 
 _DEFAULT_SIZE = 130
+
+# 彩虹背景色（用于区分不同 shelf 文件的工具）
+# 每个颜色包含：(背景色, 边框色)
+_SHELF_COLORS = [
+    ("#7A1520", "#E84040"),  # 红
+    ("#8A3000", "#FF6B2B"),  # 橙
+    ("#9A7000", "#FFD540"),  # 黄
+    ("#1A6B45", "#40D98B"),  # 绿
+    ("#103F7A", "#3B8DEE"),  # 蓝
+    ("#402058", "#9B6BB0"),  # 紫
+]
 
 
 def load_thumb_size():
@@ -238,15 +249,35 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         cols = self._calc_grid_cols(avail, size)
         self._thumb_widgets = []
 
+        # 收集所有唯一的 shelf_stem 并分配颜色
+        shelf_stems = []
+        for unique_id in tool_names:
+            if unique_id in tool_registry:
+                shelf_stem = tool_registry[unique_id][0]
+            else:
+                shelf_stem = unique_id.split("_", 1)[0] if "_" in unique_id else "default"
+            if shelf_stem not in shelf_stems:
+                shelf_stems.append(shelf_stem)
+
+        # 为每个 shelf_stem 分配颜色
+        shelf_color_map = {}
+        for i, stem in enumerate(shelf_stems):
+            shelf_color_map[stem] = _SHELF_COLORS[i % len(_SHELF_COLORS)]
+
         for idx, unique_id in enumerate(tool_names):
             if unique_id in tool_registry:
-                _, _, label, icon, _ = tool_registry[unique_id]
+                shelf_stem, _, label, icon, _ = tool_registry[unique_id]
                 display_name = label
             else:
                 display_name = unique_id.split("_", 1)[-1]
                 icon = ""
+                shelf_stem = unique_id.split("_", 1)[0] if "_" in unique_id else "default"
 
-            tw = ThumbnailWidget(unique_id, display_name, size, icon_path=icon)
+            # 获取该 shelf 对应的颜色（背景色, 边框色）
+            bg_color, border_color = shelf_color_map.get(shelf_stem, _SHELF_COLORS[0])
+
+            tw = ThumbnailWidget(unique_id, display_name, size, icon_path=icon, 
+                                 bg_color=bg_color, border_color=border_color)
             self._thumb_widgets.append(tw)
             layout.addWidget(tw, idx // cols, idx % cols)
 
@@ -350,8 +381,22 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             f"border-radius: 4px; padding: 3px 8px; font-size: 11px; }} "
             f"QComboBox::drop-down {{ border: none; }} "
             f"QComboBox QAbstractItemView {{ background-color: {BG_INPUT}; color: white; "
-            f"selection-background-color: #0d6399; }}")
+            f"selection-background-color: #0d6399; outline: none; }} "
+            f"QComboBox QAbstractItemView::item {{ padding: 4px 8px; }}")
         self.filter_combo.setCursor(QtCore.Qt.PointingHandCursor)
+        
+        # 设置自定义委托以支持背景色
+        class ColorDelegate(QtWidgets.QStyledItemDelegate):
+            def paint(self, painter, option, index):
+                bg_color = index.data(QtCore.Qt.BackgroundRole)
+                if bg_color and bg_color.isValid():
+                    painter.fillRect(option.rect, bg_color)
+                    # 设置文字颜色为白色
+                    option.palette.setColor(QtGui.QPalette.ColorRole.Text, QtGui.QColor("white"))
+                super().paint(painter, option, index)
+        
+        self._filter_delegate = ColorDelegate()
+        self.filter_combo.setItemDelegate(self._filter_delegate)
         self._populate_filter_combo(restore_filter=True)
         self.filter_combo.currentIndexChanged.connect(self._on_filter_changed)
         layout.addWidget(self.filter_combo)
@@ -595,14 +640,20 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         # ItemData values: 'all' or shelf_stem string
         self.filter_combo.addItem("全部", userData="all")
 
-        # 收集唯一的 shelf 名称
+        # 收集唯一的 shelf 名称并分配颜色
         shelf_names = set()
         for uid, info in _TOOL_REGISTRY.items():
             shelf_stem = info[0]  # (shelf_stem, tool_name, label, icon, shelf_path)
             shelf_names.add(shelf_stem)
 
-        for name in sorted(shelf_names):
+        sorted_names = sorted(shelf_names)
+        for i, name in enumerate(sorted_names):
             self.filter_combo.addItem(name, userData=name)
+            # 设置背景色和文字颜色
+            bg_color, border_color = _SHELF_COLORS[i % len(_SHELF_COLORS)]
+            index = self.filter_combo.count() - 1
+            self.filter_combo.setItemData(index, QtGui.QColor(bg_color), QtCore.Qt.BackgroundRole)
+            self.filter_combo.setItemData(index, QtGui.QColor(TEXT_PRIMARY), QtCore.Qt.ForegroundRole)
 
         # 确定要恢复的筛选项
         if restore_filter:

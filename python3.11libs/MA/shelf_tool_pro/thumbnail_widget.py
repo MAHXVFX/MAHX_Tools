@@ -25,7 +25,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
     _NOTES_PANEL_HEIGHT = 600
     _NOTES_HIDE_DELAY = 100  # 鼠标离开备注面板后的延迟隐藏时间（ms）
 
-    def __init__(self, unique_id, display_name, size, parent=None, icon_path=""):
+    def __init__(self, unique_id, display_name, size, parent=None, icon_path="", bg_color="", border_color=""):
         super().__init__(parent)
         self._unique_id = unique_id
         self._display_name = display_name
@@ -33,6 +33,8 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._size = 0
         self._notes_timer_id = None
         self._icon_path = icon_path
+        self._bg_color = bg_color
+        self._border_color = border_color
         self._rendered_pixmap = None
         self._movie = None        # QMovie 实例（GIF 动画）
         self._movie_path = ""     # 当前 GIF 文件路径（用于对比更改）
@@ -67,9 +69,10 @@ class ThumbnailWidget(QtWidgets.QWidget):
         
         layout.addWidget(self.image_container)
 
+        # 名称标签（带背景色）
         self.name_label = QtWidgets.QLabel(display_name)
         self.name_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.name_label.setStyleSheet(f"color: {TEXT_SECONDARY}; background-color: transparent;")
+        self._update_name_label_style()
         layout.addWidget(self.name_label)
 
         self.setToolTip(display_name)
@@ -85,6 +88,21 @@ class ThumbnailWidget(QtWidgets.QWidget):
             self.favorite_star.show()
         else:
             self.favorite_star.hide()
+
+    def _update_name_label_style(self):
+        """更新名称标签样式（带背景色）。"""
+        if self._bg_color and self._border_color:
+            # 半透明背景 + 边框
+            self.name_label.setStyleSheet(
+                f"color: {TEXT_SECONDARY}; "
+                f"background-color: {self._bg_color}; "
+                f"border: 2px solid {self._border_color}; "
+                f"border-radius: 4px; "
+                f"padding: 2px 8px; "
+                f"font-weight: bold;"
+            )
+        else:
+            self.name_label.setStyleSheet(f"color: {TEXT_SECONDARY}; background-color: transparent; font-weight: bold;")
 
     def _on_toggle_favorite(self):
         """切换收藏状态并刷新面板。"""
