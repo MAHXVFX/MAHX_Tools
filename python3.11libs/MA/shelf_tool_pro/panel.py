@@ -10,7 +10,7 @@ try:
 except ImportError:
     hou = None
 
-from MA.common import ShelfToolsSettingsManager
+from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
 from MA.common.animation_helper import elastic_resize
 from MA.shelf_tool_pro.styles import (
     BG_PRIMARY, BG_SECONDARY, BG_INPUT, TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR,
@@ -578,7 +578,6 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.tag_filter_combo.addItem("★ 收藏", userData="favorites")
 
         # 从缓存获取所有唯一标签
-        from MA.common.settings import ShelfToolsCacheManager
         all_tags = ShelfToolsCacheManager.get_all_tags()
 
         for tag in all_tags:
@@ -616,7 +615,6 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             filtered_names = [uid for uid in filtered_names if uid in favorites]
         elif tag_data != "all":
             # 标签筛选
-            from MA.common.settings import ShelfToolsCacheManager
             filtered_names = [
                 uid for uid in filtered_names
                 if tag_data in ShelfToolsCacheManager.get_tags(uid)

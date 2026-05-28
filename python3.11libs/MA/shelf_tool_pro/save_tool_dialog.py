@@ -37,6 +37,7 @@ def _toolbar_dir() -> str:
 
 
 from MA.shelf_tool_pro.shelf_saver import _VALID_TOOL_NAME_RE as _TOOL_NAME_REGEX
+from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
 
 # ── 样式常量 ──────────────────────────────────
 
@@ -162,6 +163,11 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         self._tool_name = tool_name  # edit 模式用原始名（不 strip，保留空格）
         self._preview_movie = None   # 预览 GIF 动画
         self._shelf_file_items: list[tuple[str, str]] = []  # (显示名, 完整路径)
+        
+        # 保存原始值用于变更检测（编辑模式）
+        self._original_tool_name = tool_name
+        self._original_label = label
+        self._original_icon_path = icon_path
 
         title = "编辑工具" if mode == "edit" else "保存工具"
         self.setWindowTitle(title)
@@ -377,6 +383,7 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         """清除自定义图标，恢复默认。"""
         self._icon_path = ""
         self._update_thumb_preview()
+        self._validate_inputs()
 
     # ── 对话框关闭时清理 GIF ──────────────────────
 
@@ -417,6 +424,7 @@ class ToolSettingsDialog(QtWidgets.QDialog):
 
     def _connect_signals(self) -> None:
         self._name_input.textChanged.connect(self._validate_inputs)
+        self._label_input.textChanged.connect(self._validate_inputs)
         if self._mode == "create":
             self._shelf_name_edit.textChanged.connect(
                 lambda: self._validate_inputs()
@@ -437,8 +445,6 @@ class ToolSettingsDialog(QtWidgets.QDialog):
             valid = False
         else:
             # 检查同 shelf 中是否已存在同名工具
-            from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
-            
             # 确定目标 shelf 文件
             if self._mode == "create":
                 shelf_name = self._shelf_name_edit.text().strip()
@@ -468,8 +474,34 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         # Shelf file validation（create mode only）
         if valid and self._mode == "create":
             valid = bool(self._shelf_name_edit.text().strip())
+        
+        # 编辑模式下，检查是否有变更
+        if valid and self._mode == "edit":
+            has_changes = self._has_changes()
+            valid = has_changes
 
         self._save_btn.setEnabled(valid)
+    
+    def _has_changes(self) -> bool:
+        """检查编辑模式下是否有变更。"""
+        if self._mode != "edit":
+            return True
+        
+        # 检查名称是否变化
+        current_name = self._name_input.text().strip()
+        if current_name != self._original_tool_name:
+            return True
+        
+        # 检查显示名称是否变化
+        current_label = self._label_input.text().strip()
+        if current_label != self._original_label:
+            return True
+        
+        # 检查图标是否变化
+        if self._icon_path != self._original_icon_path:
+            return True
+        
+        return False
 
     # ── Slot: 浏览图标 ───────────────────────────
 
@@ -484,6 +516,7 @@ class ToolSettingsDialog(QtWidgets.QDialog):
             return
         self._icon_path = file_path
         self._update_thumb_preview()
+        self._validate_inputs()
 
     def _update_thumb_preview(self) -> None:
         """更新缩略图预览区域：GIF 持续播放，静态图固定显示。"""

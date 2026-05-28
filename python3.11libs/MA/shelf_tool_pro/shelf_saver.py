@@ -430,6 +430,45 @@ def remove_tool_from_shelf(tool_name: str, shelf_file_path: str) -> bool:
         return False
 
 
+def _read_and_match_tool(shelf_file: str, tool_name: str) -> tuple[str, re.Match] | None:
+    """读取 .shelf 文件并匹配指定工具。
+
+    Args:
+        shelf_file: .shelf 文件路径
+        tool_name: 工具名称
+
+    Returns:
+        (content, match) 元组，未找到返回 None。
+    """
+    if not os.path.isfile(shelf_file):
+        return None
+
+    try:
+        with open(shelf_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # 匹配 <tool name="xxx" ...> 开始标签（捕获完整标签内容）
+        pattern = re.compile(
+            r'(<tool\s+name="' + re.escape(tool_name) + r'"[^>]*?)>'
+        )
+        match = pattern.search(content)
+        if not match:
+            logger.warning("Tool '%s' not found in %s", tool_name, shelf_file)
+            return None
+
+        return content, match
+    except Exception as e:
+        logger.error("Failed to read shelf file %s: %s", shelf_file, e)
+        return None
+
+
+def _update_label_in_tag(tag: str, new_label: str) -> str:
+    """更新标签中的 label 属性。"""
+    if re.search(r'label="[^"]*"', tag):
+        return re.sub(r'label="[^"]*"', f'label="{new_label}"', tag)
+    return tag + f' label="{new_label}"'
+
+
 def update_tool_in_shelf(
     shelf_file: str,
     tool_name: str,
@@ -448,29 +487,17 @@ def update_tool_in_shelf(
     Returns:
         True 成功，False 未找到或写入失败。
     """
-    if not os.path.isfile(shelf_file):
+    result = _read_and_match_tool(shelf_file, tool_name)
+    if result is None:
         return False
 
+    content, match = result
+
     try:
-        with open(shelf_file, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        # 匹配 <tool name="xxx" ...> 开始标签
-        pattern = re.compile(
-            r'(<tool\s+name="' + re.escape(tool_name) + r'"[^>]*?)>'
-        )
-        match = pattern.search(content)
-        if not match:
-            logger.warning("Tool '%s' not found in %s", tool_name, shelf_file)
-            return False
-
         tag = match.group(1)
         # 替换 label 属性
         if new_label is not None:
-            if re.search(r'label="[^"]*"', tag):
-                tag = re.sub(r'label="[^"]*"', f'label="{new_label}"', tag)
-            else:
-                tag += f' label="{new_label}"'
+            tag = _update_label_in_tag(tag, new_label)
         new_content = content[:match.start()] + tag + '>' + content[match.end():]
 
         _atomic_write(shelf_file, new_content)
@@ -502,37 +529,24 @@ def rename_tool_in_shelf(
     Returns:
         True 成功，False 未找到或写入失败。
     """
-    if not os.path.isfile(shelf_file):
+    result = _read_and_match_tool(shelf_file, old_name)
+    if result is None:
         return False
 
+    content, match = result
+
     try:
-        with open(shelf_file, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        # 匹配 <tool name="xxx" ...> 开始标签
-        pattern = re.compile(
-            r'(<tool\s+name=")' + re.escape(old_name) + r'"([^>]*?)>'
-        )
-        match = pattern.search(content)
-        if not match:
-            logger.warning("Tool '%s' not found in %s", old_name, shelf_file)
-            return False
-
         # 构建新的标签
-        prefix = match.group(1)  # '<tool name="'
-        attrs = match.group(2)   # 其他属性
+        tag = match.group(1)  # '<tool name="xxx" ...'
         
         # 替换 name
-        new_tag = prefix + new_name + '"' + attrs
+        tag = re.sub(r'name="[^"]*"', f'name="{new_name}"', tag)
         
         # 替换 label 属性
         if new_label is not None:
-            if re.search(r'label="[^"]*"', new_tag):
-                new_tag = re.sub(r'label="[^"]*"', f'label="{new_label}"', new_tag)
-            else:
-                new_tag += f' label="{new_label}"'
+            tag = _update_label_in_tag(tag, new_label)
         
-        new_content = content[:match.start()] + new_tag + '>' + content[match.end():]
+        new_content = content[:match.start()] + tag + '>' + content[match.end():]
 
         _atomic_write(shelf_file, new_content)
 
