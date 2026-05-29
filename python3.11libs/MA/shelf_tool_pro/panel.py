@@ -294,17 +294,8 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         # Re-import to bind locally updated _TOOL_NAMES / _TOOL_REGISTRY
         from MA.shelf_tool_pro.shelf_loader import _TOOL_NAMES, _TOOL_REGISTRY
 
-        # 获取当前筛选状态
-        current_filter = self.filter_combo.itemData(self.filter_combo.currentIndex())
-
-        # 根据筛选条件获取工具列表
-        if current_filter == "all":
-            filtered_names = list(_TOOL_NAMES)
-        elif current_filter == "favorites":
-            filtered_names = [uid for uid in ShelfToolsSettingsManager.get_favorites() if uid in _TOOL_REGISTRY]
-        else:
-            shelf_name = current_filter
-            filtered_names = [uid for uid in _TOOL_NAMES if uid in _TOOL_REGISTRY and _TOOL_REGISTRY[uid][0] == shelf_name]
+        # 复用统一的筛选逻辑（包含 shelf、标签、搜索三层筛选）
+        filtered_names = self._get_filtered_tool_names()
 
         size = self.thumb_slider.value()
 
@@ -740,6 +731,24 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         """筛选项变化时触发。"""
         self._apply_filter()
 
+    def _parse_search_query(self, text: str) -> tuple:
+        """解析搜索文本，返回 (mode, query)。
+
+        mode: "label" | "tag" | "name" | "shelf"
+        query: 搜索内容
+        """
+        text = text.strip()
+        if not text:
+            return ("label", "")
+
+        for prefix in ("tag:", "name:", "shelf:"):
+            if text.lower().startswith(prefix):
+                query = text[len(prefix):].strip()
+                mode = prefix[:-1]
+                return (mode, query)
+
+        return ("label", text)
+
     def _get_filtered_tool_names(self):
         """根据当前筛选项返回工具名列表。"""
         data = self.filter_combo.itemData(self.filter_combo.currentIndex())
@@ -764,6 +773,33 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                 uid for uid in filtered_names
                 if tag_data in ShelfToolsCacheManager.get_tags(uid)
             ]
+
+        # Layer 3: 搜索文本筛选（叠加/交集）
+        search_text = self.search_input.text().strip()
+        if search_text:
+            mode, query = self._parse_search_query(search_text)
+            if query:
+                query_lower = query.lower()
+                if mode == "tag":
+                    filtered_names = [
+                        uid for uid in filtered_names
+                        if any(query_lower in tag.lower() for tag in ShelfToolsCacheManager.get_tags(uid))
+                    ]
+                elif mode == "name":
+                    filtered_names = [
+                        uid for uid in filtered_names
+                        if uid in _TOOL_REGISTRY and query_lower in _TOOL_REGISTRY[uid][1].lower()
+                    ]
+                elif mode == "shelf":
+                    filtered_names = [
+                        uid for uid in filtered_names
+                        if uid in _TOOL_REGISTRY and query_lower in _TOOL_REGISTRY[uid][0].lower()
+                    ]
+                else:  # label（默认）
+                    filtered_names = [
+                        uid for uid in filtered_names
+                        if uid in _TOOL_REGISTRY and query_lower in _TOOL_REGISTRY[uid][2].lower()
+                    ]
 
         return filtered_names
 
