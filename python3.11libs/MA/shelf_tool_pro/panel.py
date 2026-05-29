@@ -14,6 +14,7 @@ from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
 from MA.common.animation_helper import elastic_resize
 from MA.shelf_tool_pro.styles import (
     BG_PRIMARY, BG_SECONDARY, BG_INPUT, TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR,
+    ACCENT_BLUE,
     SETTINGS_BUTTON_STYLE, THUMB_SLIDER_STYLE,
 )
 from MA.shelf_tool_pro.shelf_loader import _TOOL_NAMES, _TOOL_REGISTRY
@@ -368,8 +369,22 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
         layout.addSpacing(10)
 
+        # ── 搜索框 ──────────────────────────────────
+        self.search_input = QtWidgets.QLineEdit()
+        self.search_input.setPlaceholderText("搜索...")
+        self.search_input.setClearButtonEnabled(True)
+        self.search_input.setFixedWidth(150)
+        self.search_input.setStyleSheet(
+            f"QLineEdit {{ background-color: {BG_INPUT}; color: {TEXT_PRIMARY}; "
+            f"border: 1px solid {BORDER_COLOR}; border-radius: 4px; "
+            f"padding: 4px 8px; font-size: 11px; }}"
+            f"QLineEdit:focus {{ border-color: {ACCENT_BLUE}; }}"
+        )
+        layout.addWidget(self.search_input)
+        layout.addSpacing(10)
+
         # 筛选下拉菜单
-        filter_lbl = QtWidgets.QLabel("筛选")
+        filter_lbl = QtWidgets.QLabel("shelf")
         filter_lbl.setStyleSheet(
             f"color: {TEXT_SECONDARY}; font-size: 13px; font-weight: bold; background-color: transparent;")
         layout.addWidget(filter_lbl)
@@ -438,6 +453,14 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         layout.addWidget(self.tag_filter_combo)
 
         layout.addStretch()
+
+        # 搜索去抖定时器
+        self._search_timer = QtCore.QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(500)
+        self._search_timer.timeout.connect(self._apply_filter)
+        self.search_input.textChanged.connect(lambda: self._search_timer.start())
+
         return layout
 
     def _create_settings_panel(self):
