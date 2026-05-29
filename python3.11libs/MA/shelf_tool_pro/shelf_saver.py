@@ -605,50 +605,30 @@ def save_code_to_shelf(
             with open(shelf_file_path, 'r', encoding='utf-8') as f:
                 existing_content = f.read()
 
-        # 构建 tool XML
-        # 对代码进行 XML 转义
-        import html
-        escaped_code = html.escape(code)
-
+        # 构建 tool XML（使用 CDATA 包装代码，无需转义）
         tool_xml = f'''  <tool name="{tool_name}" label="{label}">
     <script scriptType="python"><![CDATA[{code}]]></script>
   </tool>'''
 
-        if existing_content:
-            # 在 </shelfDocument> 之前插入新 tool
-            if '</shelfDocument>' in existing_content:
-                # 移除现有的 toolshelf 包装（如果有）
-                toolshelf_re = re.compile(
-                    r'\s*<toolshelf\s+name="[^"]*"[^>]*>.*?</toolshelf>\s*',
-                    re.DOTALL,
-                )
-                clean_content = toolshelf_re.sub('', existing_content)
+        shelf_stem = os.path.splitext(os.path.basename(shelf_file_path))[0]
+        
+        if existing_content and '</shelfDocument>' in existing_content:
+            # 在现有文件中插入新 tool
+            # 移除现有的 toolshelf 包装（如果有）
+            toolshelf_re = re.compile(
+                r'\s*<toolshelf\s+name="[^"]*"[^>]*>.*?</toolshelf>\s*',
+                re.DOTALL,
+            )
+            clean_content = toolshelf_re.sub('', existing_content)
 
-                # 在 </shelfDocument> 之前插入新 tool
-                new_content = clean_content.replace(
-                    '</shelfDocument>',
-                    f'{tool_xml}\n</shelfDocument>'
-                )
-
-                # 重新添加 toolshelf 包装
-                shelf_stem = os.path.splitext(os.path.basename(shelf_file_path))[0]
-                toolshelf_xml = f'\n  <toolshelf name="{shelf_stem}" label="{shelf_stem}">\n    <memberTool name="{tool_name}"/>\n  </toolshelf>\n'
-                new_content = new_content.replace(
-                    '</shelfDocument>',
-                    f'{toolshelf_xml}</shelfDocument>'
-                )
-            else:
-                # 没有 </shelfDocument>，创建新的 shelf 文件
-                new_content = f'''<?xml version="1.0" encoding="UTF-8"?>
-<shelfDocument>
-{tool_xml}
-  <toolshelf name="{os.path.splitext(os.path.basename(shelf_file_path))[0]}" label="{os.path.splitext(os.path.basename(shelf_file_path))[0]}">
-    <memberTool name="{tool_name}"/>
-  </toolshelf>
-</shelfDocument>'''
+            # 在 </shelfDocument> 之前插入新 tool 和 toolshelf
+            toolshelf_xml = f'\n  <toolshelf name="{shelf_stem}" label="{shelf_stem}">\n    <memberTool name="{tool_name}"/>\n  </toolshelf>\n'
+            new_content = clean_content.replace(
+                '</shelfDocument>',
+                f'{tool_xml}\n{toolshelf_xml}</shelfDocument>'
+            )
         else:
             # 创建新的 shelf 文件
-            shelf_stem = os.path.splitext(os.path.basename(shelf_file_path))[0]
             new_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <shelfDocument>
 {tool_xml}

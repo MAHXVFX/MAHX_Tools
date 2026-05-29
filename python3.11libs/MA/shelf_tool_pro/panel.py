@@ -41,6 +41,19 @@ def load_thumb_size():
     return max(70, min(250, data.get("thumb_size", _DEFAULT_SIZE)))
 
 
+def _get_shelf_color_map():
+    """获取统一的 shelf 颜色映射（确保所有地方使用相同的映射）。"""
+    shelf_names = set()
+    for uid, info in _TOOL_REGISTRY.items():
+        shelf_names.add(info[0])  # shelf_stem
+    
+    color_map = {}
+    for i, name in enumerate(sorted(shelf_names)):
+        color_map[name] = _SHELF_COLORS[i % len(_SHELF_COLORS)]
+    
+    return color_map
+
+
 def save_thumb_size(value):
     """保存缩略图大小到缓存。"""
     ShelfToolsSettingsManager.update("thumb_size", value)
@@ -249,20 +262,8 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         cols = self._calc_grid_cols(avail, size)
         self._thumb_widgets = []
 
-        # 收集所有唯一的 shelf_stem 并分配颜色
-        shelf_stems = []
-        for unique_id in tool_names:
-            if unique_id in tool_registry:
-                shelf_stem = tool_registry[unique_id][0]
-            else:
-                shelf_stem = unique_id.split("_", 1)[0] if "_" in unique_id else "default"
-            if shelf_stem not in shelf_stems:
-                shelf_stems.append(shelf_stem)
-
-        # 为每个 shelf_stem 分配颜色
-        shelf_color_map = {}
-        for i, stem in enumerate(shelf_stems):
-            shelf_color_map[stem] = _SHELF_COLORS[i % len(_SHELF_COLORS)]
+        # 获取统一的 shelf 颜色映射
+        shelf_color_map = _get_shelf_color_map()
 
         for idx, unique_id in enumerate(tool_names):
             if unique_id in tool_registry:
@@ -382,18 +383,32 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             f"QComboBox::drop-down {{ border: none; }} "
             f"QComboBox QAbstractItemView {{ background-color: {BG_INPUT}; color: white; "
             f"selection-background-color: #0d6399; outline: none; }} "
-            f"QComboBox QAbstractItemView::item {{ padding: 4px 8px; }}")
+            f"QComboBox QAbstractItemView::item {{ padding: 4px 8px 4px 24px; }}")
         self.filter_combo.setCursor(QtCore.Qt.PointingHandCursor)
         
-        # 设置自定义委托以支持背景色
+        # 设置自定义委托以支持背景色（只在文字前方显示小色块）
         class ColorDelegate(QtWidgets.QStyledItemDelegate):
             def paint(self, painter, option, index):
                 bg_color = index.data(QtCore.Qt.BackgroundRole)
-                if bg_color and bg_color.isValid():
-                    painter.fillRect(option.rect, bg_color)
-                    # 设置文字颜色为白色
-                    option.palette.setColor(QtGui.QPalette.ColorRole.Text, QtGui.QColor("white"))
+                
+                # 绘制默认背景（选中状态等）
                 super().paint(painter, option, index)
+                
+                # 如果有自定义颜色，在文字前方绘制小色块
+                if bg_color and bg_color.isValid():
+                    painter.save()
+                    painter.setRenderHint(QtGui.QPainter.Antialiasing)
+                    painter.setBrush(bg_color)
+                    painter.setPen(QtCore.Qt.NoPen)
+                    
+                    # 绘制圆角矩形色块
+                    block_width = 12
+                    block_height = 12
+                    x = option.rect.left() + 4
+                    y = option.rect.top() + (option.rect.height() - block_height) // 2
+                    painter.drawRoundedRect(x, y, block_width, block_height, 3, 3)
+                    
+                    painter.restore()
         
         self._filter_delegate = ColorDelegate()
         self.filter_combo.setItemDelegate(self._filter_delegate)
@@ -640,17 +655,13 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         # ItemData values: 'all' or shelf_stem string
         self.filter_combo.addItem("全部", userData="all")
 
-        # 收集唯一的 shelf 名称并分配颜色
-        shelf_names = set()
-        for uid, info in _TOOL_REGISTRY.items():
-            shelf_stem = info[0]  # (shelf_stem, tool_name, label, icon, shelf_path)
-            shelf_names.add(shelf_stem)
+        # 获取统一的 shelf 颜色映射
+        shelf_color_map = _get_shelf_color_map()
 
-        sorted_names = sorted(shelf_names)
-        for i, name in enumerate(sorted_names):
+        for name in sorted(shelf_color_map.keys()):
             self.filter_combo.addItem(name, userData=name)
             # 设置背景色和文字颜色
-            bg_color, border_color = _SHELF_COLORS[i % len(_SHELF_COLORS)]
+            bg_color, border_color = shelf_color_map[name]
             index = self.filter_combo.count() - 1
             self.filter_combo.setItemData(index, QtGui.QColor(bg_color), QtCore.Qt.BackgroundRole)
             self.filter_combo.setItemData(index, QtGui.QColor(TEXT_PRIMARY), QtCore.Qt.ForegroundRole)

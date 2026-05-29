@@ -19,6 +19,15 @@ from MA.shelf_tool_pro.styles import (
     TEXT_PRIMARY,
     TEXT_SECONDARY,
     BORDER_COLOR,
+    GROUPBOX_STYLE,
+    INPUT_STYLE,
+    INPUT_INVALID_STYLE,
+    DROPDOWN_BTN_STYLE,
+    INPUT_CONTAINER_STYLE,
+    SUFFIX_STYLE,
+    SAVE_BUTTON_STYLE,
+    CANCEL_BUTTON_STYLE,
+    THUMB_BG,
 )
 from MA.shelf_tool_pro.python_code_editor import PythonCodeEdit
 
@@ -36,86 +45,9 @@ def _toolbar_dir() -> str:
 
 from MA.shelf_tool_pro.shelf_saver import _VALID_TOOL_NAME_RE as _TOOL_NAME_REGEX
 
-# ── 样式常量 ──────────────────────────────────
+# ── 样式常量（使用 styles.py 中的统一定义） ──────
 
-_GROUPBOX_STYLE = (
-    f"QGroupBox {{"
-    f"  color: {TEXT_SECONDARY};"
-    f"  font-size: 12px;"
-    f"  border: 1px solid {BORDER_COLOR};"
-    f"  border-radius: 6px;"
-    f"  margin-top: 12px;"
-    f"  padding: 16px 12px 12px 12px;"
-    f"}}"
-    f"QGroupBox::title {{"
-    f"  subcontrol-origin: margin;"
-    f"  left: 12px;"
-    f"  padding: 0 4px;"
-    f"}}"
-)
-
-_INPUT_STYLE = (
-    f"QLineEdit {{"
-    f"  background-color: {BG_INPUT};"
-    f"  color: {TEXT_PRIMARY};"
-    f"  border: 1px solid {BORDER_COLOR};"
-    f"  border-radius: 4px;"
-    f"  padding: 6px;"
-    f"}}"
-    f"QLineEdit:focus {{ border-color: {ACCENT_BLUE}; }}"
-)
-
-_INPUT_INVALID_STYLE = (
-    f"QLineEdit {{"
-    f"  background-color: {BG_INPUT};"
-    f"  color: {TEXT_PRIMARY};"
-    f"  border: 1px solid #ef4444;"
-    f"  border-radius: 4px;"
-    f"  padding: 6px;"
-    f"}}"
-)
-
-_DROPDOWN_BTN_STYLE = (
-    f"background: transparent; border: none;"
-    f"color: {ACCENT_BLUE}; font-size: 14px; padding: 0 8px;"
-)
-
-_INPUT_CONTAINER_STYLE = (
-    f"background-color: {BG_INPUT};"
-    f"border: 1px solid {BORDER_COLOR}; border-radius: 4px;"
-)
-
-_SUFFIX_STYLE = "color: #666666; background: transparent; padding: 0 4px; font-size: 12px;"
-
-_SAVE_BUTTON_STYLE = (
-    f"QPushButton {{"
-    f"  background-color: {ACCENT_BLUE};"
-    f"  color: white;"
-    f"  border-radius: 6px;"
-    f"  padding: 8px 20px;"
-    f"}}"
-    f"QPushButton:hover {{ background-color: #0e77b8; }}"
-    f"QPushButton:disabled {{"
-    f"  background-color: #3a3a3a;"
-    f"  color: #666666;"
-    f"}}"
-)
-
-_CANCEL_BUTTON_STYLE = (
-    f"QPushButton {{"
-    f"  background-color: {BG_INPUT};"
-    f"  color: {TEXT_SECONDARY};"
-    f"  border: 1px solid {BORDER_COLOR};"
-    f"  border-radius: 6px;"
-    f"  padding: 8px 20px;"
-    f"}}"
-    f"QPushButton:hover {{"
-    f"  background-color: {BG_HOVER};"
-    f"  color: {TEXT_PRIMARY};"
-    f"}}"
-)
-
-_THUMB_BG = "#2d2d2d"
+_THUMB_BG = THUMB_BG
 
 
 def _make_thumb_pixmap(file_path: str, size: int = 100) -> QtGui.QPixmap:
@@ -167,7 +99,7 @@ class CreateToolDialog(QtWidgets.QDialog):
 
         # 代码编辑区域
         code_group = QtWidgets.QGroupBox("Python 代码")
-        code_group.setStyleSheet(_GROUPBOX_STYLE)
+        code_group.setStyleSheet(GROUPBOX_STYLE)
         code_layout = QtWidgets.QVBoxLayout(code_group)
         code_layout.setSpacing(8)
 
@@ -185,7 +117,7 @@ class CreateToolDialog(QtWidgets.QDialog):
 
         # 工具属性区域
         props_group = QtWidgets.QGroupBox("工具属性")
-        props_group.setStyleSheet(_GROUPBOX_STYLE)
+        props_group.setStyleSheet(GROUPBOX_STYLE)
         props_layout = QtWidgets.QVBoxLayout(props_group)
         props_layout.setSpacing(8)
 
@@ -199,7 +131,7 @@ class CreateToolDialog(QtWidgets.QDialog):
 
         self._name_input = QtWidgets.QLineEdit()
         self._name_input.setPlaceholderText("例如 my_custom_tool")
-        self._name_input.setStyleSheet(_INPUT_STYLE)
+        self._name_input.setStyleSheet(INPUT_STYLE)
         name_layout.addWidget(self._name_input)
 
         self._name_hint = QtWidgets.QLabel("")
@@ -219,7 +151,7 @@ class CreateToolDialog(QtWidgets.QDialog):
 
         self._label_input = QtWidgets.QLineEdit()
         self._label_input.setPlaceholderText("显示名称（支持中文）")
-        self._label_input.setStyleSheet(_INPUT_STYLE)
+        self._label_input.setStyleSheet(INPUT_STYLE)
         label_layout.addWidget(self._label_input)
 
         props_layout.addLayout(label_layout)
@@ -233,7 +165,7 @@ class CreateToolDialog(QtWidgets.QDialog):
         shelf_layout.addWidget(shelf_lbl)
 
         container = QtWidgets.QWidget()
-        container.setStyleSheet(_INPUT_CONTAINER_STYLE)
+        container.setStyleSheet(INPUT_CONTAINER_STYLE)
         h = QtWidgets.QHBoxLayout(container)
         h.setContentsMargins(8, 0, 0, 0)
         h.setSpacing(0)
@@ -245,12 +177,12 @@ class CreateToolDialog(QtWidgets.QDialog):
         )
 
         suffix_lbl = QtWidgets.QLabel(".shelf")
-        suffix_lbl.setStyleSheet(_SUFFIX_STYLE)
+        suffix_lbl.setStyleSheet(SUFFIX_STYLE)
 
         self._shelf_btn = QtWidgets.QPushButton("▾")
         self._shelf_btn.setFixedWidth(28)
         self._shelf_btn.setCursor(QtCore.Qt.PointingHandCursor)
-        self._shelf_btn.setStyleSheet(_DROPDOWN_BTN_STYLE)
+        self._shelf_btn.setStyleSheet(DROPDOWN_BTN_STYLE)
         self._shelf_btn.clicked.connect(self._show_shelf_menu)
 
         h.addWidget(self._shelf_name_edit)
@@ -295,12 +227,12 @@ class CreateToolDialog(QtWidgets.QDialog):
         self._create_btn = QtWidgets.QPushButton("创建")
         self._create_btn.setMinimumWidth(90)
         self._create_btn.setEnabled(False)
-        self._create_btn.setStyleSheet(_SAVE_BUTTON_STYLE)
+        self._create_btn.setStyleSheet(SAVE_BUTTON_STYLE)
         self._create_btn.clicked.connect(self._on_create)
 
         cancel_btn = QtWidgets.QPushButton("取消")
         cancel_btn.setMinimumWidth(90)
-        cancel_btn.setStyleSheet(_CANCEL_BUTTON_STYLE)
+        cancel_btn.setStyleSheet(CANCEL_BUTTON_STYLE)
         cancel_btn.clicked.connect(self.reject)
 
         btn_layout.addWidget(self._create_btn)
@@ -479,7 +411,7 @@ class CreateToolDialog(QtWidgets.QDialog):
 
         self._name_hint.setText(hint)
         self._name_input.setStyleSheet(
-            _INPUT_INVALID_STYLE if (name and hint) else _INPUT_STYLE
+            INPUT_INVALID_STYLE if (name and hint) else INPUT_STYLE
         )
 
         # 检查 shelf 文件
