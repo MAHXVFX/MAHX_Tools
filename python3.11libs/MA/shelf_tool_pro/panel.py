@@ -455,7 +455,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         # 用 QWidget 包裹，让 stretch 空间优先吸收收缩
         toolbar_widget = QtWidgets.QWidget()
         toolbar_widget.setLayout(layout)
-        toolbar_widget.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
+        toolbar_widget.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
         return toolbar_widget
 
     def _create_settings_panel(self):
