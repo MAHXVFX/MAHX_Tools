@@ -43,7 +43,7 @@ def _toolbar_dir() -> str:
     return os.path.join(_MA_TOOLS_DIR, "MAtoolbar")
 
 
-from MA.shelf_tool_pro.shelf_saver import _VALID_TOOL_NAME_RE as _TOOL_NAME_REGEX
+from MA.shelf_tool_pro.shelf_saver import _VALID_TOOL_NAME_RE as _TOOL_NAME_REGEX, validate_tool_name
 
 # ── 样式常量（使用 styles.py 中的统一定义） ──────
 
@@ -383,31 +383,33 @@ class CreateToolDialog(QtWidgets.QDialog):
         if not name:
             hint = "请输入工具名称"
             valid = False
-        elif not _TOOL_NAME_REGEX.match(name):
-            hint = "只允许字母、数字、下划线和空格"
-            valid = False
         else:
-            # 检查是否重名（同时检查已加载的注册表和 .shelf 文件）
-            from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
-            from MA.shelf_tool_pro.shelf_saver import check_name_conflict
-            shelf_name = self._shelf_name_edit.text().strip()
-            shelf_file = next(
-                (path for stem, path in self._shelf_file_items if stem == shelf_name),
-                os.path.join(_toolbar_dir(), shelf_name + ".shelf"),
-            )
-            
-            # 检查已加载的注册表
-            for uid, info in _TOOL_REGISTRY.items():
-                _, tool_name, _, _, reg_shelf_path = info
-                if tool_name == name and reg_shelf_path == shelf_file:
+            error = validate_tool_name(name)
+            if error:
+                hint = error
+                valid = False
+            else:
+                # 检查是否重名（同时检查已加载的注册表和 .shelf 文件）
+                from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
+                from MA.shelf_tool_pro.shelf_saver import check_name_conflict
+                shelf_name = self._shelf_name_edit.text().strip()
+                shelf_file = next(
+                    (path for stem, path in self._shelf_file_items if stem == shelf_name),
+                    os.path.join(_toolbar_dir(), shelf_name + ".shelf"),
+                )
+                
+                # 检查已加载的注册表
+                for uid, info in _TOOL_REGISTRY.items():
+                    _, tool_name, _, _, reg_shelf_path = info
+                    if tool_name == name and reg_shelf_path == shelf_file:
+                        hint = f"同名工具已存在于 {os.path.basename(shelf_file)}"
+                        valid = False
+                        break
+                
+                # 检查 .shelf 文件（防止未加载的工具）
+                if valid and check_name_conflict(name, shelf_file):
                     hint = f"同名工具已存在于 {os.path.basename(shelf_file)}"
                     valid = False
-                    break
-            
-            # 检查 .shelf 文件（防止未加载的工具）
-            if valid and check_name_conflict(name, shelf_file):
-                hint = f"同名工具已存在于 {os.path.basename(shelf_file)}"
-                valid = False
 
         self._name_hint.setText(hint)
         self._name_input.setStyleSheet(

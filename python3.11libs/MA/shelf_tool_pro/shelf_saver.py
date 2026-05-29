@@ -13,6 +13,21 @@ logger = logging.getLogger("MA")
 # 共享验证正则（save_tool_dialog.py 也引用）
 _VALID_TOOL_NAME_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_ ]*$')
 
+# 保留前缀（不允许工具名称以此开头）
+_RESERVED_PREFIXES = ("tag:", "name:", "shelf:")
+
+
+def validate_tool_name(name: str) -> str | None:
+    """验证工具名称，返回错误消息或 None。"""
+    if not name:
+        return "请输入工具名称"
+    if not _VALID_TOOL_NAME_RE.match(name):
+        return "只允许字母、数字、下划线和空格"
+    for prefix in _RESERVED_PREFIXES:
+        if name.lower().startswith(prefix):
+            return f"工具名称不能以保留前缀 '{prefix}' 开头"
+    return None
+
 
 def _atomic_write(file_path: str, content: str) -> None:
     """原子写入文件，避免 Windows 下 Houdini 占用导致的 Permission denied。"""

@@ -36,7 +36,7 @@ def _toolbar_dir() -> str:
     return os.path.join(_MA_TOOLS_DIR, "MAtoolbar")
 
 
-from MA.shelf_tool_pro.shelf_saver import _VALID_TOOL_NAME_RE as _TOOL_NAME_REGEX
+from MA.shelf_tool_pro.shelf_saver import _VALID_TOOL_NAME_RE as _TOOL_NAME_REGEX, validate_tool_name
 from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
 
 # ── 样式常量 ──────────────────────────────────
@@ -440,31 +440,33 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         if not name:
             hint = "请输入工具名称"
             valid = False
-        elif not _TOOL_NAME_REGEX.match(name):
-            hint = "只允许字母、数字和下划线和空格"
-            valid = False
         else:
-            # 检查同 shelf 中是否已存在同名工具
-            # 确定目标 shelf 文件
-            if self._mode == "create":
-                shelf_name = self._shelf_name_edit.text().strip()
-                shelf_file = next(
-                    (path for stem, path in self._shelf_file_items if stem == shelf_name),
-                    os.path.join(_toolbar_dir(), shelf_name + ".shelf"),
-                )
+            error = validate_tool_name(name)
+            if error:
+                hint = error
+                valid = False
             else:
-                shelf_file = self._shelf_file_path
-            
-            # 检查是否重名（编辑模式下排除自身）
-            for uid, info in _TOOL_REGISTRY.items():
-                shelf_stem, tool_name, _, _, reg_shelf_path = info
-                if tool_name == name and reg_shelf_path == shelf_file:
-                    # 编辑模式下，如果名称没变则允许
-                    if self._mode == "edit" and self._tool_name == name:
-                        continue
-                    hint = f"同名工具已存在于 {os.path.basename(shelf_file)}"
-                    valid = False
-                    break
+                # 检查同 shelf 中是否已存在同名工具
+                # 确定目标 shelf 文件
+                if self._mode == "create":
+                    shelf_name = self._shelf_name_edit.text().strip()
+                    shelf_file = next(
+                        (path for stem, path in self._shelf_file_items if stem == shelf_name),
+                        os.path.join(_toolbar_dir(), shelf_name + ".shelf"),
+                    )
+                else:
+                    shelf_file = self._shelf_file_path
+                
+                # 检查是否重名（编辑模式下排除自身）
+                for uid, info in _TOOL_REGISTRY.items():
+                    shelf_stem, tool_name, _, _, reg_shelf_path = info
+                    if tool_name == name and reg_shelf_path == shelf_file:
+                        # 编辑模式下，如果名称没变则允许
+                        if self._mode == "edit" and self._tool_name == name:
+                            continue
+                        hint = f"同名工具已存在于 {os.path.basename(shelf_file)}"
+                        valid = False
+                        break
 
         self._name_hint.setText(hint)
         self._name_input.setStyleSheet(
