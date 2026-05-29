@@ -81,7 +81,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        main_layout.addLayout(self._create_toolbar(init_size))
+        main_layout.addWidget(self._create_toolbar(init_size))
         main_layout.addWidget(self._create_settings_panel())
 
         sep = QtWidgets.QFrame()
@@ -452,7 +452,11 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self._search_timer.timeout.connect(self._apply_filter)
         self.search_input.textChanged.connect(lambda: self._search_timer.start())
 
-        return layout
+        # 用 QWidget 包裹，让 stretch 空间优先吸收收缩
+        toolbar_widget = QtWidgets.QWidget()
+        toolbar_widget.setLayout(layout)
+        toolbar_widget.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
+        return toolbar_widget
 
     def _create_settings_panel(self):
         self.settings_widget = QtWidgets.QWidget()
