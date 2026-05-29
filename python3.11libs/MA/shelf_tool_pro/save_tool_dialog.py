@@ -36,7 +36,7 @@ def _toolbar_dir() -> str:
     return os.path.join(_MA_TOOLS_DIR, "MAtoolbar")
 
 
-from MA.shelf_tool_pro.shelf_saver import _VALID_TOOL_NAME_RE as _TOOL_NAME_REGEX, validate_tool_name
+from MA.shelf_tool_pro.shelf_saver import validate_tool_name
 from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
 
 # ── 样式常量 ──────────────────────────────────

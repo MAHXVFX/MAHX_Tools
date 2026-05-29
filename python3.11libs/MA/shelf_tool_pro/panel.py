@@ -731,7 +731,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         """筛选项变化时触发。"""
         self._apply_filter()
 
-    def _parse_search_query(self, text: str) -> tuple:
+    def _parse_search_query(self, text: str) -> tuple[str, str]:
         """解析搜索文本，返回 (mode, query)。
 
         mode: "label" | "tag" | "name" | "shelf"
@@ -788,17 +788,17 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                 elif mode == "name":
                     filtered_names = [
                         uid for uid in filtered_names
-                        if uid in _TOOL_REGISTRY and query_lower in _TOOL_REGISTRY[uid][1].lower()
+                        if query_lower in _TOOL_REGISTRY[uid][1].lower()
                     ]
                 elif mode == "shelf":
                     filtered_names = [
                         uid for uid in filtered_names
-                        if uid in _TOOL_REGISTRY and query_lower in _TOOL_REGISTRY[uid][0].lower()
+                        if query_lower in _TOOL_REGISTRY[uid][0].lower()
                     ]
                 else:  # label（默认）
                     filtered_names = [
                         uid for uid in filtered_names
-                        if uid in _TOOL_REGISTRY and query_lower in _TOOL_REGISTRY[uid][2].lower()
+                        if query_lower in _TOOL_REGISTRY[uid][2].lower()
                     ]
 
         return filtered_names
