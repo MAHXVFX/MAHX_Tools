@@ -175,7 +175,7 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         self._original_icon_path = icon_path
         self._original_script_content = script_content
 
-        title = "编辑工具" if mode == "edit" else "保存工具"
+        title = "编辑工具" if mode == "edit" else "创建工具"
         self.setWindowTitle(title)
         self.setMinimumWidth(520)
         self.setMinimumHeight(400)
