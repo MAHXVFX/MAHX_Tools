@@ -15,6 +15,10 @@ from MA.shelf_tool_pro.markdown_text_edit import MarkdownTextEdit
 
 logger = logging.getLogger("MA")
 
+# ── 收藏图标（SVG，模块级只加载一次） ──────────────────────
+_FAVORITE_ICON_PATH = os.path.join(os.path.dirname(__file__), "icons", "favorite.svg")
+_FAVORITE_PIXMAP = QtGui.QPixmap(_FAVORITE_ICON_PATH) if os.path.isfile(_FAVORITE_ICON_PATH) else None
+
 class ThumbnailWidget(QtWidgets.QWidget):
     """单个工具的缩略图控件，支持点击执行、拖拽放置、右键菜单。"""
 
@@ -54,15 +58,13 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self.image_label.setStyleSheet("background-color: transparent;")
         self.image_label.setGeometry(0, 0, size + 2, size + 2)
         
-        # 收藏星标（叠加在缩略图右上角，手动定位）
+        # 收藏图标（叠加在缩略图右上角，手动定位）
         self.favorite_star = QtWidgets.QLabel(self.image_container)
-        self.favorite_star.setText("★")
         star_size = max(16, size // 5)
         self.favorite_star.setFixedSize(star_size, star_size)
         self.favorite_star.move(size + 2 - star_size - 2, 2)
         self.favorite_star.setAlignment(QtCore.Qt.AlignCenter)
-        self.favorite_star.setStyleSheet(
-            "color: #fbbf24; font-size: %dpx; font-weight: bold; background-color: transparent;" % max(12, size // 8))
+        self._update_favorite_icon(star_size)
         self.favorite_star.hide()  # 默认隐藏
         self.favorite_star.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
         self.favorite_star.raise_()  # 确保在最上层
@@ -83,11 +85,27 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._update_favorite_star()
 
     def _update_favorite_star(self):
-        """更新收藏星标显示状态和大小。"""
+        """更新收藏星标显示状态。"""
         if ShelfToolsSettingsManager.is_favorite(self._unique_id):
             self.favorite_star.show()
         else:
             self.favorite_star.hide()
+
+    def _update_favorite_icon(self, star_size):
+        """更新收藏图标（SVG 缩放到指定尺寸）。"""
+        if _FAVORITE_PIXMAP and not _FAVORITE_PIXMAP.isNull():
+            scaled = _FAVORITE_PIXMAP.scaled(
+                star_size, star_size,
+                QtCore.Qt.KeepAspectRatio,
+                QtCore.Qt.SmoothTransformation,
+            )
+            self.favorite_star.setPixmap(scaled)
+            self.favorite_star.setStyleSheet("background-color: transparent;")
+        else:
+            # SVG 加载失败，回退到文字
+            self.favorite_star.setText("★")
+            self.favorite_star.setStyleSheet(
+                f"color: #fbbf24; font-size: {star_size}px; font-weight: bold; background-color: transparent;")
 
     def _update_name_label_style(self):
         """更新名称标签样式（带背景色）。"""
@@ -187,8 +205,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         # 更新星标大小
         star_size = max(16, size // 5)
         self.favorite_star.setFixedSize(star_size, star_size)
-        self.favorite_star.setStyleSheet(
-            f"color: #fbbf24; font-size: {star_size}px; font-weight: bold; background-color: transparent;")
+        self._update_favorite_icon(star_size)
 
         self._render_thumbnail(size)
         self._update_favorite_star()
@@ -203,8 +220,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         star_size = max(16, size // 5)
         self.favorite_star.setFixedSize(star_size, star_size)
         self.favorite_star.move(size + 2 - star_size - 2, 2)
-        self.favorite_star.setStyleSheet(
-            f"color: #fbbf24; font-size: {star_size}px; font-weight: bold; background-color: transparent;")
+        self._update_favorite_icon(star_size)
         self.name_label.setFixedHeight(name_h)
         font = self.name_label.font()
         font.setPointSize(max(7, size // 16))
