@@ -494,14 +494,12 @@ class ThumbnailWidget(QtWidgets.QWidget):
         layout.addLayout(button_layout)
         
         # 定位：与备注面板一致，显示在缩略图右侧
-        dialog.hide()
         dialog.adjustSize()
         QtWidgets.QApplication.processEvents()
         hint = dialog.sizeHint()
         pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
         pos = self._clamp_to_screen(pos, hint.width(), hint.height())
         dialog.move(pos)
-        dialog.show()
         dialog.raise_()
         dialog.activateWindow()
         
@@ -553,15 +551,12 @@ class ThumbnailWidget(QtWidgets.QWidget):
             parent=self,
         )
         # 定位：与备注面板一致，显示在缩略图右侧
-        # 先隐藏、计算位置、再 show，避免闪烁
-        dialog.hide()
         dialog.adjustSize()
         QtWidgets.QApplication.processEvents()
         hint = dialog.sizeHint()
         pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
         pos = self._clamp_to_screen(pos, hint.width(), hint.height())
         dialog.move(pos)
-        dialog.show()
         dialog.raise_()
         dialog.activateWindow()
 
