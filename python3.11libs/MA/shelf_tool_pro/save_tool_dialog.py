@@ -202,7 +202,7 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         # 统一使用 QTabWidget 双标签页
         self._tab_widget = QtWidgets.QTabWidget()
         self._tab_widget.setStyleSheet(
-            f"QTabWidget::pane {{ border: 1px solid {BORDER_COLOR}; border-top: none; border-radius: 0 0 4px 4px; background-color: {BG_SECONDARY}; }}"
+            f"QTabWidget::pane {{ border: 1px solid {BORDER_COLOR}; border-radius: 0 0 4px 4px; background-color: {BG_SECONDARY}; }}"
             f"QTabBar::tab {{ background-color: {BG_PRIMARY}; color: {TEXT_SECONDARY}; "
             f"padding: 8px 20px; border: 1px solid {BORDER_COLOR}; border-bottom: none; "
             f"border-top-left-radius: 4px; border-top-right-radius: 4px; margin-right: -1px; }}"
