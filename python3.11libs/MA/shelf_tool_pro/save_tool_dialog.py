@@ -203,11 +203,13 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         self._tab_widget = QtWidgets.QTabWidget()
         self._tab_widget.setStyleSheet(
             f"QTabWidget::pane {{ border: 1px solid {BORDER_COLOR}; border-radius: 0 0 4px 4px; background-color: {BG_SECONDARY}; }}"
+            f"QTabBar {{ left: 8px; }}"
             f"QTabBar::tab {{ background-color: {BG_PRIMARY}; color: {TEXT_SECONDARY}; "
-            f"padding: 8px 20px; border: 1px solid {BORDER_COLOR}; border-bottom: none; "
-            f"border-top-left-radius: 4px; border-top-right-radius: 4px; margin-right: -1px; }}"
+            f"padding: 8px 20px; border: 1px solid {BORDER_COLOR}; "
+            f"border-top-left-radius: 4px; border-top-right-radius: 4px; margin-right: -1px; margin-bottom: -1px; }}"
+            f"QTabBar::tab:last {{ margin-right: 0; }}"
             f"QTabBar::tab:selected {{ background-color: {BG_SECONDARY}; color: {TEXT_PRIMARY}; "
-            f"border-top: 2px solid {ACCENT_BLUE}; border-bottom: 1px solid {BG_SECONDARY}; }}"
+            f"border-top: 2px solid {ACCENT_BLUE}; }}"
             f"QTabBar::tab:hover {{ background-color: {BG_HOVER}; color: {TEXT_PRIMARY}; }}"
         )
 
