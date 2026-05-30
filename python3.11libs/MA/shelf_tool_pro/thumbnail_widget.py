@@ -65,6 +65,12 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self.favorite_star.move(size + 2 - star_size - 2, 2)
         self.favorite_star.setAlignment(QtCore.Qt.AlignCenter)
         self._update_favorite_icon(star_size)
+        # 添加阴影效果，增加立体感
+        shadow = QtWidgets.QGraphicsDropShadowEffect(self.favorite_star)
+        shadow.setBlurRadius(6)
+        shadow.setOffset(1, 1)
+        shadow.setColor(QtGui.QColor(0, 0, 0, 120))
+        self.favorite_star.setGraphicsEffect(shadow)
         self.favorite_star.hide()  # 默认隐藏
         self.favorite_star.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
         self.favorite_star.raise_()  # 确保在最上层
