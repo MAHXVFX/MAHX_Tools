@@ -18,9 +18,12 @@ from MA.shelf_tool_pro.styles import (
     SETTINGS_BUTTON_STYLE, THUMB_SLIDER_STYLE,
 )
 from MA.shelf_tool_pro.shelf_loader import _TOOL_NAMES, _TOOL_REGISTRY
-from MA.shelf_tool_pro.thumbnail_widget import ThumbnailWidget
+from MA.shelf_tool_pro.thumbnail_widget import ThumbnailWidget, _FAVORITE_PIXMAP
 
 _logger = logging.getLogger("MA")
+
+# 收藏图标（从 thumbnail_widget 导入，创建 QIcon 只创建一次）
+_FAVORITE_ICON = QtGui.QIcon(_FAVORITE_PIXMAP) if _FAVORITE_PIXMAP and not _FAVORITE_PIXMAP.isNull() else None
 
 _DEFAULT_SIZE = 130
 
@@ -744,10 +747,8 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         # 添加"全部"和"收藏"选项
         self.tag_filter_combo.addItem("全部标签", userData="all")
         # 收藏选项带 SVG 图标
-        from MA.shelf_tool_pro.thumbnail_widget import _FAVORITE_PIXMAP
-        if _FAVORITE_PIXMAP and not _FAVORITE_PIXMAP.isNull():
-            fav_icon = QtGui.QIcon(_FAVORITE_PIXMAP)
-            self.tag_filter_combo.addItem(fav_icon, "收藏", userData="favorites")
+        if _FAVORITE_ICON:
+            self.tag_filter_combo.addItem(_FAVORITE_ICON, "收藏", userData="favorites")
         else:
             self.tag_filter_combo.addItem("收藏", userData="favorites")
 
