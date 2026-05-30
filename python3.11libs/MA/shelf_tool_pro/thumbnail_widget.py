@@ -542,8 +542,12 @@ class ThumbnailWidget(QtWidgets.QWidget):
             parent=self,
         )
         # 定位：与备注面板一致，显示在缩略图右侧
+        dialog.adjustSize()
+        QtWidgets.QApplication.processEvents()
+        w = dialog.sizeHint().width()
+        h = dialog.sizeHint().height()
         pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
-        pos = self._clamp_to_screen(pos, dialog.width(), dialog.height())
+        pos = self._clamp_to_screen(pos, w, h)
         dialog.move(pos)
 
         if dialog.exec() != QtWidgets.QDialog.Accepted:
