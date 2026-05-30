@@ -204,10 +204,10 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         self._tab_widget.setStyleSheet(
             f"QTabWidget::pane {{ border: 1px solid {BORDER_COLOR}; border-radius: 4px; background-color: {BG_SECONDARY}; }}"
             f"QTabBar::tab {{ background-color: {BG_PRIMARY}; color: {TEXT_SECONDARY}; "
-            f"padding: 8px 20px; border: 1px solid {BORDER_COLOR}; border-bottom: none; "
+            f"padding: 8px 20px; border: 1px solid {BORDER_COLOR}; "
             f"border-top-left-radius: 4px; border-top-right-radius: 4px; margin-right: 2px; }}"
             f"QTabBar::tab:selected {{ background-color: {BG_SECONDARY}; color: {TEXT_PRIMARY}; "
-            f"border-top: 2px solid {ACCENT_BLUE}; }}"
+            f"border-top: 2px solid {ACCENT_BLUE}; border-bottom: 1px solid {BG_SECONDARY}; }}"
             f"QTabBar::tab:hover {{ background-color: {BG_HOVER}; color: {TEXT_PRIMARY}; }}"
         )
 
