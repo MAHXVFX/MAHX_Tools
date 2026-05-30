@@ -60,6 +60,21 @@ def save_thumb_size(value):
     ShelfToolsSettingsManager.update("thumb_size", value)
 
 
+class _ToolbarWidget(QtWidgets.QWidget):
+    """工具栏容器：面板宽度 ≥ _BREAKPOINT_WIDTH 时保持不压缩，< 时才收缩。"""
+    _BREAKPOINT_WIDTH = 895
+
+    def sizeHint(self):
+        hint = super().sizeHint()
+        hint.setWidth(self._BREAKPOINT_WIDTH)
+        return hint
+
+    def minimumSizeHint(self):
+        hint = super().minimumSizeHint()
+        hint.setWidth(0)
+        return hint
+
+
 class MAShelfToolProPanel(QtWidgets.QWidget):
     """MA ShelfTools Pro 主面板。"""
 
@@ -443,8 +458,6 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.tag_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
         layout.addWidget(self.tag_filter_combo)
 
-        layout.addStretch()
-
         # 搜索去抖定时器
         self._search_timer = QtCore.QTimer(self)
         self._search_timer.setSingleShot(True)
@@ -452,10 +465,10 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self._search_timer.timeout.connect(self._apply_filter)
         self.search_input.textChanged.connect(lambda: self._search_timer.start())
 
-        # 用 QWidget 包裹，让 stretch 空间优先吸收收缩
-        toolbar_widget = QtWidgets.QWidget()
+        # 用 _ToolbarWidget 包裹，控制 toolbar 压缩阈值
+        toolbar_widget = _ToolbarWidget()
         toolbar_widget.setLayout(layout)
-        toolbar_widget.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
+        toolbar_widget.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Fixed)
         return toolbar_widget
 
     def _create_settings_panel(self):
