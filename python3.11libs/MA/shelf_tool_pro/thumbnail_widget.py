@@ -157,6 +157,18 @@ class ThumbnailWidget(QtWidgets.QWidget):
 
         return pos
 
+    def _position_dialog(self, dialog):
+        """定位对话框：显示在缩略图右侧，超出屏幕时自动约束。"""
+        dialog.adjustSize()
+        QtWidgets.QApplication.processEvents()
+        w = max(dialog.sizeHint().width(), dialog.minimumWidth())
+        h = max(dialog.sizeHint().height(), dialog.minimumHeight())
+        pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
+        pos = self._clamp_to_screen(pos, w, h)
+        dialog.move(pos)
+        dialog.raise_()
+        dialog.activateWindow()
+
     def updateSize(self, size):
         """更新控件大小。"""
         if size == self._size:
@@ -494,15 +506,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
         layout.addLayout(button_layout)
         
         # 定位：与备注面板一致，显示在缩略图右侧
-        dialog.adjustSize()
-        QtWidgets.QApplication.processEvents()
-        w = max(dialog.sizeHint().width(), dialog.minimumWidth())
-        h = max(dialog.sizeHint().height(), dialog.minimumHeight())
-        pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
-        pos = self._clamp_to_screen(pos, w, h)
-        dialog.move(pos)
-        dialog.raise_()
-        dialog.activateWindow()
+        self._position_dialog(dialog)
         
         # 显示对话框
         if dialog.exec() == QtWidgets.QDialog.Accepted:
@@ -552,15 +556,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
             parent=self,
         )
         # 定位：与备注面板一致，显示在缩略图右侧
-        dialog.adjustSize()
-        QtWidgets.QApplication.processEvents()
-        w = max(dialog.sizeHint().width(), dialog.minimumWidth())
-        h = max(dialog.sizeHint().height(), dialog.minimumHeight())
-        pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
-        pos = self._clamp_to_screen(pos, w, h)
-        dialog.move(pos)
-        dialog.raise_()
-        dialog.activateWindow()
+        self._position_dialog(dialog)
 
         if dialog.exec() != QtWidgets.QDialog.Accepted:
             # 用户取消，重新加载GIF恢复播放
