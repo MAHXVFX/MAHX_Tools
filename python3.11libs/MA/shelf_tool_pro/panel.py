@@ -360,6 +360,13 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.thumb_slider.setCursor(QtCore.Qt.PointingHandCursor)
         self.thumb_slider.valueChanged.connect(self._on_size_changed)
         self.thumb_slider.sliderReleased.connect(self._commit_thumb_size)
+
+        # 滚轮调整后去抖提交（sliderReleased 不响应滚轮）
+        self._size_commit_timer = QtCore.QTimer(self)
+        self._size_commit_timer.setSingleShot(True)
+        self._size_commit_timer.setInterval(300)
+        self._size_commit_timer.timeout.connect(self._commit_thumb_size)
+
         layout.addSpacing(10)
         layout.addWidget(self.thumb_slider)
 
@@ -622,6 +629,8 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             return
 
         self._apply_pending_thumb_size()
+        # 滚轮/键盘触发时，去抖提交保存
+        self._size_commit_timer.start()
 
     def _preview_pending_thumb_size(self):
         value = self._pending_thumb_size
@@ -652,6 +661,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self._relayout_grid()
 
     def _commit_thumb_size(self):
+        self._size_commit_timer.stop()
         if self._preview_update_timer.isActive():
             self._preview_update_timer.stop()
         if self._pending_thumb_size is not None:
