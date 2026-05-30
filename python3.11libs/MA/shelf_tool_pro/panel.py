@@ -623,14 +623,16 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.size_label.setText(str(value))
         self._pending_thumb_size = value
 
-        if self.thumb_slider.isSliderDown():
-            if not self._preview_update_timer.isActive():
-                self._preview_update_timer.start()
-            return
+        # 拖动或滚轮：都走 previewSize 快速预览路径
+        if not self._preview_update_timer.isActive():
+            self._preview_update_timer.start()
 
-        self._apply_pending_thumb_size()
-        # 滚轮/键盘触发时，去抖提交保存
-        self._size_commit_timer.start()
+        if self.thumb_slider.isSliderDown():
+            # 拖动中：停止提交定时器（由 sliderReleased 触发提交）
+            self._size_commit_timer.stop()
+        else:
+            # 滚轮/键盘：去抖提交最终渲染+保存
+            self._size_commit_timer.start()
 
     def _preview_pending_thumb_size(self):
         value = self._pending_thumb_size
