@@ -20,7 +20,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
 
     # ── 常量 ──────────────────────────────────
     _HORIZONTAL_GAP = 10    # 面板与缩略图水平间距
-    _BOTTOM_MARGIN = 20     # 面板与屏幕底部间距
+    _BOTTOM_MARGIN = 60     # 面板与屏幕底部间距（留出任务栏空间）
     _NOTES_PANEL_WIDTH = 450
     _NOTES_PANEL_HEIGHT = 600
     _NOTES_HIDE_DELAY = 100  # 鼠标离开备注面板后的延迟隐藏时间（ms）
