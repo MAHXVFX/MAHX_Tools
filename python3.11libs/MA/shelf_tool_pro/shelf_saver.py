@@ -662,3 +662,74 @@ def save_code_to_shelf(
     except Exception as e:
         logger.error("Failed to save code tool '%s' to %s: %s", tool_name, shelf_file_path, e)
         return False
+
+
+# ── 更新已有工具的脚本内容 ──────────────────────────────
+
+# 匹配整个 <tool name="xxx" ...>...</tool> 块（含 script 内容）
+_TOOL_BLOCK_RE = re.compile(
+    r'(<tool\s+name="[^"]*"[^>]*>)\s*'
+    r'<script[^>]*>.*?</script>\s*'
+    r'(</tool>)',
+    re.DOTALL,
+)
+
+
+def update_tool_script_in_shelf(
+    shelf_file: str,
+    tool_name: str,
+    new_script: str,
+) -> bool:
+    """更新 .shelf 文件中已有工具的 <script> 内容。
+
+    保留 <tool> 标签的属性（name, label, icon 等），
+    仅替换 <script>...</script> 中的代码。
+
+    Args:
+        shelf_file: .shelf 文件路径
+        tool_name: 工具名称（<tool name="xxx">）
+        new_script: 新的 Python 脚本内容
+
+    Returns:
+        True 成功，False 未找到或写入失败。
+    """
+    result = _read_and_match_tool(shelf_file, tool_name)
+    if result is None:
+        return False
+
+    content, match = result
+
+    try:
+        # 定位 <tool ...> 开始位置和 </tool> 结束位置
+        # match 只匹配了 <tool name="xxx"...>，需要找对应的 </tool>
+        tool_start = match.start()
+        open_tag_end = match.end()
+
+        # 从 <tool ...> 之后找 </tool>
+        close_tag_pattern = re.compile(r'</tool>')
+        close_match = close_tag_pattern.search(content, open_tag_end)
+        if not close_match:
+            logger.warning("Closing </tool> not found for '%s' in %s", tool_name, shelf_file)
+            return False
+
+        tool_end = close_match.end()
+
+        # 提取 <tool ...> 开始标签
+        open_tag = content[tool_start:open_tag_end]  # '<tool name="xxx" ...>'
+
+        # 构建新的 tool 块：保留开始标签，替换 script 内容
+        new_tool_block = (
+            f'{open_tag}\n'
+            f'    <script scriptType="python"><![CDATA[{new_script}]]></script>\n'
+            f'  </tool>'
+        )
+
+        new_content = content[:tool_start] + new_tool_block + content[tool_end:]
+
+        _atomic_write(shelf_file, new_content)
+
+        logger.info("Updated script for tool '%s' in %s", tool_name, shelf_file)
+        return True
+    except Exception as e:
+        logger.error("Failed to update script for '%s' in %s: %s", tool_name, shelf_file, e)
+        return False

@@ -23,6 +23,7 @@ from MA.shelf_tool_pro.styles import (
     TEXT_SECONDARY,
     BORDER_COLOR,
 )
+from MA.shelf_tool_pro.python_code_editor import PythonCodeEdit
 
 logger = logging.getLogger("MA")
 
@@ -132,7 +133,7 @@ class ToolSettingsDialog(QtWidgets.QDialog):
 
     两种模式：
     - mode="create": 拖入节点创建新工具，显示 shelf 文件选择
-    - mode="edit":   右键编辑已有工具，name 只读，无 shelf 文件选择
+    - mode="edit":   右键编辑已有工具，name 只读，含首选项和内容两个标签页
 
     Args:
         mode: "create" 或 "edit"
@@ -141,6 +142,7 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         label: 编辑模式下的当前 label（create 模式可传空字符串）
         shelf_file_path: 编辑模式下的 .shelf 文件路径
         icon_path: 编辑模式下的当前图标路径
+        script_content: 编辑模式下的工具脚本内容（create 模式可传空字符串）
         parent: 父级 QWidget
     """
 
@@ -152,6 +154,7 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         label: str = "",
         shelf_file_path: str = "",
         icon_path: str = "",
+        script_content: str = "",
         parent: QtWidgets.QWidget | None = None,
     ):
         super().__init__(parent)
@@ -163,15 +166,18 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         self._tool_name = tool_name  # edit 模式用原始名（不 strip，保留空格）
         self._preview_movie = None   # 预览 GIF 动画
         self._shelf_file_items: list[tuple[str, str]] = []  # (显示名, 完整路径)
+        self._script_content = script_content  # 工具脚本内容
         
         # 保存原始值用于变更检测（编辑模式）
         self._original_tool_name = tool_name
         self._original_label = label
         self._original_icon_path = icon_path
+        self._original_script_content = script_content
 
         title = "编辑工具" if mode == "edit" else "保存工具"
         self.setWindowTitle(title)
         self.setMinimumWidth(520)
+        self.setMinimumHeight(400)
         self.setStyleSheet(
             f"ToolSettingsDialog {{"
             f"  background-color: {BG_PRIMARY};"
@@ -192,11 +198,55 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         layout.setSpacing(12)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        self._build_name_label_section(layout, tool_name, label)
-        self._build_thumb_section(layout)
-        if self._mode == "create":
+        if self._mode == "edit":
+            # edit 模式：QTabWidget 双标签页
+            self._tab_widget = QtWidgets.QTabWidget()
+            self._tab_widget.setStyleSheet(
+                f"QTabWidget::pane {{ border: 1px solid {BORDER_COLOR}; border-radius: 4px; background-color: {BG_PRIMARY}; }}"
+                f"QTabBar::tab {{ background-color: {BG_INPUT}; color: {TEXT_SECONDARY}; "
+                f"padding: 8px 20px; border: 1px solid {BORDER_COLOR}; border-bottom: none; "
+                f"border-top-left-radius: 4px; border-top-right-radius: 4px; margin-right: 2px; }}"
+                f"QTabBar::tab:selected {{ background-color: {BG_PRIMARY}; color: {TEXT_PRIMARY}; "
+                f"border-bottom: 2px solid {ACCENT_BLUE}; }}"
+                f"QTabBar::tab:hover {{ background-color: {BG_HOVER}; color: {TEXT_PRIMARY}; }}"
+            )
+
+            # 标签页 1：首选项
+            prefs_tab = QtWidgets.QWidget()
+            prefs_layout = QtWidgets.QVBoxLayout(prefs_tab)
+            prefs_layout.setSpacing(12)
+            prefs_layout.setContentsMargins(16, 16, 16, 16)
+            self._build_name_label_section(prefs_layout, tool_name, label)
+            self._build_thumb_section(prefs_layout)
+            prefs_layout.addStretch()
+            self._tab_widget.addTab(prefs_tab, "首选项")
+
+            # 标签页 2：内容
+            content_tab = QtWidgets.QWidget()
+            content_layout = QtWidgets.QVBoxLayout(content_tab)
+            content_layout.setSpacing(8)
+            content_layout.setContentsMargins(16, 16, 16, 16)
+
+            self._code_edit = PythonCodeEdit()
+            self._code_edit.setPlainText(self._script_content)
+            self._code_edit.setMinimumHeight(200)
+            content_layout.addWidget(self._code_edit)
+
+            hint_lbl = QtWidgets.QLabel("工具的 Python 脚本代码（保存后更新 .shelf 文件）")
+            hint_lbl.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 11px;")
+            content_layout.addWidget(hint_lbl)
+
+            self._tab_widget.addTab(content_tab, "内容")
+
+            layout.addWidget(self._tab_widget, 1)
+        else:
+            # create 模式：单页布局（兼容原有流程）
+            self._code_edit = None
+            self._build_name_label_section(layout, tool_name, label)
+            self._build_thumb_section(layout)
             self._add_separator(layout)
             self._build_shelf_section(layout)
+
         layout.addStretch()
         self._build_button_row(layout)
 
@@ -429,6 +479,9 @@ class ToolSettingsDialog(QtWidgets.QDialog):
             self._shelf_name_edit.textChanged.connect(
                 lambda: self._validate_inputs()
             )
+        # edit 模式：代码编辑器变更也触发验证
+        if self._code_edit is not None:
+            self._code_edit.textChanged.connect(self._validate_inputs)
 
     # ── 输入验证 ───────────────────────────────
 
@@ -503,6 +556,12 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         if self._icon_path != self._original_icon_path:
             return True
         
+        # 检查脚本代码是否变化
+        if self._code_edit is not None:
+            current_script = self._code_edit.toPlainText()
+            if current_script != self._original_script_content:
+                return True
+        
         return False
 
     # ── Slot: 浏览图标 ───────────────────────────
@@ -573,6 +632,11 @@ class ToolSettingsDialog(QtWidgets.QDialog):
             "shelf_file": shelf_file,
             "node_paths": list(self._node_paths),
         }
+
+        # edit 模式下包含代码内容
+        if self._mode == "edit" and self._code_edit is not None:
+            self._result["code"] = self._code_edit.toPlainText()
+
         self.accept()
 
     # ── 公共接口 ──────────────────────────────────
@@ -587,6 +651,7 @@ class ToolSettingsDialog(QtWidgets.QDialog):
                 "icon_path": str,
                 "shelf_file": str,     # 目标 .shelf 文件路径
                 "node_paths": list[str],
+                "code": str,           # edit 模式下的工具脚本代码（仅 edit 模式有）
             }
             None 如果用户取消对话框。
         """

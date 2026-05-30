@@ -513,14 +513,17 @@ class ThumbnailWidget(QtWidgets.QWidget):
                 p = p.parent()
 
     def _on_settings(self):
-        """打开工具设置对话框。"""
-        from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
+        """打开工具设置对话框（首选项 + 内容标签页）。"""
+        from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY, _TOOL_SCRIPTS
         if self._unique_id not in _TOOL_REGISTRY:
             return
         shelf_stem, tool_name, label, _, shelf_path = _TOOL_REGISTRY[self._unique_id]
 
         # 从缓存加载自定义图标（.shelf 的 icon 属性只存 Houdini 内部名）
         icon_path = ShelfToolsCacheManager.get_tool_icon(self._unique_id) or ""
+
+        # 获取工具脚本内容
+        script_content = _TOOL_SCRIPTS.get(self._unique_id, "")
 
         # 停止 GIF 释放文件锁（防止替换时 Windows 文件锁定）
         self._stop_gif()
@@ -535,6 +538,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
             label=label,
             shelf_file_path=shelf_path,
             icon_path=icon_path,
+            script_content=script_content,
             parent=self,
         )
         if dialog.exec() != QtWidgets.QDialog.Accepted:
@@ -582,6 +586,17 @@ class ThumbnailWidget(QtWidgets.QWidget):
             # 如果名称改变了，需要迁移缓存数据
             if name_changed:
                 self._migrate_cache_data(self._unique_id, f"{shelf_stem}_{new_tool_name}")
+
+        # 更新脚本代码（如果有变更）
+        new_code = result.get("code")
+        if new_code is not None and new_code != script_content:
+            from MA.shelf_tool_pro.shelf_saver import update_tool_script_in_shelf
+            # 如果名称改变了，用新名称；否则用原名称
+            target_name = new_tool_name if name_changed else tool_name
+            if not update_tool_script_in_shelf(shelf_path, target_name, new_code):
+                QtWidgets.QMessageBox.warning(self, "错误",
+                    "更新工具脚本失败。")
+                return
 
         # 刷新面板
         from MA.shelf_tool_pro.shelf_loader import refresh_tools
