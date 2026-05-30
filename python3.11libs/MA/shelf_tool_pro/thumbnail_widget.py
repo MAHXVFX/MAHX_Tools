@@ -541,6 +541,11 @@ class ThumbnailWidget(QtWidgets.QWidget):
             script_content=script_content,
             parent=self,
         )
+        # 定位：与备注面板一致，显示在缩略图右侧
+        pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
+        pos = self._clamp_to_screen(pos, dialog.width(), dialog.height())
+        dialog.move(pos)
+
         if dialog.exec() != QtWidgets.QDialog.Accepted:
             # 用户取消，重新加载GIF恢复播放
             self._render_thumbnail(self._size)
