@@ -194,7 +194,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                 return
 
             # Check name conflict before saving
-            from MA.shelf_tool_pro.shelf_saver import check_name_conflict, save_node_to_shelf
+            from MA.shelf_tool_pro.shelf_saver import check_name_conflict, save_code_to_shelf
 
             shelf_file = result["shelf_file"]
             tool_name = result["tool_name"]
@@ -210,16 +210,16 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                 if reply != QtWidgets.QMessageBox.Yes:
                     return
 
-            # Save to .shelf file (icon not written — only supports Houdini internal names)
-            success = save_node_to_shelf(
-                node_paths=result["node_paths"],
+            # Save code to .shelf file
+            success = save_code_to_shelf(
+                code=result["code"],
                 tool_name=tool_name,
                 label=result["label"],
                 shelf_file_path=shelf_file,
             )
             if not success:
                 QtWidgets.QMessageBox.warning(self, "错误",
-                    "保存工具到工具架文件失败。")
+                    "保存工具失败。")
                 return
 
             # Cache icon path (键用 unique_id = shelf_stem + tool_name)
@@ -238,8 +238,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             # Refresh panel
             self._refresh_tools()
 
-            # 直接打印到控制台，代替弹窗
-            print(f"工具 '{result['label']}' 已保存到")
+            print(f"工具 '{result['label']}' 已创建")
             print(result['shelf_file'])
         finally:
             self._save_dialog_open = False
@@ -567,9 +566,9 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
     def _on_create_tool(self):
         """打开创建工具对话框。"""
-        from MA.shelf_tool_pro.create_tool_dialog import CreateToolDialog
+        from MA.shelf_tool_pro.save_tool_dialog import ToolSettingsDialog
         
-        dialog = CreateToolDialog(parent=self)
+        dialog = ToolSettingsDialog(mode="create", parent=self)
         if dialog.exec() != QtWidgets.QDialog.Accepted:
             return
         

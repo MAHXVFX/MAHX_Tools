@@ -199,56 +199,49 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         layout.setSpacing(12)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        if self._mode == "edit":
-            # edit 模式：QTabWidget 双标签页
-            self._tab_widget = QtWidgets.QTabWidget()
-            self._tab_widget.setStyleSheet(
-                f"QTabWidget::pane {{ border: 1px solid {BORDER_COLOR}; border-radius: 4px; background-color: {BG_SECONDARY}; }}"
-                f"QTabBar::tab {{ background-color: {BG_PRIMARY}; color: {TEXT_SECONDARY}; "
-                f"padding: 8px 20px; border: 1px solid {BORDER_COLOR}; border-bottom: none; "
-                f"border-top-left-radius: 4px; border-top-right-radius: 4px; margin-right: 2px; }}"
-                f"QTabBar::tab:selected {{ background-color: {BG_SECONDARY}; color: {TEXT_PRIMARY}; "
-                f"border-top: 2px solid {ACCENT_BLUE}; }}"
-                f"QTabBar::tab:hover {{ background-color: {BG_HOVER}; color: {TEXT_PRIMARY}; }}"
-            )
+        # 统一使用 QTabWidget 双标签页
+        self._tab_widget = QtWidgets.QTabWidget()
+        self._tab_widget.setStyleSheet(
+            f"QTabWidget::pane {{ border: 1px solid {BORDER_COLOR}; border-radius: 4px; background-color: {BG_SECONDARY}; }}"
+            f"QTabBar::tab {{ background-color: {BG_PRIMARY}; color: {TEXT_SECONDARY}; "
+            f"padding: 8px 20px; border: 1px solid {BORDER_COLOR}; border-bottom: none; "
+            f"border-top-left-radius: 4px; border-top-right-radius: 4px; margin-right: 2px; }}"
+            f"QTabBar::tab:selected {{ background-color: {BG_SECONDARY}; color: {TEXT_PRIMARY}; "
+            f"border-top: 2px solid {ACCENT_BLUE}; }}"
+            f"QTabBar::tab:hover {{ background-color: {BG_HOVER}; color: {TEXT_PRIMARY}; }}"
+        )
 
-            # 标签页 1：首选项
-            prefs_tab = QtWidgets.QWidget()
-            prefs_layout = QtWidgets.QVBoxLayout(prefs_tab)
-            prefs_layout.setSpacing(12)
-            prefs_layout.setContentsMargins(16, 16, 16, 16)
-            self._build_name_label_section(prefs_layout, tool_name, label)
-            self._build_thumb_section(prefs_layout)
-            prefs_layout.addStretch()
-            self._tab_widget.addTab(prefs_tab, "首选项")
+        # 标签页 1：首选项
+        prefs_tab = QtWidgets.QWidget()
+        prefs_layout = QtWidgets.QVBoxLayout(prefs_tab)
+        prefs_layout.setSpacing(12)
+        prefs_layout.setContentsMargins(16, 16, 16, 16)
+        self._build_name_label_section(prefs_layout, tool_name, label)
+        self._build_thumb_section(prefs_layout)
+        if self._mode == "create":
+            self._build_shelf_section(prefs_layout)
+        prefs_layout.addStretch()
+        self._tab_widget.addTab(prefs_tab, "首选项")
 
-            # 标签页 2：内容
-            content_tab = QtWidgets.QWidget()
-            content_layout = QtWidgets.QVBoxLayout(content_tab)
-            content_layout.setSpacing(8)
-            content_layout.setContentsMargins(16, 16, 16, 16)
+        # 标签页 2：内容
+        content_tab = QtWidgets.QWidget()
+        content_layout = QtWidgets.QVBoxLayout(content_tab)
+        content_layout.setSpacing(8)
+        content_layout.setContentsMargins(16, 16, 16, 16)
 
-            self._code_edit = PythonCodeEdit()
-            self._code_edit.setPlainText(self._script_content)
-            self._code_edit.setMinimumHeight(200)
-            content_layout.addWidget(self._code_edit)
+        self._code_edit = PythonCodeEdit()
+        self._code_edit.setPlainText(self._script_content)
+        self._code_edit.setMinimumHeight(200)
+        content_layout.addWidget(self._code_edit)
 
-            hint_lbl = QtWidgets.QLabel("工具的 Python 脚本代码（保存后更新 .shelf 文件）")
-            hint_lbl.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 11px;")
-            content_layout.addWidget(hint_lbl)
+        hint_text = "输入要执行的 Python 代码，支持 Houdini Python API" if self._mode == "create" else "工具的 Python 脚本代码（保存后更新 .shelf 文件）"
+        hint_lbl = QtWidgets.QLabel(hint_text)
+        hint_lbl.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 11px;")
+        content_layout.addWidget(hint_lbl)
 
-            self._tab_widget.addTab(content_tab, "内容")
+        self._tab_widget.addTab(content_tab, "内容")
 
-            layout.addWidget(self._tab_widget, 1)
-        else:
-            # create 模式：单页布局（兼容原有流程）
-            self._code_edit = None
-            self._build_name_label_section(layout, tool_name, label)
-            self._build_thumb_section(layout)
-            self._add_separator(layout)
-            self._build_shelf_section(layout)
-
-        layout.addStretch()
+        layout.addWidget(self._tab_widget, 1)
         self._build_button_row(layout)
 
     def _build_name_label_section(self, layout: QtWidgets.QVBoxLayout,
@@ -316,12 +309,6 @@ class ToolSettingsDialog(QtWidgets.QDialog):
 
         layout.addWidget(thumb_group)
 
-    def _add_separator(self, layout: QtWidgets.QVBoxLayout) -> None:
-        sep = QtWidgets.QFrame()
-        sep.setFrameShape(QtWidgets.QFrame.Shape.HLine)
-        sep.setStyleSheet(f"background-color: {BORDER_COLOR}; max-height: 1px;")
-        layout.addWidget(sep)
-
     def _build_shelf_section(self, layout: QtWidgets.QVBoxLayout) -> None:
         """Shelf 文件选择区域（仅 create 模式）：文件名输入 + .shelf 后缀 + 下拉菜单。"""
         shelf_group = QtWidgets.QGroupBox("工具架文件")
@@ -371,7 +358,8 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         btn_layout = QtWidgets.QHBoxLayout()
         btn_layout.addStretch()
 
-        self._save_btn = QtWidgets.QPushButton("保存")
+        btn_text = "创建" if self._mode == "create" else "保存"
+        self._save_btn = QtWidgets.QPushButton(btn_text)
         self._save_btn.setMinimumWidth(90)
         self._save_btn.setEnabled(self._mode == "edit")  # edit mode starts valid
         self._save_btn.setStyleSheet(_SAVE_BUTTON_STYLE)
@@ -480,7 +468,7 @@ class ToolSettingsDialog(QtWidgets.QDialog):
             self._shelf_name_edit.textChanged.connect(
                 lambda: self._validate_inputs()
             )
-        # edit 模式：代码编辑器变更也触发验证
+        # 代码编辑器变更触发验证（两种模式都有）
         if self._code_edit is not None:
             self._code_edit.textChanged.connect(self._validate_inputs)
 
@@ -530,6 +518,11 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         # Shelf file validation（create mode only）
         if valid and self._mode == "create":
             valid = bool(self._shelf_name_edit.text().strip())
+        
+        # 代码非空检查（两种模式都检查）
+        if valid and self._code_edit is not None:
+            if not self._code_edit.toPlainText().strip():
+                valid = False
         
         # 编辑模式下，检查是否有变更
         if valid and self._mode == "edit":
@@ -632,11 +625,8 @@ class ToolSettingsDialog(QtWidgets.QDialog):
             "icon_path": self._icon_path,
             "shelf_file": shelf_file,
             "node_paths": list(self._node_paths),
+            "code": self._code_edit.toPlainText() if self._code_edit is not None else "",
         }
-
-        # edit 模式下包含代码内容
-        if self._mode == "edit" and self._code_edit is not None:
-            self._result["code"] = self._code_edit.toPlainText()
 
         self.accept()
 
@@ -652,7 +642,7 @@ class ToolSettingsDialog(QtWidgets.QDialog):
                 "icon_path": str,
                 "shelf_file": str,     # 目标 .shelf 文件路径
                 "node_paths": list[str],
-                "code": str,           # edit 模式下的工具脚本代码（仅 edit 模式有）
+                "code": str,           # 工具脚本代码
             }
             None 如果用户取消对话框。
         """
