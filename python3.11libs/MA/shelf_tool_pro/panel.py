@@ -302,12 +302,16 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
     def _refresh_tools(self):
         """Refresh the tool list in the scroll area after saving a new tool."""
+        global _TOOL_NAMES, _TOOL_REGISTRY
         from MA.shelf_tool_pro.shelf_loader import refresh_tools
 
         refresh_tools()  # re-scan .shelf files, update globals
 
         # Re-import to bind locally updated _TOOL_NAMES / _TOOL_REGISTRY
         from MA.shelf_tool_pro.shelf_loader import _TOOL_NAMES, _TOOL_REGISTRY
+
+        # 更新 shelf 筛选下拉菜单（新增的 shelf 文件需要显示）
+        self._populate_filter_combo()
 
         # 复用统一的筛选逻辑（包含 shelf、标签、搜索三层筛选）
         filtered_names = self._get_filtered_tool_names()
