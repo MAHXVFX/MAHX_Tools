@@ -16,6 +16,29 @@ import MA
 
 _logger = logging.getLogger("MA")
 
+
+def _fix_encoding(text: str) -> str:
+    """修复 Houdini .shelf 文件中的中文乱码。
+
+    某些情况下 .shelf 文件中的中文被错误编码（UTF-8 字节被当作 Latin-1 处理），
+    导致中文变成乱码（如 "获取" 变成 "è·åæ"）。
+
+    修复方法：将字符串编码为 Latin-1 字节，再用 UTF-8 解码。
+    """
+    if not text:
+        return text
+
+    try:
+        # 尝试修复：Latin-1 编码 → UTF-8 解码
+        fixed = text.encode('latin-1').decode('utf-8')
+        # 验证修复后是否包含中文字符
+        if any('\u4e00' <= c <= '\u9fff' for c in fixed):
+            return fixed
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        pass
+
+    return text
+
 _TOOL_NAMES = []      # 唯一标识列表：["shelfA_cam", "shelfB_cam"]
 _TOOL_REGISTRY = {}   # 唯一标识 -> (shelf_stem, tool_name, label, icon, shelf_path)
 _TOOL_SCRIPTS = {}    # 唯一标识 -> script content (直接从 XML 解析)
@@ -71,11 +94,15 @@ def scan_tool_names():
                     continue
                 label = html.unescape(tool_elem.get('label', tool_name))
                 icon = html.unescape(tool_elem.get('icon', ''))
+                # 修复可能的中文乱码
+                label = _fix_encoding(label)
                 
                 script_elem = tool_elem.find('script')
                 script_content = ''
                 if script_elem is not None:
                     script_content = ''.join(script_elem.itertext())
+                    # 修复可能的中文乱码
+                    script_content = _fix_encoding(script_content)
                 
                 unique_id = f"{shelf_stem}_{tool_name}"
                 names.append(unique_id)
