@@ -178,7 +178,7 @@ class ToolSettingsDialog(QtWidgets.QDialog):
         title = "编辑工具" if mode == "edit" else "创建工具"
         self.setWindowTitle(title)
         self.setMinimumWidth(520)
-        self.setMinimumHeight(400)
+        self.setMinimumHeight(600)
         self.setStyleSheet(
             f"ToolSettingsDialog {{"
             f"  background-color: {BG_PRIMARY};"
