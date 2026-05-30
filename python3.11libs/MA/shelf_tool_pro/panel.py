@@ -732,7 +732,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self._apply_filter()
 
     def _populate_tag_filter_combo(self):
-        """填充标签筛选下拉菜单：全部标签、★ 收藏、各唯一标签。"""
+        """填充标签筛选下拉菜单：全部标签、收藏、各唯一标签。"""
         # 保存当前筛选状态（防止 clear() 丢失选择）
         current_tag = None
         if self.tag_filter_combo.count() > 0:
@@ -743,7 +743,13 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
         # 添加"全部"和"收藏"选项
         self.tag_filter_combo.addItem("全部标签", userData="all")
-        self.tag_filter_combo.addItem("★ 收藏", userData="favorites")
+        # 收藏选项带 SVG 图标
+        from MA.shelf_tool_pro.thumbnail_widget import _FAVORITE_PIXMAP
+        if _FAVORITE_PIXMAP and not _FAVORITE_PIXMAP.isNull():
+            fav_icon = QtGui.QIcon(_FAVORITE_PIXMAP)
+            self.tag_filter_combo.addItem(fav_icon, "收藏", userData="favorites")
+        else:
+            self.tag_filter_combo.addItem("收藏", userData="favorites")
 
         # 从缓存获取所有唯一标签
         all_tags = ShelfToolsCacheManager.get_all_tags()
