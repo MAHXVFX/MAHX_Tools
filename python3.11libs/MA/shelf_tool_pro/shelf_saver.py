@@ -666,13 +666,8 @@ def save_code_to_shelf(
 
 # ── 更新已有工具的脚本内容 ──────────────────────────────
 
-# 匹配整个 <tool name="xxx" ...>...</tool> 块（含 script 内容）
-_TOOL_BLOCK_RE = re.compile(
-    r'(<tool\s+name="[^"]*"[^>]*>)\s*'
-    r'<script[^>]*>.*?</script>\s*'
-    r'(</tool>)',
-    re.DOTALL,
-)
+# 模块级正则：避免每次调用重新编译
+_CLOSE_TOOL_RE = re.compile(r'</tool>')
 
 
 def update_tool_script_in_shelf(
@@ -706,8 +701,7 @@ def update_tool_script_in_shelf(
         open_tag_end = match.end()
 
         # 从 <tool ...> 之后找 </tool>
-        close_tag_pattern = re.compile(r'</tool>')
-        close_match = close_tag_pattern.search(content, open_tag_end)
+        close_match = _CLOSE_TOOL_RE.search(content, open_tag_end)
         if not close_match:
             logger.warning("Closing </tool> not found for '%s' in %s", tool_name, shelf_file)
             return False

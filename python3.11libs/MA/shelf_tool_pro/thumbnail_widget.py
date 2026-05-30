@@ -533,7 +533,6 @@ class ThumbnailWidget(QtWidgets.QWidget):
         from MA.shelf_tool_pro.save_tool_dialog import ToolSettingsDialog
         dialog = ToolSettingsDialog(
             mode="edit",
-            node_paths=[],
             tool_name=tool_name,
             label=label,
             shelf_file_path=shelf_path,
@@ -544,10 +543,9 @@ class ThumbnailWidget(QtWidgets.QWidget):
         # 定位：与备注面板一致，显示在缩略图右侧
         dialog.adjustSize()
         QtWidgets.QApplication.processEvents()
-        w = dialog.sizeHint().width()
-        h = dialog.sizeHint().height()
+        hint = dialog.sizeHint()
         pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
-        pos = self._clamp_to_screen(pos, w, h)
+        pos = self._clamp_to_screen(pos, hint.width(), hint.height())
         dialog.move(pos)
 
         if dialog.exec() != QtWidgets.QDialog.Accepted:
