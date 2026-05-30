@@ -493,6 +493,14 @@ class ThumbnailWidget(QtWidgets.QWidget):
         button_layout.addWidget(ok_btn)
         layout.addLayout(button_layout)
         
+        # 定位：与备注面板一致，显示在缩略图右侧
+        dialog.adjustSize()
+        QtWidgets.QApplication.processEvents()
+        hint = dialog.sizeHint()
+        pos = self.mapToGlobal(QtCore.QPoint(self.width() + self._HORIZONTAL_GAP, 0))
+        pos = self._clamp_to_screen(pos, hint.width(), hint.height())
+        dialog.move(pos)
+        
         # 显示对话框
         if dialog.exec() == QtWidgets.QDialog.Accepted:
             # 解析标签（支持中英文逗号分隔）
