@@ -22,6 +22,11 @@ from MA.shelf_tool_pro.thumbnail_widget import ThumbnailWidget, _FAVORITE_PIXMAP
 
 _logger = logging.getLogger("MA")
 
+# ── 自定义字体加载 ──────────────────────────────────
+_FONT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "icons", "AlimamaFangYuanTiVF-Thin.ttf")
+_CUSTOM_FONT_ID = QtGui.QFontDatabase.addApplicationFont(_FONT_PATH)
+_CUSTOM_FONT_FAMILY = QtGui.QFontDatabase.applicationFontFamilies(_CUSTOM_FONT_ID)[0] if _CUSTOM_FONT_ID >= 0 else None
+
 # 收藏图标（从 thumbnail_widget 导入，创建 QIcon 只创建一次）
 _FAVORITE_ICON = QtGui.QIcon(_FAVORITE_PIXMAP) if _FAVORITE_PIXMAP and not _FAVORITE_PIXMAP.isNull() else None
 
@@ -92,6 +97,11 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self._preview_update_timer.timeout.connect(self._preview_pending_thumb_size)
         self.setMinimumWidth(350)
         self.setStyleSheet(f"background-color: {BG_PRIMARY};")
+
+        # 应用自定义字体
+        if _CUSTOM_FONT_FAMILY:
+            font = QtGui.QFont(_CUSTOM_FONT_FAMILY)
+            self.setFont(font)
 
         init_size = load_thumb_size()
 
