@@ -183,9 +183,31 @@ def refresh_tools():
     """重新扫描所有 .shelf 文件并更新全局工具注册表。
 
     在创建新工具并写入 .shelf 文件后调用此函数。
+    同时清除 MAscripts 模块缓存，确保修改后的 .py 代码生效。
     """
     global _TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS
+
+    # 清除 MAscripts 模块缓存，确保修改后的 .py 代码生效
+    _clear_mascripts_cache()
+
     _TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS = scan_tool_names()
+
+
+def _clear_mascripts_cache():
+    """清除 sys.modules 中 MAscripts 目录下的模块缓存。"""
+    import sys
+    mascripts_dir = os.path.join(project_root(), "builtin_tools", "MAscripts")
+    if not os.path.isdir(mascripts_dir):
+        return
+    
+    # 找出所有 MAscripts 下的模块
+    modules_to_remove = [
+        key for key, mod in sys.modules.items()
+        if hasattr(mod, '__file__') and mod.__file__
+        and os.path.abspath(mod.__file__).startswith(os.path.abspath(mascripts_dir))
+    ]
+    for mod_name in modules_to_remove:
+        del sys.modules[mod_name]
 
 
 # 模块加载时扫描工具名称

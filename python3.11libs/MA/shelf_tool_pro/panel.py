@@ -471,6 +471,15 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.tag_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
         layout.addWidget(self.tag_filter_combo)
 
+        # ── 刷新按钮 ──────────────────────────────────
+        layout.addSpacing(10)
+        self.refresh_btn = QtWidgets.QPushButton("刷新")
+        self.refresh_btn.setObjectName("refreshButton")
+        self.refresh_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self.refresh_btn.setStyleSheet(SETTINGS_BUTTON_STYLE)
+        self.refresh_btn.clicked.connect(self._on_refresh)
+        layout.addWidget(self.refresh_btn)
+
         # 搜索去抖定时器
         self._search_timer = QtCore.QTimer(self)
         self._search_timer.setSingleShot(True)
@@ -769,6 +778,10 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
     def _on_filter_changed(self, index):
         """筛选项变化时触发。"""
         self._apply_filter()
+
+    def _on_refresh(self):
+        """刷新按钮点击：重新扫描工具并刷新面板。"""
+        self._refresh_tools()
 
     def _parse_search_query(self, text: str) -> tuple[str, str]:
         """解析搜索文本，返回 (mode, query)。
