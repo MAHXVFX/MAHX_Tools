@@ -96,7 +96,12 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self._preview_update_timer.setInterval(16)
         self._preview_update_timer.timeout.connect(self._preview_pending_thumb_size)
         self.setMinimumWidth(350)
-        self.setStyleSheet(f"background-color: {BG_PRIMARY};")
+
+        # 构建样式表（包含自定义字体）
+        style = f"background-color: {BG_PRIMARY};"
+        if _CUSTOM_FONT_FAMILY:
+            style += f" font-family: '{_CUSTOM_FONT_FAMILY}';"
+        self.setStyleSheet(style)
 
         # 应用自定义字体
         if _CUSTOM_FONT_FAMILY:
