@@ -25,7 +25,8 @@ root/
 ├── builtin_tools/              # 内置工具（只读，随项目提交）
 │   ├── builtin_tools.json      # 内置工具配置（图标/标签/元数据）
 │   ├── MA_*.shelf              # 工具注册入口
-│   └── MAscripts/              # 功能代码（.py）
+│   ├── MAscripts/              # 功能代码（.py）
+│   └── notes/                  # 备注文件（.md），按 unique_id 命名
 ├── python_panels/              # Pane Tab 定义（XML 入口）
 ├── MAtoolbar/                  # 用户工具目录（.shelf 文件）
 └── MA_ShelfTools_Pro_Notes/   # 工具备注（.md 用户数据）

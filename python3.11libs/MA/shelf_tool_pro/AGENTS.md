@@ -29,7 +29,7 @@ Houdini shelf tools 可视化面板，支持点击/拖拽放置、GIF 动画、M
 - **ToolSettingsDialog**: 统一对话框，`mode="create"` / `mode="edit"` 双模式，QTabWidget 双标签页
 - **Favorite icon**: SVG 矢量图标，模块级 `_FAVORITE_PIXMAP` 只加载一次，QLabel + QPixmap 显示
 - **Dialog positioning**: `_position_dialog()` 统一定位，`_clamp_to_screen()` 约束在屏幕可用区域
-- **Builtin tools protection**: 内置工具右键菜单隐藏"设置"和"删除"选项，数据由 `builtin_tools.json` 管理
+- **Builtin tools protection**: 内置工具右键菜单只显示"收藏"，数据由 `builtin_tools.json` + `builtin_tools/notes/` 管理，`_get_note()` 统一读取逻辑
 
 ## Anti-Patterns
 

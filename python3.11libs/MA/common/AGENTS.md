@@ -19,7 +19,7 @@
 - **Change detection**: `save()` 比较 `_saved_state == data`，未变更则跳过写入
 - **Styles separation**: `styles.py` 定义颜色常量 + 完整 `STYLE_SHEET`，HDR 面板直接引用
 - **Property-driven rebuild**: `FilterManager.thumbnails.setter` / `hdr_directory.setter` 自动触发 `_rebuild_indices()`
-- **Builtin tools config**: `BuiltinToolsCacheManager` 读取 `builtin_tools/builtin_tools.json`，只读，随项目提交
+- **Builtin tools config**: `BuiltinToolsCacheManager` 读取 `builtin_tools/builtin_tools.json`（图标/标签），备注从 `builtin_tools/notes/{unique_id}.md` 读取，只读，随项目提交
 
 ## Anti-Patterns
 
