@@ -12,8 +12,7 @@ BORDER_COLOR = "#3d3d3d"
 
 SETTINGS_BUTTON_STYLE = (
     f"QPushButton#settingsButton {{ background-color: #6b4c9c; color: white; "
-    f"padding: 6px 8px; border-radius: 10px; min-width: 50px; font-weight: bold; "
-    f"text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }}"
+    f"padding: 6px 8px; border-radius: 10px; min-width: 50px; font-weight: bold; }}"
 )
 
 THUMB_SLIDER_STYLE = f"""
