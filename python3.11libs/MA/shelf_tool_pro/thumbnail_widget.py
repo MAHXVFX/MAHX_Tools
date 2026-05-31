@@ -461,23 +461,19 @@ class ThumbnailWidget(QtWidgets.QWidget):
         fav_action = menu.addAction("取消收藏" if is_fav else "收藏")
         fav_action.triggered.connect(self._on_toggle_favorite)
         
-        menu.addSeparator()
-        
-        # 内置工具不显示"设置"和"删除"选项
+        # 内置工具只显示收藏，不显示设置/标签/备注/删除
         if not self._is_builtin:
+            menu.addSeparator()
             settings_action = menu.addAction("设置\u2026")
             settings_action.triggered.connect(self._on_settings)
-        
-        tags_action = menu.addAction("标签\u2026")
-        notes_action = menu.addAction("备注")
-        
-        if not self._is_builtin:
+            tags_action = menu.addAction("标签\u2026")
+            notes_action = menu.addAction("备注")
             menu.addSeparator()
             delete_action = menu.addAction("删除")
             delete_action.triggered.connect(self._on_delete_tool)
+            tags_action.triggered.connect(self._on_edit_tags)
+            notes_action.triggered.connect(self._on_edit_notes)
         
-        tags_action.triggered.connect(self._on_edit_tags)
-        notes_action.triggered.connect(self._on_edit_notes)
         menu.exec(event.globalPos())
 
     def _on_edit_tags(self):
