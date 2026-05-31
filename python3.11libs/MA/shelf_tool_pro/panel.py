@@ -13,7 +13,7 @@ except ImportError:
 from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
 from MA.common.animation_helper import elastic_resize
 from MA.shelf_tool_pro.styles import (
-    BG_PRIMARY, BG_SECONDARY, BG_INPUT, TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR,
+    BG_PRIMARY, BG_SECONDARY, BG_INPUT, BG_HOVER, TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR,
     ACCENT_BLUE,
     SETTINGS_BUTTON_STYLE, THUMB_SLIDER_STYLE,
 )
@@ -479,10 +479,18 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
         # ── 刷新按钮 ──────────────────────────────────
         layout.addSpacing(10)
-        self.refresh_btn = QtWidgets.QPushButton("刷新")
+        refresh_icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "icons", "MA refresh.svg")
+        self.refresh_btn = QtWidgets.QPushButton()
         self.refresh_btn.setObjectName("refreshButton")
+        self.refresh_btn.setToolTip("刷新工具列表")
         self.refresh_btn.setCursor(QtCore.Qt.PointingHandCursor)
-        self.refresh_btn.setStyleSheet(SETTINGS_BUTTON_STYLE)
+        self.refresh_btn.setFixedSize(28, 28)
+        self.refresh_btn.setIcon(QtGui.QIcon(refresh_icon_path))
+        self.refresh_btn.setIconSize(QtCore.QSize(18, 18))
+        self.refresh_btn.setStyleSheet(
+            f"QPushButton {{ background-color: transparent; border: none; border-radius: 4px; padding: 4px; }}"
+            f"QPushButton:hover {{ background-color: {BG_HOVER}; }}"
+        )
         self.refresh_btn.clicked.connect(self._on_refresh)
         layout.addWidget(self.refresh_btn)
 
