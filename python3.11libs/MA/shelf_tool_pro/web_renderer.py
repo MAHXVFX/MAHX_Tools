@@ -170,6 +170,8 @@ class WebRenderer(QObject):
         if ok:
             logger.debug("WebRenderer: page loaded successfully")
             self._ready = True
+            # 注入自定义字体 @font-face
+            self._inject_custom_font()
             # Process the last queued render (earlier ones are obsolete)
             if self._pending_render is not None:
                 text, callback, fade = self._pending_render
@@ -213,3 +215,23 @@ class WebRenderer(QObject):
             self._view.page().runJavaScript("window.hideMarkdownContent && window.hideMarkdownContent();")
         except Exception as e:
             logger.error("WebRenderer: JS hide content failed: %s", e)
+
+    def _inject_custom_font(self) -> None:
+        """注入自定义字体 @font-face 到页面。"""
+        font_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "icons", "AlimamaFangYuanTiVF-Thin.ttf")
+        if not os.path.isfile(font_path):
+            return
+        
+        # 将路径转换为 file:// URL（跨平台兼容）
+        font_url = QUrl.fromLocalFile(font_path).toString()
+        js_code = f"""
+        (function() {{
+            var style = document.createElement('style');
+            style.textContent = "@font-face {{ font-family: 'AlimamaFangYuanTi'; src: url('{font_url}') format('truetype'); font-weight: normal; font-style: normal; }}";
+            document.head.appendChild(style);
+        }})();
+        """
+        try:
+            self._view.page().runJavaScript(js_code)
+        except Exception as e:
+            logger.error("WebRenderer: font injection failed: %s", e)

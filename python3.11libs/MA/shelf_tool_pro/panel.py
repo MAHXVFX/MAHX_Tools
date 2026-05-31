@@ -434,7 +434,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.filter_combo.setMinimumWidth(120)
         self.filter_combo.setStyleSheet(
             f"QComboBox {{ background-color: {BG_INPUT}; color: white; border: 1px solid {BORDER_COLOR}; "
-            f"border-radius: 4px; padding: 3px 8px; font-size: 11px; }} "
+            f"border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: bold; }} "
             f"QComboBox::drop-down {{ border: none; }} "
             f"QComboBox QAbstractItemView {{ background-color: {BG_INPUT}; color: white; "
             f"selection-background-color: #0d6399; outline: none; }} "
@@ -483,7 +483,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.tag_filter_combo.setMinimumWidth(100)
         self.tag_filter_combo.setStyleSheet(
             f"QComboBox {{ background-color: {BG_INPUT}; color: white; border: 1px solid {BORDER_COLOR}; "
-            f"border-radius: 4px; padding: 3px 8px; font-size: 11px; }} "
+            f"border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: bold; }} "
             f"QComboBox::drop-down {{ border: none; }} "
             f"QComboBox QAbstractItemView {{ background-color: {BG_INPUT}; color: white; "
             f"selection-background-color: #0d6399; }}")
