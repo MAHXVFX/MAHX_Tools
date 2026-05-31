@@ -306,21 +306,22 @@ class ThumbnailWidget(QtWidgets.QWidget):
 
         self._set_thumbnail_pixmap(canvas)
 
+    @property
+    def _is_builtin(self) -> bool:
+        """判断当前工具是否为内置工具。"""
+        from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
+        if self._unique_id in _TOOL_REGISTRY:
+            _, _, _, _, shelf_path = _TOOL_REGISTRY[self._unique_id]
+            return "builtin_tools" in shelf_path
+        return False
+
     def _render_thumbnail(self, size):
         """渲染缩略图：优先读缓存 GIF/PNG/JPG，其次 Houdini 内部图标，否则灰色占位图。"""
         radius = max(3, size // 8)
 
-        # 判断是否为内置工具，优先从内置工具配置获取图标
-        from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
-        from MA.common.settings import BuiltinToolsCacheManager
-        
-        cached_icon = None
-        is_builtin = False
-        if self._unique_id in _TOOL_REGISTRY:
-            _, _, _, _, shelf_path = _TOOL_REGISTRY[self._unique_id]
-            is_builtin = "builtin_tools" in shelf_path
-        
-        if is_builtin:
+        # 内置工具从 BuiltinToolsCacheManager 获取图标，用户工具从 ShelfToolsCacheManager 获取
+        if self._is_builtin:
+            from MA.common.settings import BuiltinToolsCacheManager
             cached_icon = BuiltinToolsCacheManager.get_tool_icon(self._unique_id)
         else:
             from MA.common.settings import ShelfToolsCacheManager
@@ -455,13 +456,6 @@ class ThumbnailWidget(QtWidgets.QWidget):
         menu = QtWidgets.QMenu(self)
         menu.setStyleSheet(CONTEXT_MENU_STYLE)
         
-        # 判断是否为内置工具
-        from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
-        is_builtin = False
-        if self._unique_id in _TOOL_REGISTRY:
-            _, _, _, _, shelf_path = _TOOL_REGISTRY[self._unique_id]
-            is_builtin = "builtin_tools" in shelf_path
-        
         # 收藏菜单项（根据当前状态显示"收藏"或"取消收藏"）
         is_fav = ShelfToolsSettingsManager.is_favorite(self._unique_id)
         fav_action = menu.addAction("取消收藏" if is_fav else "收藏")
@@ -470,14 +464,14 @@ class ThumbnailWidget(QtWidgets.QWidget):
         menu.addSeparator()
         
         # 内置工具不显示"设置"和"删除"选项
-        if not is_builtin:
+        if not self._is_builtin:
             settings_action = menu.addAction("设置\u2026")
             settings_action.triggered.connect(self._on_settings)
         
         tags_action = menu.addAction("标签\u2026")
         notes_action = menu.addAction("备注")
         
-        if not is_builtin:
+        if not self._is_builtin:
             menu.addSeparator()
             delete_action = menu.addAction("删除")
             delete_action.triggered.connect(self._on_delete_tool)
