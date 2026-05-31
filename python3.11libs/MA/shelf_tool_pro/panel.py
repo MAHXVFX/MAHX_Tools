@@ -484,9 +484,9 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.refresh_btn.setObjectName("refreshButton")
         self.refresh_btn.setToolTip("刷新工具列表")
         self.refresh_btn.setCursor(QtCore.Qt.PointingHandCursor)
-        self.refresh_btn.setFixedSize(28, 28)
+        self.refresh_btn.setFixedSize(32, 32)
         self.refresh_btn.setIcon(QtGui.QIcon(refresh_icon_path))
-        self.refresh_btn.setIconSize(QtCore.QSize(18, 18))
+        self.refresh_btn.setIconSize(QtCore.QSize(22, 22))
         self.refresh_btn.setStyleSheet(
             f"QPushButton {{ background-color: transparent; border: none; border-radius: 4px; padding: 4px; }}"
             f"QPushButton:hover {{ background-color: {BG_HOVER}; }}"

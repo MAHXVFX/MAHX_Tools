@@ -16,7 +16,7 @@ from MA.shelf_tool_pro.markdown_text_edit import MarkdownTextEdit
 logger = logging.getLogger("MA")
 
 # ── 收藏图标（SVG，模块级只加载一次） ──────────────────────
-_FAVORITE_ICON_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "icons", "favorite.svg")
+_FAVORITE_ICON_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "icons", "MA favorite.svg")
 _FAVORITE_PIXMAP = QtGui.QPixmap(_FAVORITE_ICON_PATH) if os.path.isfile(_FAVORITE_ICON_PATH) else None
 
 class ThumbnailWidget(QtWidgets.QWidget):
