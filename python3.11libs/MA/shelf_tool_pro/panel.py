@@ -96,17 +96,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self._preview_update_timer.setInterval(16)
         self._preview_update_timer.timeout.connect(self._preview_pending_thumb_size)
         self.setMinimumWidth(350)
-
-        # 构建样式表（包含自定义字体）
-        style = f"background-color: {BG_PRIMARY};"
-        if _CUSTOM_FONT_FAMILY:
-            style += f" font-family: '{_CUSTOM_FONT_FAMILY}';"
-        self.setStyleSheet(style)
-
-        # 应用自定义字体
-        if _CUSTOM_FONT_FAMILY:
-            font = QtGui.QFont(_CUSTOM_FONT_FAMILY)
-            self.setFont(font)
+        self.setStyleSheet(f"background-color: {BG_PRIMARY};")
 
         init_size = load_thumb_size()
 
@@ -368,6 +358,9 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.settings_btn.setCursor(QtCore.Qt.PointingHandCursor)
         self.settings_btn.setStyleSheet(SETTINGS_BUTTON_STYLE)
         self.settings_btn.clicked.connect(self._toggle_settings)
+        # 应用自定义字体
+        if _CUSTOM_FONT_FAMILY:
+            self.settings_btn.setFont(QtGui.QFont(_CUSTOM_FONT_FAMILY))
         layout.addWidget(self.settings_btn)
 
         layout.addSpacing(10)
