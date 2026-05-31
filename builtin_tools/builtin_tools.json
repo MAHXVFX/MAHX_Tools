@@ -1,7 +1,7 @@
 {
     "tools": {
         "MA_Test_MA_Test": {
-            "icon": "python3.11libs/MA/icons/MA automation.jpg",
+            "icon": "python3.11libs/MA/icons/MAShelfToolsPro Automation Tool.jpg",
             "label": "MA 测试工具",
             "tags": ["test"]
         }
