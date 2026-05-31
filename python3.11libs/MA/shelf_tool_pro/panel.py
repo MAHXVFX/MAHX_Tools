@@ -807,10 +807,12 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             favorites = ShelfToolsSettingsManager.get_favorites()
             filtered_names = [uid for uid in filtered_names if uid in favorites]
         elif tag_data != "all":
-            # 标签筛选
+            # 标签筛选（用户工具从 ShelfToolsCacheManager，内置工具从 BuiltinToolsCacheManager）
+            from MA.common.settings import BuiltinToolsCacheManager
             filtered_names = [
                 uid for uid in filtered_names
                 if tag_data in ShelfToolsCacheManager.get_tags(uid)
+                or tag_data in BuiltinToolsCacheManager.get_tool_tags(uid)
             ]
 
         # Layer 3: 搜索文本筛选（叠加/交集）
@@ -820,9 +822,11 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             if query:
                 query_lower = query.lower()
                 if mode == "tag":
+                    from MA.common.settings import BuiltinToolsCacheManager
                     filtered_names = [
                         uid for uid in filtered_names
                         if any(query_lower in tag.lower() for tag in ShelfToolsCacheManager.get_tags(uid))
+                        or any(query_lower in tag.lower() for tag in BuiltinToolsCacheManager.get_tool_tags(uid))
                     ]
                 elif mode == "name":
                     filtered_names = [

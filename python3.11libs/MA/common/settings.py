@@ -198,14 +198,26 @@ class ShelfToolsCacheManager(BaseJsonManager):
 
     @classmethod
     def get_all_tags(cls) -> list:
-        """获取所有工具中使用过的唯一标签列表（按字母排序）。排除内置工具。"""
-        data = cls.load()
+        """获取所有工具中使用过的唯一标签列表（按字母排序）。
+        
+        用户工具从 ShelfToolsCacheManager 读取，内置工具从 BuiltinToolsCacheManager 读取。
+        """
         all_tags = set()
+        
+        # 用户工具标签
+        data = cls.load()
         for key, value in data.items():
             if key.startswith("tags_") and isinstance(value, list):
                 tool_name = key[5:]
                 if not cls._is_builtin_tool(tool_name):
                     all_tags.update(value)
+        
+        # 内置工具标签
+        from MA.common.settings import BuiltinToolsCacheManager
+        builtin_data = BuiltinToolsCacheManager.load()
+        for tool_data in builtin_data.get("tools", {}).values():
+            all_tags.update(tool_data.get("tags", []))
+        
         return sorted(all_tags)
 
     # ── 图标缓存 ────────────────────────────────
