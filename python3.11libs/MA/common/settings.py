@@ -134,8 +134,19 @@ class ShelfToolsCacheManager(BaseJsonManager):
     _file = SHELFTOOLS_CACHE_FILE
 
     @classmethod
+    def _is_builtin_tool(cls, tool_name: str) -> bool:
+        """检查工具是否为内置工具（unique_id 包含 builtin_tools 目录下的 shelf_stem）。"""
+        from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
+        if tool_name in _TOOL_REGISTRY:
+            _, _, _, _, shelf_path = _TOOL_REGISTRY[tool_name]
+            return "builtin_tools" in shelf_path
+        return False
+
+    @classmethod
     def get_note(cls, tool_name):
-        """获取工具的备注内容，未设置时返回 None。"""
+        """获取工具的备注内容，未设置时返回 None。内置工具返回 None。"""
+        if cls._is_builtin_tool(tool_name):
+            return None
         note_path = os.path.join(SHELFTOOLS_NOTES_DIR, f"{tool_name}.md")
         if not os.path.exists(note_path):
             return None
@@ -155,7 +166,9 @@ class ShelfToolsCacheManager(BaseJsonManager):
 
     @classmethod
     def get_tags(cls, tool_name: str) -> list:
-        """获取工具的标签列表。"""
+        """获取工具的标签列表。内置工具返回空列表。"""
+        if cls._is_builtin_tool(tool_name):
+            return []
         return cls.load().get(cls._TAGS_KEY.format(tool_name), [])
 
     @classmethod
@@ -185,12 +198,14 @@ class ShelfToolsCacheManager(BaseJsonManager):
 
     @classmethod
     def get_all_tags(cls) -> list:
-        """获取所有工具中使用过的唯一标签列表（按字母排序）。"""
+        """获取所有工具中使用过的唯一标签列表（按字母排序）。排除内置工具。"""
         data = cls.load()
         all_tags = set()
         for key, value in data.items():
             if key.startswith("tags_") and isinstance(value, list):
-                all_tags.update(value)
+                tool_name = key[5:]  # 去掉 "tags_" 前缀
+                if not cls._is_builtin_tool(tool_name):
+                    all_tags.update(value)
         return sorted(all_tags)
 
     # ── 图标缓存 ────────────────────────────────
@@ -221,7 +236,9 @@ class ShelfToolsCacheManager(BaseJsonManager):
 
     @classmethod
     def get_tool_icon(cls, tool_name):
-        """获取工具自定义图标路径，未设置返回 None。自动解析相对路径为绝对路径。"""
+        """获取工具自定义图标路径，未设置返回 None。内置工具返回 None。"""
+        if cls._is_builtin_tool(tool_name):
+            return None
         path = cls.load().get(cls._ICON_KEY.format(tool_name))
         return cls._abs_icon_path(path)
 
