@@ -4,6 +4,11 @@
             "icon": "python3.11libs/MA/icons/MAShelfToolsPro Automation Tool.jpg",
             "label": "MA 测试工具",
             "tags": ["test"]
+        },
+        "MA_Automation_MA_Automation": {
+            "icon": "python3.11libs/MA/icons/MAShelfToolsPro Automation Tool.jpg",
+            "label": "MA Automation",
+            "tags": ["automation", "batch", "pipeline"]
         }
     }
 }
