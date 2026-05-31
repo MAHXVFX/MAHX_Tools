@@ -335,6 +335,7 @@ class ShelfToolsCacheManager(BaseJsonManager):
 class BuiltinToolsCacheManager(BaseJsonManager):
     """内置工具配置管理器，读取 builtin_tools/builtin_tools.json。"""
     _file = os.path.join(_MA_TOOLS_DIR, "builtin_tools", "builtin_tools.json")
+    _notes_dir = os.path.join(_MA_TOOLS_DIR, "builtin_tools", "notes")
 
     @classmethod
     def _get_tools_root(cls):
@@ -374,3 +375,12 @@ class BuiltinToolsCacheManager(BaseJsonManager):
         """获取内置工具的显示名称。"""
         tool_data = cls.get_tool_data(unique_id)
         return tool_data.get("label", "")
+
+    @classmethod
+    def get_tool_note(cls, unique_id: str) -> str:
+        """获取内置工具的备注内容，从 builtin_tools/notes/{unique_id}.md 读取。"""
+        note_path = os.path.join(cls._notes_dir, f"{unique_id}.md")
+        if not os.path.exists(note_path):
+            return ""
+        with open(note_path, "r", encoding="utf-8") as f:
+            return f.read()

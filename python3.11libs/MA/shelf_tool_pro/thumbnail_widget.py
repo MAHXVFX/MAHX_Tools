@@ -315,6 +315,15 @@ class ThumbnailWidget(QtWidgets.QWidget):
             return "builtin_tools" in shelf_path
         return False
 
+    def _get_note(self) -> str:
+        """获取当前工具的备注内容。内置工具从 BuiltinToolsCacheManager 读取。"""
+        if self._is_builtin:
+            from MA.common.settings import BuiltinToolsCacheManager
+            return BuiltinToolsCacheManager.get_tool_note(self._unique_id) or ""
+        else:
+            from MA.common.settings import ShelfToolsCacheManager
+            return ShelfToolsCacheManager.get_note(self._unique_id) or ""
+
     def _render_thumbnail(self, size):
         """渲染缩略图：优先读缓存 GIF/PNG/JPG，其次 Houdini 内部图标，否则灰色占位图。"""
         radius = max(3, size // 8)
@@ -699,7 +708,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
 
     def _on_edit_notes(self):
         """弹出分屏对话框：左侧编辑，右侧实时预览。"""
-        current_note = ShelfToolsCacheManager.get_note(self._unique_id) or ""
+        current_note = self._get_note()
         
         # 创建自定义对话框以控制窗口大小
         dialog = QtWidgets.QDialog(self)
@@ -888,7 +897,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
     def _open_notes_window(self):
         """以悬浮窗口方式打开备注（只读，渲染 markdown，带标题栏）。"""
         # 无备注则无事发生
-        current_note = ShelfToolsCacheManager.get_note(self._unique_id) or ""
+        current_note = self._get_note()
         if not current_note.strip():
             return
 
@@ -987,7 +996,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
 
     def _show_notes_panel(self):
         """显示备注面板：下方→右侧→左侧→上方，始终不遮挡缩略图。"""
-        note_text = ShelfToolsCacheManager.get_note(self._unique_id)
+        note_text = self._get_note()
         if not note_text or not note_text.strip():
             return
 
