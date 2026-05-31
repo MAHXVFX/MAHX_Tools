@@ -133,18 +133,10 @@ class ToolSettingsDialog(QtWidgets.QDialog):
     """统一工具设置对话框。
 
     两种模式：
-    - mode="create": 拖入节点创建新工具，显示 shelf 文件选择
+    - mode="create": 拖入节点创建新工具（含 shelf 文件选择）
     - mode="edit":   右键编辑已有工具，name 只读，含首选项和内容两个标签页
 
-    Args:
-        mode: "create" 或 "edit"
-        node_paths: 创建模式下的节点路径列表
-        tool_name: 编辑模式下的当前 name（create 模式可传空字符串）
-        label: 编辑模式下的当前 label（create 模式可传空字符串）
-        shelf_file_path: 编辑模式下的 .shelf 文件路径
-        icon_path: 编辑模式下的当前图标路径
-        script_content: 编辑模式下的工具脚本内容（create 模式可传空字符串）
-        parent: 父级 QWidget
+    纯 PySide6 实现，无 hou 依赖。
     """
 
     def __init__(

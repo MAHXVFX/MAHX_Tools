@@ -70,7 +70,7 @@ def _find_network_editor(prefer_current=True):
 
 
 def scan_tool_names():
-    """解析 MAtoolbar/*.shelf 文件，提取所有 tool 信息。
+    """解析 MAtoolbar/*.shelf 和 builtin_tools/*.shelf 文件，提取所有 tool 信息。
     
     Returns:
         tuple: (names, registry, scripts) 三元组
@@ -81,37 +81,46 @@ def scan_tool_names():
     names = []
     registry = {}
     scripts = {}
-    shelf_dir = os.path.join(project_root(), "MAtoolbar")
-    for f in sorted(glob.glob(os.path.join(shelf_dir, "*.shelf"))):
-        shelf_stem = os.path.splitext(os.path.basename(f))[0]
-        try:
-            with open(f, "r", encoding="utf-8") as fp:
-                content = fp.read()
-            root = ET.fromstring(content)
-            for tool_elem in root.findall('.//tool'):
-                tool_name = tool_elem.get('name', '')
-                if not tool_name:
-                    continue
-                label = html.unescape(tool_elem.get('label', tool_name))
-                icon = html.unescape(tool_elem.get('icon', ''))
-                # 修复可能的中文乱码
-                label = _fix_encoding(label)
-                
-                script_elem = tool_elem.find('script')
-                script_content = ''
-                if script_elem is not None:
-                    script_content = ''.join(script_elem.itertext())
+    
+    # 扫描两个目录：MAtoolbar（用户工具）和 builtin_tools（内置工具）
+    shelf_dirs = [
+        os.path.join(project_root(), "MAtoolbar"),
+        os.path.join(project_root(), "builtin_tools"),
+    ]
+    
+    for shelf_dir in shelf_dirs:
+        if not os.path.isdir(shelf_dir):
+            continue
+        for f in sorted(glob.glob(os.path.join(shelf_dir, "*.shelf"))):
+            shelf_stem = os.path.splitext(os.path.basename(f))[0]
+            try:
+                with open(f, "r", encoding="utf-8") as fp:
+                    content = fp.read()
+                root = ET.fromstring(content)
+                for tool_elem in root.findall('.//tool'):
+                    tool_name = tool_elem.get('name', '')
+                    if not tool_name:
+                        continue
+                    label = html.unescape(tool_elem.get('label', tool_name))
+                    icon = html.unescape(tool_elem.get('icon', ''))
                     # 修复可能的中文乱码
-                    script_content = _fix_encoding(script_content)
-                
-                unique_id = f"{shelf_stem}_{tool_name}"
-                names.append(unique_id)
-                registry[unique_id] = (shelf_stem, tool_name, label, icon, f)
-                scripts[unique_id] = script_content
-        except ET.ParseError as e:
-            _logger.warning("Failed to parse shelf XML: %s — %s", f, e)
-        except Exception as e:
-            _logger.warning("Failed to scan shelf file: %s — %s", f, e)
+                    label = _fix_encoding(label)
+                    
+                    script_elem = tool_elem.find('script')
+                    script_content = ''
+                    if script_elem is not None:
+                        script_content = ''.join(script_elem.itertext())
+                        # 修复可能的中文乱码
+                        script_content = _fix_encoding(script_content)
+                    
+                    unique_id = f"{shelf_stem}_{tool_name}"
+                    names.append(unique_id)
+                    registry[unique_id] = (shelf_stem, tool_name, label, icon, f)
+                    scripts[unique_id] = script_content
+            except ET.ParseError as e:
+                _logger.warning("Failed to parse shelf XML: %s — %s", f, e)
+            except Exception as e:
+                _logger.warning("Failed to scan shelf file: %s — %s", f, e)
     return names, registry, scripts
 
 

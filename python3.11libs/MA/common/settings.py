@@ -4,7 +4,7 @@ import copy
 import shutil
 import logging
 
-from .constants import HDR_SETTINGS_FILE, HDR_CACHE_FILE, SHELFTOOLS_SETTINGS_FILE, SHELFTOOLS_CACHE_FILE, SHELFTOOLS_NOTES_DIR, DEFAULT_SHELFTOOLS_THUMBNAIL_DIR
+from .constants import HDR_SETTINGS_FILE, HDR_CACHE_FILE, SHELFTOOLS_SETTINGS_FILE, SHELFTOOLS_CACHE_FILE, SHELFTOOLS_NOTES_DIR, DEFAULT_SHELFTOOLS_THUMBNAIL_DIR, _MA_TOOLS_DIR
 
 logger = logging.getLogger("MA")
 
@@ -303,3 +303,47 @@ class ShelfToolsCacheManager(BaseJsonManager):
         if key in data:
             del data[key]
             cls.save(data)
+
+
+class BuiltinToolsCacheManager(BaseJsonManager):
+    """内置工具配置管理器，读取 builtin_tools/builtin_tools.json。"""
+    _file = os.path.join(_MA_TOOLS_DIR, "builtin_tools", "builtin_tools.json")
+
+    @classmethod
+    def _get_tools_root(cls):
+        """返回项目根目录（MAHX_Tools/）。"""
+        return _MA_TOOLS_DIR
+
+    @classmethod
+    def _abs_icon_path(cls, path):
+        """将相对路径解析为绝对路径。"""
+        if not path or os.path.isabs(path):
+            return path
+        return os.path.normpath(os.path.join(cls._get_tools_root(), path))
+
+    @classmethod
+    def get_tool_data(cls, unique_id: str) -> dict:
+        """获取内置工具的配置数据。"""
+        data = cls.load()
+        return data.get("tools", {}).get(unique_id, {})
+
+    @classmethod
+    def get_tool_icon(cls, unique_id: str):
+        """获取内置工具的图标路径。"""
+        tool_data = cls.get_tool_data(unique_id)
+        icon_path = tool_data.get("icon", "")
+        if icon_path:
+            return cls._abs_icon_path(icon_path)
+        return None
+
+    @classmethod
+    def get_tool_tags(cls, unique_id: str) -> list:
+        """获取内置工具的标签列表。"""
+        tool_data = cls.get_tool_data(unique_id)
+        return tool_data.get("tags", [])
+
+    @classmethod
+    def get_tool_label(cls, unique_id: str) -> str:
+        """获取内置工具的显示名称。"""
+        tool_data = cls.get_tool_data(unique_id)
+        return tool_data.get("label", "")

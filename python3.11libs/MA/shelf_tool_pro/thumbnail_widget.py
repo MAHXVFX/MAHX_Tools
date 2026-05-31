@@ -16,7 +16,7 @@ from MA.shelf_tool_pro.markdown_text_edit import MarkdownTextEdit
 logger = logging.getLogger("MA")
 
 # ── 收藏图标（SVG，模块级只加载一次） ──────────────────────
-_FAVORITE_ICON_PATH = os.path.join(os.path.dirname(__file__), "icons", "favorite.svg")
+_FAVORITE_ICON_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "icons", "favorite.svg")
 _FAVORITE_PIXMAP = QtGui.QPixmap(_FAVORITE_ICON_PATH) if os.path.isfile(_FAVORITE_ICON_PATH) else None
 
 class ThumbnailWidget(QtWidgets.QWidget):
@@ -310,9 +310,23 @@ class ThumbnailWidget(QtWidgets.QWidget):
         """渲染缩略图：优先读缓存 GIF/PNG/JPG，其次 Houdini 内部图标，否则灰色占位图。"""
         radius = max(3, size // 8)
 
-        # 从缓存取图标路径
-        from MA.common.settings import ShelfToolsCacheManager
-        cached_icon = ShelfToolsCacheManager.get_tool_icon(self._unique_id) or self._icon_path
+        # 判断是否为内置工具，优先从内置工具配置获取图标
+        from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
+        from MA.common.settings import BuiltinToolsCacheManager
+        
+        cached_icon = None
+        is_builtin = False
+        if self._unique_id in _TOOL_REGISTRY:
+            _, _, _, _, shelf_path = _TOOL_REGISTRY[self._unique_id]
+            is_builtin = "builtin_tools" in shelf_path
+        
+        if is_builtin:
+            cached_icon = BuiltinToolsCacheManager.get_tool_icon(self._unique_id)
+        else:
+            from MA.common.settings import ShelfToolsCacheManager
+            cached_icon = ShelfToolsCacheManager.get_tool_icon(self._unique_id)
+        
+        cached_icon = cached_icon or self._icon_path
 
         if cached_icon and os.path.isfile(cached_icon):
             # ── GIF：启用 QMovie ──
@@ -441,21 +455,35 @@ class ThumbnailWidget(QtWidgets.QWidget):
         menu = QtWidgets.QMenu(self)
         menu.setStyleSheet(CONTEXT_MENU_STYLE)
         
+        # 判断是否为内置工具
+        from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
+        is_builtin = False
+        if self._unique_id in _TOOL_REGISTRY:
+            _, _, _, _, shelf_path = _TOOL_REGISTRY[self._unique_id]
+            is_builtin = "builtin_tools" in shelf_path
+        
         # 收藏菜单项（根据当前状态显示"收藏"或"取消收藏"）
         is_fav = ShelfToolsSettingsManager.is_favorite(self._unique_id)
         fav_action = menu.addAction("取消收藏" if is_fav else "收藏")
         fav_action.triggered.connect(self._on_toggle_favorite)
         
         menu.addSeparator()
-        settings_action = menu.addAction("设置\u2026")
+        
+        # 内置工具不显示"设置"和"删除"选项
+        if not is_builtin:
+            settings_action = menu.addAction("设置\u2026")
+            settings_action.triggered.connect(self._on_settings)
+        
         tags_action = menu.addAction("标签\u2026")
         notes_action = menu.addAction("备注")
-        menu.addSeparator()
-        delete_action = menu.addAction("删除")
-        settings_action.triggered.connect(self._on_settings)
+        
+        if not is_builtin:
+            menu.addSeparator()
+            delete_action = menu.addAction("删除")
+            delete_action.triggered.connect(self._on_delete_tool)
+        
         tags_action.triggered.connect(self._on_edit_tags)
         notes_action.triggered.connect(self._on_edit_notes)
-        delete_action.triggered.connect(self._on_delete_tool)
         menu.exec(event.globalPos())
 
     def _on_edit_tags(self):

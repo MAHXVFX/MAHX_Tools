@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shelfDocument>
+  <tool name="MA_Test" label="MA 测试工具" icon="hicon:/SVGIcons.index?BUTTONS_python.svg">
+    <script scriptType="python"><![CDATA[
+import sys
+import os
+
+# 通过 MA 模块获取项目根目录，定位 builtin_tools/MAscripts
+import MA
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(MA.__file__)))
+scripts_dir = os.path.join(project_root, "builtin_tools", "MAscripts")
+
+# 添加到 sys.path
+if scripts_dir not in sys.path:
+    sys.path.insert(0, scripts_dir)
+
+# 导入并执行工具模块
+import MA_test_tool
+MA_test_tool.run(kwargs)
+]]></script>
+  </tool>
+
+  <toolshelf name="MA_Test" label="MA_Test">
+    <memberTool name="MA_Test"/>
+  </toolshelf>
+</shelfDocument>
