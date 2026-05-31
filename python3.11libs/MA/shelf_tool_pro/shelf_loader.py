@@ -208,6 +208,9 @@ def _clear_mascripts_cache():
     ]
     for mod_name in modules_to_remove:
         del sys.modules[mod_name]
+    
+    if modules_to_remove:
+        _logger.debug("Cleared MAscripts module cache: %s", modules_to_remove)
 
 
 # 模块加载时扫描工具名称

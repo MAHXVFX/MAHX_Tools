@@ -338,6 +338,12 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         except RuntimeError:
             pass  # Qt already deleted the old widget during setWidget()
 
+    def _on_refresh(self):
+        """刷新按钮点击：重新扫描工具并刷新面板。"""
+        self._refresh_tools()
+        if hou is not None:
+            hou.ui.setStatusMessage("工具已刷新", hou.severityType.ImportantMessage)
+
     def _create_toolbar(self, init_size):
         layout = QtWidgets.QHBoxLayout()
         layout.setContentsMargins(8, 4, 8, 4)
@@ -778,10 +784,6 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
     def _on_filter_changed(self, index):
         """筛选项变化时触发。"""
         self._apply_filter()
-
-    def _on_refresh(self):
-        """刷新按钮点击：重新扫描工具并刷新面板。"""
-        self._refresh_tools()
 
     def _parse_search_query(self, text: str) -> tuple[str, str]:
         """解析搜索文本，返回 (mode, query)。
