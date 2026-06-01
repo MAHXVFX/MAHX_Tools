@@ -183,34 +183,42 @@ def refresh_tools():
     """重新扫描所有 .shelf 文件并更新全局工具注册表。
 
     在创建新工具并写入 .shelf 文件后调用此函数。
-    同时清除 MAscripts 模块缓存，确保修改后的 .py 代码生效。
+    同时清除 MAHX_Tools 项目根目录下所有模块缓存（builtin_tools/MAscripts、
+    MA/* 子包等），确保修改后的 .py 代码在下次 import 时重新加载。
+    不再需要重启 Houdini 即可看到工具代码变更。
+
+    副作用：所有 MA/* 单例状态（如 ``_panel_window`` / ``_window``）会被重置，
+    已打开的面板需重新打开。
     """
     global _TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS
 
-    # 清除 MAscripts 模块缓存，确保修改后的 .py 代码生效
-    _clear_mascripts_cache()
+    # 清除项目根目录下所有模块缓存，确保修改后的 .py 代码生效
+    _clear_module_cache()
 
     _TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS = scan_tool_names()
 
 
-def _clear_mascripts_cache():
-    """清除 sys.modules 中 MAscripts 目录下的模块缓存。"""
+def _clear_module_cache():
+    """清除 sys.modules 中 MAHX_Tools 项目根目录下的所有模块缓存。
+
+    扫描范围：MA/、builtin_tools/、MAtoolbar/ 等所有项目子目录。
+    保证刷新按钮能完整热重载项目内任意 .py 文件。
+    """
     import sys
-    mascripts_dir = os.path.join(project_root(), "builtin_tools", "MAscripts")
-    if not os.path.isdir(mascripts_dir):
+    root = os.path.abspath(project_root())
+    if not os.path.isdir(root):
         return
-    
-    # 找出所有 MAscripts 下的模块
+
     modules_to_remove = [
-        key for key, mod in sys.modules.items()
+        key for key, mod in list(sys.modules.items())
         if hasattr(mod, '__file__') and mod.__file__
-        and os.path.abspath(mod.__file__).startswith(os.path.abspath(mascripts_dir))
+        and os.path.abspath(mod.__file__).startswith(root)
     ]
     for mod_name in modules_to_remove:
         del sys.modules[mod_name]
-    
+
     if modules_to_remove:
-        _logger.debug("Cleared MAscripts module cache: %s", modules_to_remove)
+        _logger.debug("Cleared module cache: %s", modules_to_remove)
 
 
 # 模块加载时扫描工具名称
