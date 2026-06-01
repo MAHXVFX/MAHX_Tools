@@ -27,6 +27,39 @@ QComboBox { background-color: #2d2d2d; color: #e0e0e0; border: 1px solid #3d3d3d
 QComboBox::drop-down { border: none; }
 QComboBox QAbstractItemView { background-color: #2d2d2d; color: #e0e0e0;
                                selection-background-color: #0d6399; }
+/* 配置下拉:突出显示(蓝色边框 + 醒目下拉按钮区) */
+QComboBox#configCombo {
+    background-color: #1d1d20; color: #e0e0e0;
+    border: 2px solid #0d6399;
+    padding: 4px 8px; border-radius: 4px;
+    min-height: 22px;
+}
+QComboBox#configCombo:hover {
+    border-color: #0e7bc9; background-color: #252528;
+}
+QComboBox#configCombo:focus {
+    border-color: #8a5cf5; background-color: #252528;
+}
+QComboBox#configCombo::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 22px;
+    border-left: 1px solid #0d6399;
+    background-color: #0d6399;
+}
+QComboBox#configCombo::drop-down:hover {
+    background-color: #0e7bc9; border-left-color: #0e7bc9;
+}
+QComboBox#configCombo::drop-down:on {
+    background-color: #8a5cf5; border-left-color: #8a5cf5;
+}
+QComboBox#configCombo::down-arrow {
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid white;
+    margin-right: 4px;
+}
 QLineEdit { background-color: #2d2d2d; color: #e0e0e0; border: 1px solid #3d3d3d;
             padding: 4px 8px; border-radius: 4px; }
 QCheckBox { color: #e0e0e0; spacing: 6px; }

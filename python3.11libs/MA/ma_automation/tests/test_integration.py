@@ -10,7 +10,7 @@ import sys
 import os
 import types
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, patch, call
 
 # ── 前置：mock PySide6 ────────────────────────────────────
 import _pyside_mock  # noqa: F401
@@ -1133,13 +1133,15 @@ class TestClickDeselect(unittest.TestCase):
     def test_deselect_logic_in_source(self):
         """源码契约锁死:防止误删关键代码或改坏 walk-up 判定。
 
-        用 ``assertIn`` 字符串匹配(不用 regex 跨行):4 个独立子串断言,
+        用 ``assertIn`` 字符串匹配(不用 regex 跨行):5 个独立子串断言,
         任何一个漏写就 fail。核心契约:
         1. ``_is_widget_on_slot`` helper 必须存在(walk-up 核心)
         2. ``mousePressEvent`` override 必须存在
         3. ``QApplication.widgetAt`` 必须调用(拿最顶层 widget)
         4. ``self._is_widget_on_slot(QApplication.widgetAt(event.globalPos()))``
            必须在 mousePressEvent 里出现(walk-up 调用的正确语法)
+        5. ``super().mousePressEvent(event)`` 必须调用(保留 Qt 默认行为,
+           防止右键 / 中键 / 拖动等事件被吞,只在真 Houdini 才发现)
         """
         from pathlib import Path
         # automation_window.py 与 tests/ 目录的相对关系:
@@ -1157,6 +1159,12 @@ class TestClickDeselect(unittest.TestCase):
             "self._is_widget_on_slot(QApplication.widgetAt(event.globalPos()))",
             src,
             "mousePressEvent 必须用 walk-up 语法调 _is_widget_on_slot + QApplication.widgetAt",
+        )
+        # super().mousePressEvent 必须调用(防误删导致右键 / 中键失效)
+        self.assertIn(
+            "super().mousePressEvent(event)",
+            src,
+            "mousePressEvent 末尾必须 super().mousePressEvent(event) 透传,保留 Qt 默认行为",
         )
 
 
@@ -1256,6 +1264,269 @@ class TestIsWidgetOnSlot(unittest.TestCase):
         # 关键断言:只调 child.parent() 一次,不会无限 walk
         self.assertTrue(self.aw._is_widget_on_slot(child))
         child.parent.assert_called_once()
+
+
+class TestConfigComboSaveTarget(unittest.TestCase):
+    """``_get_save_target_name`` 文本 sanitize 测试。
+
+    对应 UI:可编辑下拉键入文本 → Start 时作为保存文件名。
+    安全 sanitize:.json 后缀剥除 / 全空白回 None / 路径分隔符拒绝。
+    """
+
+    def setUp(self):
+        """裸 AutomationWindow + MagicMock combo。"""
+        self.aw = AutomationWindow.__new__(AutomationWindow)
+        self.aw._config_combo = MagicMock()
+
+    def test_empty_text_returns_none(self):
+        """空串 → fall back 到默认 MA_Automation.json(None)。"""
+        self.aw._config_combo.currentText.return_value = ""
+        self.assertIsNone(self.aw._get_save_target_name())
+
+    def test_whitespace_only_returns_none(self):
+        """全空白 → None(避免创建 ".json" 或 "  .json" 这种怪文件)。"""
+        self.aw._config_combo.currentText.return_value = "   "
+        self.assertIsNone(self.aw._get_save_target_name())
+
+    def test_normal_name_returns_unchanged(self):
+        """普通名 → 原样返回(无 .json 后缀)。"""
+        self.aw._config_combo.currentText.return_value = "MAtest1"
+        self.assertEqual(self.aw._get_save_target_name(), "MAtest1")
+
+    def test_name_with_json_suffix_strips(self):
+        """带 .json 后缀 → 剥后缀(容错用户键入带后缀)。"""
+        self.aw._config_combo.currentText.return_value = "MAtest1.json"
+        self.assertEqual(self.aw._get_save_target_name(), "MAtest1")
+
+    def test_name_with_surrounding_whitespace_strips(self):
+        """前后空白 → 剥空白(用户复制粘贴常有)。"""
+        self.aw._config_combo.currentText.return_value = "  MAtest1  "
+        self.assertEqual(self.aw._get_save_target_name(), "MAtest1")
+
+    def test_name_with_json_suffix_and_whitespace_strips_both(self):
+        """带空白 + .json → 都剥。"""
+        self.aw._config_combo.currentText.return_value = "  MAtest1.json  "
+        self.assertEqual(self.aw._get_save_target_name(), "MAtest1")
+
+    def test_name_with_forward_slash_returns_none(self):
+        """含 ``/`` → None(拒绝路径分隔符,防 ``../`` 越界)。"""
+        self.aw._config_combo.currentText.return_value = "../MAtest1"
+        self.assertIsNone(self.aw._get_save_target_name())
+
+    def test_name_with_backslash_returns_none(self):
+        """含 ``\\`` → None(Windows 风格路径分隔符,防 ``C:\\evil`` 越界)。"""
+        self.aw._config_combo.currentText.return_value = "MAtest1\\evil"
+        self.assertIsNone(self.aw._get_save_target_name())
+
+    def test_name_only_dot_json_returns_none(self):
+        """仅有 ``.json`` 后缀(剥后变空)→ None。"""
+        self.aw._config_combo.currentText.return_value = ".json"
+        self.assertIsNone(self.aw._get_save_target_name())
+
+
+class TestConfigComboRefresh(unittest.TestCase):
+    """``_refresh_config_dropdown`` 行为契约。
+
+    关键:用 ``blockSignals(True)`` 防止 ``clear()`` / ``addItems()`` /
+    ``setCurrentIndex()`` 触发 ``currentIndexChanged`` →
+    ``_on_config_changed`` → ``_load_data`` 死循环。
+    """
+
+    def setUp(self):
+        self.aw = AutomationWindow.__new__(AutomationWindow)
+        self.aw._current_config_name = "MA_Automation"
+        self.aw._config_combo = MagicMock()
+        # findText 默认返回 0(模拟 current_config_name 在列表中)
+        self.aw._config_combo.findText.return_value = 0
+
+    @patch("ma_automation.automation_window.MA_Automation_DataManager.list_configs",
+           return_value=["MA_Automation", "MAtest1", "MAtest2"])
+    def test_refresh_populates_dropdown_with_configs(self, mock_list):
+        """``list_configs()`` 返回值 → ``addItems()`` 入参。"""
+        self.aw._refresh_config_dropdown()
+        self.aw._config_combo.clear.assert_called_once()
+        self.aw._config_combo.addItems.assert_called_once_with(
+            ["MA_Automation", "MAtest1", "MAtest2"]
+        )
+
+    @patch("ma_automation.automation_window.MA_Automation_DataManager.list_configs",
+           return_value=["MA_Automation", "MAtest1", "MAtest2"])
+    def test_refresh_restores_current_selection(self, mock_list):
+        """当前配置名在列表中 → ``setCurrentIndex(findText(name))``。"""
+        self.aw._current_config_name = "MAtest1"
+        self.aw._config_combo.findText.return_value = 1
+        self.aw._refresh_config_dropdown()
+        self.aw._config_combo.findText.assert_called_with("MAtest1")
+        self.aw._config_combo.setCurrentIndex.assert_called_once_with(1)
+
+    @patch("ma_automation.automation_window.MA_Automation_DataManager.list_configs",
+           return_value=["MA_Automation"])
+    def test_refresh_no_match_does_not_force_select(self, mock_list):
+        """当前配置名不在列表中 → ``setCurrentIndex`` **不** 被调(保留 -1)。"""
+        self.aw._current_config_name = "deleted_config"
+        self.aw._config_combo.findText.return_value = -1
+        self.aw._refresh_config_dropdown()
+        self.aw._config_combo.setCurrentIndex.assert_not_called()
+
+    @patch("ma_automation.automation_window.MA_Automation_DataManager.list_configs",
+           return_value=[])
+    def test_refresh_empty_list_works(self, mock_list):
+        """MAJson 空 → ``addItems([])`` 不报错,``setCurrentIndex`` 不调。"""
+        # 空 list 时 findText 应返回 -1(覆盖 setUp 默认的 0)
+        self.aw._config_combo.findText.return_value = -1
+        self.aw._refresh_config_dropdown()
+        self.aw._config_combo.addItems.assert_called_once_with([])
+        self.aw._config_combo.setCurrentIndex.assert_not_called()
+
+    def test_refresh_uses_block_signals(self):
+        """必须 ``blockSignals(True)`` + ``blockSignals(False)``(防信号死循环)。"""
+        with patch("ma_automation.automation_window.MA_Automation_DataManager.list_configs",
+                   return_value=["MA_Automation"]):
+            self.aw._refresh_config_dropdown()
+        # 至少调了 2 次(开/关)
+        self.assertGreaterEqual(self.aw._config_combo.blockSignals.call_count, 2)
+        # 第一个是 True(开),最后一个是 False(关)
+        calls = self.aw._config_combo.blockSignals.call_args_list
+        self.assertEqual(calls[0], call(True))
+        self.assertEqual(calls[-1], call(False))
+
+
+class TestConfigComboSelectionChange(unittest.TestCase):
+    """``_on_config_changed`` 行为契约:从下拉选 → 重新加载面板。"""
+
+    def setUp(self):
+        self.aw = AutomationWindow.__new__(AutomationWindow)
+        self.aw._config_combo = MagicMock()
+        # _load_data 替换为 mock 避免触发真实 UI 流程
+        self.aw._load_data = MagicMock()
+
+    def test_negative_index_noop(self):
+        """``index < 0``(被清空后)→ no-op,避免误清空面板。"""
+        AutomationWindow._on_config_changed(self.aw, -1)
+        self.aw._load_data.assert_not_called()
+        # _current_config_name 不应被改
+        self.assertFalse(hasattr(self.aw, "_current_config_name")
+                         and self.aw._current_config_name)
+
+    def test_empty_item_text_noop(self):
+        """``itemText(index)`` 为空 → no-op。"""
+        self.aw._config_combo.itemText.return_value = ""
+        AutomationWindow._on_config_changed(self.aw, 0)
+        self.aw._load_data.assert_not_called()
+
+    def test_valid_index_updates_state_and_loads(self):
+        """有效 index → ``_current_config_name = name`` + ``_load_data()``。"""
+        self.aw._config_combo.itemText.return_value = "MAtest1"
+        AutomationWindow._on_config_changed(self.aw, 1)
+        self.assertEqual(self.aw._current_config_name, "MAtest1")
+        self.aw._load_data.assert_called_once()
+
+
+class TestSaveUsesConfigName(unittest.TestCase):
+    """``_save_data`` 用 combo 当前文本作为文件名 + 更新状态 + 刷新下拉。"""
+
+    def setUp(self):
+        self.aw = AutomationWindow.__new__(AutomationWindow)
+        self.aw._config_combo = MagicMock()
+        self.aw._config_combo.currentText.return_value = "MAtest2"
+        self.aw._collect_data = MagicMock(return_value=[{"name": "x"}])
+        self.aw._refresh_config_dropdown = MagicMock()
+        self.aw._current_config_name = "MA_Automation"  # 旧值
+
+    @patch("ma_automation.automation_window.MA_Automation_DataManager")
+    def test_save_passes_combo_text_as_filename(self, mock_dm):
+        """``save()`` 必须以 combo 当前文本为 ``filename`` 参数。"""
+        mock_dm.save.return_value = True
+        self.aw._save_data()
+        # 关键断言:save 的第二个参数是 filename="MAtest2"
+        mock_dm.save.assert_called_once()
+        call_kwargs = mock_dm.save.call_args.kwargs
+        self.assertEqual(call_kwargs.get("filename"), "MAtest2")
+
+    @patch("ma_automation.automation_window.MA_Automation_DataManager")
+    def test_save_updates_current_config_name_to_typed(self, mock_dm):
+        """保存后 ``_current_config_name`` 同步到刚保存的文件名(状态一致)。"""
+        mock_dm.save.return_value = True
+        self.aw._current_config_name = "MA_Automation"  # 旧值
+        self.aw._save_data()
+        self.assertEqual(self.aw._current_config_name, "MAtest2")
+
+    @patch("ma_automation.automation_window.MA_Automation_DataManager")
+    def test_save_refreshes_dropdown_after(self, mock_dm):
+        """保存后 ``_refresh_config_dropdown`` 必调(让新文件出现在列表中)。"""
+        mock_dm.save.return_value = True
+        self.aw._save_data()
+        self.aw._refresh_config_dropdown.assert_called_once()
+
+    @patch("ma_automation.automation_window.MA_Automation_DataManager")
+    def test_save_with_empty_combo_falls_back_to_default(self, mock_dm):
+        """combo 空 → ``filename=None`` → DataManager 走默认 MA_Automation.json。"""
+        mock_dm.save.return_value = True
+        self.aw._config_combo.currentText.return_value = ""
+        self.aw._save_data()
+        call_kwargs = mock_dm.save.call_args.kwargs
+        self.assertIsNone(call_kwargs.get("filename"))
+        # 不更新 _current_config_name(避免误覆盖)
+        self.assertEqual(self.aw._current_config_name, "MA_Automation")
+
+
+class TestConfigComboSourceContract(unittest.TestCase):
+    """源码契约锁死 configCombo 关键代码(防误删 / 改坏)。"""
+
+    def test_config_combo_creation_in_source(self):
+        """``configCombo`` QComboBox 必须存在 + setEditable(True) + setPlaceholderText。"""
+        from pathlib import Path
+        src_path = Path(__file__).resolve().parent.parent / "automation_window.py"
+        src = src_path.read_text(encoding="utf-8")
+        self.assertIn('setObjectName("configCombo")', src)
+        self.assertIn("setEditable(True)", src)
+        self.assertIn("setPlaceholderText", src)
+        self.assertIn("currentIndexChanged", src)
+
+    def test_helper_methods_in_source(self):
+        """3 个 helper + 1 个 list_configs 调用 + 1 个 filename= 参数必须都在。"""
+        from pathlib import Path
+        src_path = Path(__file__).resolve().parent.parent / "automation_window.py"
+        src = src_path.read_text(encoding="utf-8")
+        # 3 个 helper 方法签名
+        self.assertIn("def _refresh_config_dropdown(self)", src)
+        self.assertIn("def _on_config_changed(self, index:", src)
+        self.assertIn("def _get_save_target_name(self)", src)
+        # list_configs 调用
+        self.assertIn("list_configs()", src)
+        # filename= 参数传给 save
+        self.assertIn("filename=save_name", src)
+        # 加载也用 _current_config_name
+        self.assertIn("load(self._current_config_name)", src)
+
+    def test_config_label_creation_in_source(self):
+        """``_config_label`` 显式标识控件用途(暗色主题下避免与裸 QComboBox 混淆)。"""
+        from pathlib import Path
+        src_path = Path(__file__).resolve().parent.parent / "automation_window.py"
+        src = src_path.read_text(encoding="utf-8")
+        self.assertIn('setObjectName("configLabel")', src)
+        self.assertIn('QLabel("配置:")', src)
+        # label 在 combo 前 addWidget
+        label_pos = src.find("addWidget(self._config_label)")
+        combo_pos = src.find("addWidget(self._config_combo)")
+        self.assertGreater(label_pos, 0)
+        self.assertGreater(combo_pos, 0)
+        self.assertLess(label_pos, combo_pos, "label 必须在 combo 前面")
+
+    def test_config_combo_styled_prominently_in_styles(self):
+        """``configCombo`` 在 styles.py 必须有专属样式(蓝色边框 + 醒目下拉按钮)。"""
+        from pathlib import Path
+        styles_path = (
+            Path(__file__).resolve().parent.parent / "styles.py"
+        )
+        styles_src = styles_path.read_text(encoding="utf-8")
+        # 蓝色边框(accent color #0d6399)
+        self.assertIn("QComboBox#configCombo", styles_src)
+        self.assertIn("border: 2px solid #0d6399", styles_src)
+        # 醒目的下拉按钮区(深色背景 + 蓝色,明显区别于主 combo 背景)
+        self.assertIn("QComboBox#configCombo::drop-down", styles_src)
+        # 自定义下拉箭头(CSS 三角,避免 OS 原生图标被暗色主题吞掉)
+        self.assertIn("QComboBox#configCombo::down-arrow", styles_src)
 
 
 if __name__ == "__main__":

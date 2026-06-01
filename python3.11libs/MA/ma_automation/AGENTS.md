@@ -9,7 +9,7 @@ Qt 面板 UI + JSON 持久化 + QThread 后台执行。
 |------|---------|-------------|
 | `__init__.py` | 公共 API 导出 | 顶层立即导出类型/引擎；`show_automation_window` 走 `__getattr__` 懒加载（避免无 PySide6 环境 ImportError）|
 | `task_types.py` | 任务类型定义 | `TaskType` 枚举（3 种）、`ButtonClickParams` / `FlipbookParams` / `HomeAssistantParams` dataclass、`TaskItem` 容器（`to_dict` / `from_dict`）|
-| `data_manager.py` | JSON 持久化 | `MA_Automation_DataManager`（全部 `@classmethod`），路径 `$HIP/MAJson/MA_Automation.json`，fallback 到 `tempfile.gettempdir()` |
+| `data_manager.py` | JSON 持久化 | `MA_Automation_DataManager`（全部 `@classmethod`），路径 `$HIP/MAJson/{filename}.json`（`filename=None` 默认 `MA_Automation`），fallback 到 `tempfile.gettempdir()`；`list_configs()` 列 MAJson 下所有 .json basename |
 | `execution_engine.py` | 后台执行器 | `ExecutionEngine(QThread)`，3 个 Signal（`task_started` / `task_completed` / `all_completed`），Houdini API 经 `hdefereval.executeDeferred` 派发主线程 |
 | `styles.py` | 样式常量 | `STYLE_SHEET` 字符串（与 `hdr_library/` / `shelf_tool_pro/` 拆分 styles.py 的项目约定保持一致）|
 | `automation_window.py` | 主窗口 UI | `AutomationWindow(QDialog)` + 模块级 `_window` 单例；含 `_create_slot_widget` / `_get_button_click_widgets` / `_is_slot_empty_at` / `_fill_slot_at` / `_find_trailing_empty_slots` / `_on_auto_fill` |
@@ -22,6 +22,7 @@ Qt 面板 UI + JSON 持久化 + QThread 后台执行。
 - **Win32 窗口样式（保持在前）**：`__init__` 中 `setWindowFlags(Qt.Window)` 之后调用 `_apply_window_flags(self)`，通过 `ctypes.windll` 设置 `WS_EX_APPWINDOW` (0x00040000) 扩展样式，标记窗口为独立应用窗口；与 Houdini 父子关系配合，确保激活 Houdini 时面板不被主窗口遮挡；同时 `SetCurrentProcessExplicitAppUserModelID('MA.Automation.1')` 让任务栏分组正确。与 `hdr_library/main.py` 同款实现（仅 AppUserModelID 不同）
 - **数据持久化**：所有槽状态序列化为 `list[dict]`，**仅在点击 Start 时落盘**（`_start_execution` → `_save_data`），关窗不保存。语义：JSON = 用户决定执行的任务，不是当前 UI 状态；编辑后未点 Start 直接关窗 = 丢弃未执行编辑（有意为之）。加载在 `__init__._load_data()`
   - **副作用契约**：`DataManager` 三方法严格分离副作用 —— `get_data_path()` 纯计算不创建目录、`load()` 纯只读（文件/目录不存在时返回 `[]`，不创建任何东西）、`save()` 是**唯一**允许创建 MAJson 目录的入口（`os.makedirs(exist_ok=True)` 在写入前）。这保证"打开面板 + 编辑 + 关闭 = 0 文件副作用"，MAJson 目录和 JSON 文件只在点 Start 时才出现
+  - **多文件支持**:`get_data_path(filename)` / `load(filename)` / `save(data, filename)` 三方法均接受可选文件名(无 `.json` 后缀),`filename=None` 走默认 `MA_Automation.json`(完全向后兼容)。配合 `list_configs()` 列出 MAJson 目录下所有 `.json` 文件 basename(无后缀,sorted,纯只读不创建目录),让 UI 提供"可编辑配置下拉"——用户可选已有配置 / 键入新名 + Start 创建新文件
 - **Houdini 隔离**：`import hou` / `import hdefereval` / `import requests` 全部 try/except；测试/非 Houdini 环境可正常 import 模块
 - **线程安全**：`ExecutionEngine.run()` 是 QThread 内部循环；Houdini API 调用经 `_run_deferred()` → `hdefereval.executeDeferred` + `threading.Event` 同步等待；Webhook 是纯网络请求，不需派发
 - **可取消**：`cancel()` 置 `_cancelled` 标志，`run()` 在任务间隙（`msleep(100)`）检查；Start 按钮在 Start / 取消 文案间切换
@@ -43,6 +44,13 @@ Qt 面板 UI + JSON 持久化 + QThread 后台执行。
   - **核心实现**:`mousePressEvent` 用 `QApplication.widgetAt(event.globalPos())` 拿全局最顶层 widget,再调 `_is_widget_on_slot` 沿 `widget.parent()` 父链 walk-up 判定。**不用 `childAt`** —— `childAt` 只看**直接子**,点滚动区里 `slot_container` 的 stretch 留白时会被 `QScrollArea`(直接子)拦住,误判"在子上"不 deselect
   - **`_is_widget_on_slot` helper**:`while widget is not None` 沿父链 walk,任一节点是 `self._slot_widgets` 中某 slot(`is` identity 比对)即返回 True。slot 上的子 widget(手柄 / combo / line edit / 卡片空隙)走 walk-up 必经过 slot → True;滚动区空白(父链是 `slot_container → viewport → scroll_area → dialog`,**不经过**任何 slot)→ False
   - **统一契约**:只响应左键 + 有选中态;无选中 / 右键都 no-op。**eventFilter 已移除**(本轮从 viewport 撤掉 `installEventFilter` + `AutomationWindow.eventFilter` override),dialog 的 `mousePressEvent` 单点足够。`self._scroll_area` 仍是成员但仅用于布局(不参与 click 处理)。回归测试 `TestClickDeselect` 7 个 case(行为 + 源码契约)+ `TestIsWidgetOnSlot` 9 个 case(walk-up 边界)共 16 个锁死
+- **可编辑配置下拉 `_config_combo`**:工具栏在 `startBtn` **前**方放一个 `QLabel("配置:")` + `QComboBox`(`setEditable(True)` + `setInsertPolicy(NoInsert)` + `setPlaceholderText("选择 / 键入配置名")`),让用户选择/键入配置文件名。
+  - **下拉内容**:`MA_Automation_DataManager.list_configs()` 返回的 MAJson 下所有 `.json` 文件 basename(**无后缀**),按字典序 sorted,排除子目录/非 .json 文件。**不验证 JSON 有效性**(空 / 损坏文件也列出,由 `load()` 容错)
+  - **选 vs 键入**:**选择**已有项(`currentIndexChanged`)→ 立即重新加载该文件覆盖面板;**键入**新名(无匹配项)→ **不立即加载**,`Start` 时 `_save_data` 把当前面板状态写到 `{name}.json`(不存在则创建;键入空 / 全空白 / 含路径分隔符 → fall back 到默认 `MA_Automation.json`)
+  - **状态同步**:`_current_config_name` 跟踪"当前加载的文件名"(`__init__` 默认 `"MA_Automation"`)。`_load_data` 先调 `_refresh_config_dropdown` 再 `load(self._current_config_name)`;`_save_data` 先保存到 `_get_save_target_name()` 决定的 filename,再更新 `_current_config_name` + 刷新下拉(让新文件出现在列表中)
+  - **关键契约**:`_refresh_config_dropdown` **必须** `blockSignals(True)` 包住 `clear()` / `addItems()` / `setCurrentIndex()`,否则 `setCurrentIndex` 触发 `currentIndexChanged` → `_on_config_changed` → `_load_data` 死循环。当前配置名不在列表中时**不强制切换**(`setCurrentIndex` 不调),避免覆盖用户已键入但未保存的新名
+  - **样式突出**(防暗色主题看不见):`_config_label` 蓝色加粗(`#0d6399`)+ `_config_combo` 在 `styles.py` 有专属 `QComboBox#configCombo` 段(2px 蓝色边框 + 22px 宽蓝色下拉按钮区 + 自定义 CSS 三角箭头)。**不可拆 label/combo** —— label 是控件用途的显式标识,移除会让裸 `QComboBox` 与其他 QComboBox 混淆
+  - **回归测试**:`TestConfigComboSaveTarget` 9 case(sanitize)+ `TestConfigComboRefresh` 5 case + `TestConfigComboSelectionChange` 3 case + `TestSaveUsesConfigName` 4 case + `TestConfigComboSourceContract` 4 case(源码契约:combo 存在 / 3 helper / label 存在且在 combo 前 / styles.py 专属样式)+ `TestConfigFileSelection` 17 case(DataManager 层),共 **42 个 case** 锁死
 
 ## Anti-Patterns
 

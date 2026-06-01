@@ -6,6 +6,12 @@ MA Automation — Data Manager 数据持久化模块
 
 所有方法均为 @classmethod，因为全局只需一个逻辑实例，
 但数据路径依赖 $HIP（动态计算），不使用 BaseJsonManager。
+
+**多文件支持**:三方法 ``get_data_path`` / ``load`` / ``save`` 均接受
+可选的 ``filename`` 参数(无 ``.json`` 后缀),用于支持 UI 中"可编辑
+配置下拉菜单"——用户可选择 MAJson 目录下任一现存配置,或键入新名
+让 ``save()`` 在 Start 时创建新文件。``filename=None`` 走默认
+``MA_Automation.json``,保持向后兼容。
 """
 
 import os
@@ -37,12 +43,16 @@ class MA_Automation_DataManager:
     # ── 路径管理 ─────────────────────────────────────────
 
     @classmethod
-    def get_data_path(cls) -> str:
+    def get_data_path(cls, filename: Optional[str] = None) -> str:
         """返回数据文件的绝对路径(纯计算,不创建目录)。
 
         优先级:
           1. ``hou.getenv("HIP")`` — Houdini $HIP 环境变量
           2. ``tempfile.gettempdir()`` — 系统临时目录(fallback)
+
+        Args:
+            filename: 配置文件 basename(**无** ``.json`` 后缀)。
+                      ``None`` 时返回默认 ``MA_Automation.json``。
 
         ``hou`` 只在函数内部 try/except 导入,避免 Houdini 外 ImportError。
 
@@ -60,17 +70,22 @@ class MA_Automation_DataManager:
         except ImportError:
             base = tempfile.gettempdir()
 
-        return os.path.join(base, "MAJson", "MA_Automation.json")
+        name = filename if filename else "MA_Automation"
+        return os.path.join(base, "MAJson", f"{name}.json")
 
     # ── 核心 IO ──────────────────────────────────────────
 
     @classmethod
-    def load(cls) -> list[dict]:
+    def load(cls, filename: Optional[str] = None) -> list[dict]:
         """从 JSON 文件读取任务数据列表。
 
-        返回 ``data["tasks"]``，若文件不存在或 JSON 损坏则返回空列表。
+        Args:
+            filename: 配置文件 basename(**无** ``.json`` 后缀)。
+                      ``None`` 时加载默认 ``MA_Automation.json``。
+
+        返回 ``data["tasks"]``,若文件不存在或 JSON 损坏则返回空列表。
         """
-        path = cls.get_data_path()
+        path = cls.get_data_path(filename)
         try:
             if not os.path.exists(path):
                 return []
@@ -84,8 +99,13 @@ class MA_Automation_DataManager:
             return []
 
     @classmethod
-    def save(cls, tasks_data: list[dict]) -> bool:
+    def save(cls, tasks_data: list[dict], filename: Optional[str] = None) -> bool:
         """将任务 dict 列表写入 JSON 文件。
+
+        Args:
+            tasks_data: 任务数据列表
+            filename: 配置文件 basename(**无** ``.json`` 后缀)。
+                      ``None`` 时保存到默认 ``MA_Automation.json``。
 
         写入结构: ``{"tasks": tasks_data}``
         使用 ``ensure_ascii=False``(支持中文)和 ``indent=2``。
@@ -99,7 +119,7 @@ class MA_Automation_DataManager:
             True 写入成功,False 写入异常。
         """
         try:
-            path = cls.get_data_path()
+            path = cls.get_data_path(filename)
             os.makedirs(os.path.dirname(path), exist_ok=True)  # 仅此处创建 MAJson
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(
@@ -111,6 +131,36 @@ class MA_Automation_DataManager:
             return True
         except Exception:
             return False
+
+    @classmethod
+    def list_configs(cls) -> list[str]:
+        """返回 MAJson 目录中所有 ``.json`` 配置文件的 basename 列表(**无后缀**)。
+
+        行为约定:
+          - **不创建** MAJson 目录(若不存在返回空列表,与 ``load()`` 一致)
+          - 只看顶层文件,排除子目录
+          - 自动去 ``.json`` 后缀,直接作为 ``load(filename)`` /
+            ``save(data, filename)`` 的入参
+          - **不验证 JSON 有效性**(空文件 / 损坏文件也会出现在列表中,
+            由 ``load()`` 容错处理返回 ``[]``)
+          - 文件名按字典序排序(sorted)——保证 UI 下拉显示稳定
+          - 出错时静默返回空列表(权限错误等)
+
+        Returns:
+            排序后的 basename 列表,例 ``["MA_Automation", "MAtest1", "MAtest2"]``。
+        """
+        json_dir = os.path.dirname(cls.get_data_path())
+        if not os.path.isdir(json_dir):
+            return []
+        try:
+            return sorted(
+                name[:-5] if name.endswith(".json") else name
+                for name in os.listdir(json_dir)
+                if name.endswith(".json")
+                and os.path.isfile(os.path.join(json_dir, name))
+            )
+        except Exception:
+            return []
 
     # ── 序列化 / 反序列化 ─────────────────────────────────
 

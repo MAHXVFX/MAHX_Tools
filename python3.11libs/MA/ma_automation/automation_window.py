@@ -328,6 +328,12 @@ class AutomationWindow(QDialog):
         self._drag_press_pos = None  # type: QPoint | None  # 拖动按下时的全局坐标
         self._drag_threshold: int = 5  # 像素,超过才认作拖动
 
+        # 配置下拉相关状态:当前加载的配置文件 basename(无 .json 后缀)。
+        # 初始默认 ``MA_Automation``(保留向后兼容)。用户从下拉选其它
+        # 配置后会被 ``_on_config_changed`` 更新;Start 保存后会被
+        # ``_save_data`` 更新(用当前 combo 文本)。
+        self._current_config_name: str = "MA_Automation"
+
         self._build_ui()
         self._load_data()
 
@@ -342,6 +348,33 @@ class AutomationWindow(QDialog):
         # ── 工具栏 ──
         toolbar = QHBoxLayout()
         toolbar.setSpacing(4)
+
+        # 配置下拉(可编辑):放在 start 按钮**前方**,对齐用户"先选配置
+        # 再点 Start"的工作流。下拉列出 MAJson 目录下所有现存 .json
+        # basename(无后缀);键入新名不立即加载,而在 Start 时让
+        # ``_save_data`` 写到该名 .json(不存在则创建)。
+        #
+        # 前缀标签 "配置:" 显式标识控件用途(暗色主题下避免与裸 QComboBox
+        # 混淆),标签和 combo 配套使用,不可拆分。
+        self._config_label = QLabel("配置:")
+        self._config_label.setObjectName("configLabel")
+        self._config_label.setStyleSheet(
+            "color: #0d6399; font-weight: bold; background: transparent;"
+        )
+
+        self._config_combo = QComboBox()
+        self._config_combo.setObjectName("configCombo")
+        self._config_combo.setEditable(True)  # 允许键入新名
+        self._config_combo.setMinimumWidth(160)
+        # 占位提示文本:空状态显式引导用户"选择 / 键入",避免看着像禁用
+        self._config_combo.setPlaceholderText("选择 / 键入配置名")
+        # 键入不自动入库:键入 "MAtest2" 不在 list 里 + 不被当作"已存在的项"
+        self._config_combo.setInsertPolicy(QComboBox.NoInsert)
+        self._config_combo.setToolTip(
+            "选择已有配置 / 输入新名称后点 Start 保存\n"
+            "键入不存在的名 → 创建新文件"
+        )
+        self._config_combo.currentIndexChanged.connect(self._on_config_changed)
 
         self._start_btn = QPushButton("Start")
         self._start_btn.setObjectName("startBtn")
@@ -364,6 +397,9 @@ class AutomationWindow(QDialog):
         remove_btn.setFixedWidth(32)
         remove_btn.clicked.connect(lambda: self._remove_slot())
 
+        # 顺序:配置 → start → auto fill → clear   <stretch>   + / -
+        toolbar.addWidget(self._config_label)
+        toolbar.addWidget(self._config_combo)
         toolbar.addWidget(self._start_btn)
         toolbar.addWidget(auto_fill_btn)
         toolbar.addWidget(clear_btn)
@@ -843,8 +879,18 @@ class AutomationWindow(QDialog):
 
         尊重持久化的空状态：若 JSON 存的是空列表，重开后保持 0 槽。
         用户可点 + 自行添加。
+
+        流程:
+          1. ``_refresh_config_dropdown()`` — 列出 MAJson 下所有现存 .json
+             并恢复当前选中(``_current_config_name``)
+          2. ``MA_Automation_DataManager.load(self._current_config_name)`` —
+             加载该配置文件
+          3. 清空现有槽 + 重建
         """
-        raw_list = MA_Automation_DataManager.load()
+        # 1. 先刷新下拉(列表 + 恢复当前选中),让 UI 与状态同步
+        self._refresh_config_dropdown()
+        # 2. 加载当前选中的配置
+        raw_list = MA_Automation_DataManager.load(self._current_config_name)
 
         # 清空现有槽
         for slot in self._slot_widgets:
@@ -856,6 +902,72 @@ class AutomationWindow(QDialog):
 
         for item_data in raw_list:
             self._add_slot(item_data)
+
+    # ── 配置下拉(可编辑)helper ─────────────────────────────
+
+    def _refresh_config_dropdown(self):
+        """刷新配置下拉,列出 MAJson 目录下所有 .json 文件 basename(无后缀)。
+
+        关键:用 ``blockSignals(True)`` 防止 ``clear()`` / ``addItems()`` /
+        ``setCurrentIndex()`` 触发 ``currentIndexChanged`` →
+        ``_on_config_changed`` → ``_load_data`` 死循环。
+
+        保留当前选中(若有):若 ``_current_config_name`` 在新列表中,
+        选中它;否则 ``currentIndex`` 保持 ``-1``(显示空白,不强制切换,
+        避免覆盖用户已键入但未保存的新名)。
+        """
+        configs = MA_Automation_DataManager.list_configs()
+        self._config_combo.blockSignals(True)
+        try:
+            self._config_combo.clear()
+            self._config_combo.addItems(configs)
+            # 恢复当前选中(仅在列表中存在时)
+            if self._current_config_name:
+                idx = self._config_combo.findText(self._current_config_name)
+                if idx >= 0:
+                    self._config_combo.setCurrentIndex(idx)
+                # else: 不强制切换,currentIndex 保持 -1(显示空白)
+        finally:
+            self._config_combo.blockSignals(False)
+
+    def _on_config_changed(self, index: int):
+        """用户从下拉选了不同配置 → 重新加载该文件覆盖面板。
+
+        注意:``currentIndexChanged`` 在 ``clear()`` / ``addItems()`` 期间
+        也会触发,已用 ``_refresh_config_dropdown`` 的 ``blockSignals``
+        屏蔽。只有用户**主动**选择时才会进这里。``index < 0``(被清空后)
+        直接返回,避免误清空面板。
+        """
+        if index < 0:
+            return
+        name = self._config_combo.itemText(index)
+        if not name:
+            return
+        self._current_config_name = name
+        self._load_data()  # 重新加载,内部会再 refresh 一次(无副作用)
+
+    def _get_save_target_name(self) -> str | None:
+        """从下拉当前文本提取保存文件名(已 sanitize)。
+
+        行为:
+          - 空 / 全空白 → ``None``(fall back 到默认 ``MA_Automation.json``)
+          - 末尾 ``.json`` → 剥后缀(容错用户键入带后缀)
+          - 含 ``/`` 或 ``\\`` → ``None``(拒绝路径分隔符,避免破坏目录结构)
+
+        Returns:
+            净化后的 basename,或 ``None``(走默认)。
+        """
+        text = self._config_combo.currentText().strip()
+        if not text:
+            return None
+        if text.endswith(".json"):
+            text = text[:-5].strip()
+        if not text:
+            return None
+        # 安全检查:拒绝路径分隔符(防 ``../`` 或 ``C:\\evil`` 等)
+        if "/" in text or "\\" in text:
+            return None
+        return text
 
     def _collect_data(self) -> list[dict]:
         """读取 UI 槽，构建 list[dict]（与 TaskItem.to_dict() 格式一致）。"""
@@ -936,9 +1048,25 @@ class AutomationWindow(QDialog):
         return tasks
 
     def _save_data(self) -> list[dict]:
-        """收集并持久化任务数据,返回收集到的 ``list[dict]`` 供调用方使用。"""
+        """收集并持久化任务数据,返回收集到的 ``list[dict]`` 供调用方使用。
+
+        保存目标由 ``_get_save_target_name()`` 决定(从下拉当前文本提取):
+          - 空 / 全空白 / 含路径分隔符 → fall back 到默认 ``MA_Automation.json``
+          - 其它 → 写到该名 .json(**不存在则创建**,这是"键入新名 + Start"的核心)
+
+        保存完成后:
+          1. 更新 ``_current_config_name`` 为刚保存的文件名(状态同步,
+             让后续操作基于新保存的文件)
+          2. 刷新下拉(让新建文件出现在列表中,用户能看到自己刚保存的配置)
+        """
         tasks_data = self._collect_data()
-        MA_Automation_DataManager.save(tasks_data)
+        save_name = self._get_save_target_name()  # 可能为 None
+        MA_Automation_DataManager.save(tasks_data, filename=save_name)
+        # 状态同步:更新当前配置名(只有显式保存到某名时才更新)
+        if save_name:
+            self._current_config_name = save_name
+        # 刷新下拉让新文件出现在列表中 + 恢复选中
+        self._refresh_config_dropdown()
         return tasks_data
 
     # ── 执行集成 ───────────────────────────────────────────

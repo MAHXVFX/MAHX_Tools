@@ -488,5 +488,216 @@ class TestSideEffects(unittest.TestCase):
         )
 
 
+# ============================================================================
+# 多文件支持:get_data_path(filename) / load(filename) / save(data, filename)
+# + list_configs()
+# ============================================================================
+class TestConfigFileSelection(unittest.TestCase):
+    """filename 参数化 IO + ``list_configs()`` 测试。
+
+    对应 UI 的"可编辑配置下拉"功能:
+      - ``get_data_path(filename)`` / ``load(filename)`` / ``save(data, filename)``
+        均接受可选文件名,None 时走默认 ``MA_Automation.json``
+      - ``list_configs()`` 返回 MAJson 目录所有 .json 文件 basename(无后缀)
+
+    setUp 用 ``side_effect=lambda filename=None:`` 模拟参数化 ``get_data_path``
+    的真实行为,所有测试在临时目录下跑,tearDown 清空。
+    """
+
+    def setUp(self):
+        from ma_automation.data_manager import MA_Automation_DataManager as DM
+        self.DM = DM
+        self._tmpdir = tempfile.mkdtemp()
+        # 关键:side_effect 走参数化路径,模拟 get_data_path(filename) 的真实行为
+        # 默认 None → MA_Automation.json,带名 → {name}.json
+        self._patcher = patch.object(
+            DM,
+            "get_data_path",
+            side_effect=lambda filename=None: os.path.join(
+                self._tmpdir, "MAJson",
+                f"{filename}.json" if filename else "MA_Automation.json",
+            ),
+        )
+        self._patcher.start()
+
+    def tearDown(self):
+        self._patcher.stop()
+        if os.path.exists(self._tmpdir):
+            import shutil
+            shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    # ── get_data_path(filename) ─────────────────────────────
+
+    def test_get_data_path_with_filename_uses_that_name(self):
+        """get_data_path('MAtest1') 返回以 MAJson/MAtest1.json 结尾的路径。"""
+        path = self.DM.get_data_path("MAtest1")
+        norm = path.replace("\\", "/")
+        self.assertTrue(
+            norm.endswith("MAJson/MAtest1.json"),
+            f"应结尾为 MAJson/MAtest1.json,实际: {norm}",
+        )
+
+    def test_get_data_path_with_none_uses_default(self):
+        """get_data_path() 无参 → 默认 MA_Automation.json(向后兼容)。"""
+        path = self.DM.get_data_path()
+        self.assertTrue(path.endswith("MA_Automation.json"))
+
+    def test_get_data_path_with_empty_string_falls_back_to_default(self):
+        """get_data_path('') 空串 → 走默认(等价于 None,防误用)。"""
+        path = self.DM.get_data_path("")
+        self.assertTrue(path.endswith("MA_Automation.json"))
+
+    # ── load(filename) ─────────────────────────────────────
+
+    def test_load_with_filename_loads_correct_file(self):
+        """load('MAtest1') 加载 MAtest1.json 的内容(与默认文件隔离)。"""
+        os.makedirs(os.path.join(self._tmpdir, "MAJson"), exist_ok=True)
+        path = os.path.join(self._tmpdir, "MAJson", "MAtest1.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"tasks": [{"name": "from MAtest1"}]}, f)
+        data = self.DM.load("MAtest1")
+        self.assertEqual(data, [{"name": "from MAtest1"}])
+
+    def test_load_nonexistent_filename_returns_empty_list(self):
+        """load('不存在的名') 返回空列表(不报错、不创建文件)。"""
+        data = self.DM.load("nonexistent_xyz")
+        self.assertEqual(data, [])
+
+    def test_load_corrupt_file_with_filename_falls_back(self):
+        """load(filename) 对损坏 JSON 也走容错返回 [](与默认 load 一致)。"""
+        os.makedirs(os.path.join(self._tmpdir, "MAJson"), exist_ok=True)
+        path = os.path.join(self._tmpdir, "MAJson", "corrupt.json")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("not valid json {")
+        data = self.DM.load("corrupt")
+        self.assertEqual(data, [])
+
+    def test_load_with_filename_uses_correct_dir_not_default(self):
+        """load('X') 不会误读默认文件 MA_Automation.json(隔离验证)。"""
+        os.makedirs(os.path.join(self._tmpdir, "MAJson"), exist_ok=True)
+        # 默认文件内容
+        with open(os.path.join(self._tmpdir, "MAJson", "MA_Automation.json"), "w") as f:
+            json.dump({"tasks": [{"name": "default_data"}]}, f)
+        # MAtest1 文件内容
+        with open(os.path.join(self._tmpdir, "MAJson", "MAtest1.json"), "w") as f:
+            json.dump({"tasks": [{"name": "specific_data"}]}, f)
+        # 加载 MAtest1 不应返回 default_data
+        self.assertEqual(self.DM.load("MAtest1"), [{"name": "specific_data"}])
+        self.assertEqual(self.DM.load(), [{"name": "default_data"}])
+
+    # ── save(data, filename) ──────────────────────────────
+
+    def test_save_with_filename_creates_file(self):
+        """save(data, 'MAtest2') 创建 MAtest2.json 文件。"""
+        result = self.DM.save([{"name": "x"}], "MAtest2")
+        self.assertTrue(result)
+        self.assertTrue(os.path.exists(
+            os.path.join(self._tmpdir, "MAJson", "MAtest2.json")
+        ))
+
+    def test_save_with_filename_creates_directory(self):
+        """save(data, 'X') 自动创建 MAJson 目录(若不存在)——保留副作用契约。"""
+        self.assertFalse(os.path.exists(os.path.join(self._tmpdir, "MAJson")))
+        self.DM.save([{"name": "x"}], "MAtest2")
+        self.assertTrue(os.path.isdir(os.path.join(self._tmpdir, "MAJson")))
+
+    def test_save_multiple_filenames_create_independent_files(self):
+        """多次 save 不同 filename 互不覆盖,各创建独立文件,内容隔离。"""
+        self.DM.save([{"name": "A"}], "MAtest_A")
+        self.DM.save([{"name": "B"}], "MAtest_B")
+        self.DM.save([{"name": "C"}], "MAtest_C")
+        for name in ["MAtest_A.json", "MAtest_B.json", "MAtest_C.json"]:
+            self.assertTrue(
+                os.path.exists(os.path.join(self._tmpdir, "MAJson", name)),
+                f"应存在 {name}",
+            )
+        # 内容互不混淆
+        self.assertEqual(self.DM.load("MAtest_A"), [{"name": "A"}])
+        self.assertEqual(self.DM.load("MAtest_B"), [{"name": "B"}])
+        self.assertEqual(self.DM.load("MAtest_C"), [{"name": "C"}])
+
+    def test_save_overwrites_existing_file(self):
+        """save(data, 'X') 对已存在 X.json 静默覆盖(用户显式重存)。"""
+        os.makedirs(os.path.join(self._tmpdir, "MAJson"), exist_ok=True)
+        path = os.path.join(self._tmpdir, "MAJson", "MAtest1.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"tasks": [{"name": "old"}]}, f)
+        self.DM.save([{"name": "new"}], "MAtest1")
+        self.assertEqual(self.DM.load("MAtest1"), [{"name": "new"}])
+
+    # ── list_configs() ─────────────────────────────────────
+
+    def test_list_configs_empty_dir_returns_empty_list(self):
+        """MAJson 目录不存在时 list_configs() 返回空列表(不创建)。"""
+        self.assertFalse(os.path.exists(os.path.join(self._tmpdir, "MAJson")))
+        result = self.DM.list_configs()
+        self.assertEqual(result, [])
+
+    def test_list_configs_with_files_returns_sorted_basenames(self):
+        """列出 MAJson 下所有 .json basename(无后缀),按字典序排序(sorted 稳态)。"""
+        os.makedirs(os.path.join(self._tmpdir, "MAJson"), exist_ok=True)
+        # 故意打乱顺序,验证 sorted
+        for name in ["MAtest_C.json", "MAtest_A.json", "MAtest_B.json"]:
+            with open(os.path.join(self._tmpdir, "MAJson", name), "w") as f:
+                f.write("{}")
+        self.assertEqual(
+            self.DM.list_configs(),
+            ["MAtest_A", "MAtest_B", "MAtest_C"],
+        )
+
+    def test_list_configs_excludes_non_json_files(self):
+        """list_configs() 只列 .json 文件,排除 .txt / .bak 等其他后缀。"""
+        os.makedirs(os.path.join(self._tmpdir, "MAJson"), exist_ok=True)
+        for name in ["MAtest.json", "readme.txt", "config.bak", "notes.md"]:
+            with open(os.path.join(self._tmpdir, "MAJson", name), "w") as f:
+                f.write("")
+        self.assertEqual(self.DM.list_configs(), ["MAtest"])
+
+    def test_list_configs_excludes_subdirectories(self):
+        """list_configs() 只列顶层文件,排除同名/任意子目录。"""
+        os.makedirs(
+            os.path.join(self._tmpdir, "MAJson", "subdir"),
+            exist_ok=True,
+        )
+        with open(
+            os.path.join(self._tmpdir, "MAJson", "MAtest.json"), "w"
+        ) as f:
+            f.write("{}")
+        self.assertEqual(self.DM.list_configs(), ["MAtest"])
+
+    def test_list_configs_includes_empty_and_corrupt_files(self):
+        """list_configs() 不验证 JSON 有效性,空文件 / 损坏文件也列出
+        (由 ``load()`` 容错处理返回 ``[]``,不影响文件被发现)。"""
+        os.makedirs(os.path.join(self._tmpdir, "MAJson"), exist_ok=True)
+        for name in ["empty.json", "corrupt.json", "valid.json"]:
+            with open(
+                os.path.join(self._tmpdir, "MAJson", name), "w"
+            ) as f:
+                f.write(
+                    "not valid json {"
+                    if "corrupt" in name
+                    else "{}"
+                )
+        # 3 个文件都在列表中(空/损坏由 load 处理)
+        self.assertEqual(
+            self.DM.list_configs(),
+            ["corrupt", "empty", "valid"],
+        )
+
+    def test_list_configs_does_not_create_directory(self):
+        """list_configs() 不应创建 MAJson 目录(纯只读,与 load() 一致)。
+
+        这是 list_configs 的**副作用契约**:与 load() 一样,目录不存在时
+        返回 [] 不创建。UI 在 MAJson 还没创建(用户首次打开)时调用
+        list_configs 也安全。
+        """
+        self.assertFalse(os.path.exists(os.path.join(self._tmpdir, "MAJson")))
+        self.DM.list_configs()
+        self.assertFalse(
+            os.path.exists(os.path.join(self._tmpdir, "MAJson")),
+            "list_configs() 不应创建 MAJson 目录",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
