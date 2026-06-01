@@ -103,7 +103,7 @@ class TestAutoFill(unittest.TestCase):
     def test_auto_fill_adds_slot_for_valid_node(self, mock_print):
         """选中带 execute 参数的节点时应追加 BUTTON_CLICK 任务。
 
-        MagicMock 环境下 ``_is_last_slot_empty`` 默认返回 False，
+        MagicMock 环境下 ``_find_trailing_empty_slots`` 默认返回空 list，
         因此走 ``_add_slot`` 分支。
         """
         parm = MagicMock()
@@ -123,7 +123,7 @@ class TestAutoFill(unittest.TestCase):
             "enabled": True,
         }
         self._mock_self._add_slot.assert_called_once_with(expected)
-        self._mock_self._fill_last_slot.assert_not_called()
+        self._mock_self._fill_slot_at.assert_not_called()
         mock_print.assert_called_once_with("Auto Fill: 已处理 1 个按钮点击任务")
 
     # ── Test 5: 存在连续空槽时直接填充，不新增 ─────────────────

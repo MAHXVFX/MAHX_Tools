@@ -31,38 +31,13 @@ from MA.ma_automation.task_types import (
     HomeAssistantParams,
 )
 from MA.ma_automation.execution_engine import ExecutionEngine
+from MA.ma_automation.styles import STYLE_SHEET
 
 logger = logging.getLogger("MA")
 
 # ── Singleton ────────────────────────────────────────────────
 
 _window = None
-
-# ── 样式表 ───────────────────────────────────────────────────
-
-STYLE_SHEET = """
-QDialog { background-color: #18181b; }
-QPushButton { background-color: #2d2d2d; color: #e0e0e0; border: none;
-              padding: 6px 16px; border-radius: 4px; font-size: 13px; }
-QPushButton:hover { background-color: #3d3d3d; }
-QPushButton:pressed { background-color: #0d6399; }
-QPushButton#startBtn { background-color: #0d6399; color: white; font-weight: bold; }
-QPushButton#startBtn:hover { background-color: #0e7bc9; }
-QPushButton#addBtn, QPushButton#removeBtn {
-    padding: 6px 8px; font-size: 16px; font-weight: bold; min-width: 28px;
-}
-QComboBox { background-color: #2d2d2d; color: #e0e0e0; border: 1px solid #3d3d3d;
-            padding: 4px 8px; border-radius: 4px; }
-QComboBox::drop-down { border: none; }
-QComboBox QAbstractItemView { background-color: #2d2d2d; color: #e0e0e0;
-                               selection-background-color: #0d6399; }
-QLineEdit { background-color: #2d2d2d; color: #e0e0e0; border: 1px solid #3d3d3d;
-            padding: 4px 8px; border-radius: 4px; }
-QCheckBox { color: #e0e0e0; spacing: 6px; }
-QScrollArea { border: none; background-color: transparent; }
-QLabel { background-color: transparent; color: #e0e0e0; border: none; }
-QWidget#taskSlot { background-color: #252528; border-radius: 6px; }
-"""
 
 
 def _apply_window_flags(window):
@@ -513,53 +488,58 @@ class AutomationWindow(QDialog):
         判定条件：BUTTON_CLICK 类型 + nodePath 和 parmName 都为空字符串。
         索引越界 或 非 BUTTON_CLICK → 返回 False（避免误覆盖其他类型任务）。
         """
-        if index < 0 or index >= len(self._slot_widgets):
+        widgets = self._get_button_click_widgets(index)
+        if widgets is None:
             return False
+        np_le, pn_le = widgets
+        return not np_le.text().strip() and not pn_le.text().strip()
+
+    def _get_button_click_widgets(self, index: int) -> tuple[QLineEdit, QLineEdit] | None:
+        """定位指定槽的 BUTTON_CLICK 参数 LineEdit。
+
+        返回 ``(nodePath_le, parmName_le)``；任一前置条件不满足返回 ``None``：
+          - 索引越界
+          - 槽内缺少 ``taskType`` combo / 当前不是 BUTTON_CLICK
+          - 缺少 ``paramsStacked`` / 当前 page 为空
+          - 缺少 ``nodePath`` / ``parmName`` LineEdit
+
+        统一 ``_is_slot_empty_at`` 和 ``_fill_slot_at`` 的 widget 查找逻辑，
+        避免两处镜像的 findChild + None 守卫代码。
+        """
+        if not (0 <= index < len(self._slot_widgets)):
+            return None
         slot = self._slot_widgets[index]
 
         combo = slot.findChild(QComboBox, "taskType")
         if combo is None or combo.currentIndex() != 0:  # 0 = BUTTON_CLICK
-            return False
+            return None
 
         stacked = slot.findChild(QStackedWidget, "paramsStacked")
-        if stacked is None:
-            return False
-        current_page = stacked.currentWidget()
+        current_page = stacked.currentWidget() if stacked is not None else None
         if current_page is None:
-            return False
+            return None
 
         np_le = current_page.findChild(QLineEdit, "nodePath")
         pn_le = current_page.findChild(QLineEdit, "parmName")
         if np_le is None or pn_le is None:
-            return False
-
-        return not np_le.text().strip() and not pn_le.text().strip()
+            return None
+        return np_le, pn_le
 
     def _fill_slot_at(self, index: int, data: dict) -> None:
         """用 data 填充指定索引的槽的输入控件（不创建新槽）。
 
         仅处理 BUTTON_CLICK 类型；其他类型直接 noop（防御性）。
         """
-        if index < 0 or index >= len(self._slot_widgets):
-            return
-        slot = self._slot_widgets[index]
         if data.get("type") != "BUTTON_CLICK":
             return
 
+        widgets = self._get_button_click_widgets(index)
+        if widgets is None:
+            return
+        np_le, pn_le = widgets
         params = data.get("params", {})
-        stacked = slot.findChild(QStackedWidget, "paramsStacked")
-        if stacked is None:
-            return
-        current_page = stacked.currentWidget()
-        if current_page is None:
-            return
-
-        np_le = current_page.findChild(QLineEdit, "nodePath")
-        pn_le = current_page.findChild(QLineEdit, "parmName")
-        if np_le is not None:
-            np_le.setText(params.get("node_path", ""))
-        if pn_le is not None:
-            pn_le.setText(params.get("parm_name", ""))
+        np_le.setText(params.get("node_path", ""))
+        pn_le.setText(params.get("parm_name", ""))
 
     def _find_trailing_empty_slots(self) -> list[int]:
         """从后往前扫描连续空槽（BUTTON_CLICK），返回索引列表（从小到大）。
@@ -599,7 +579,8 @@ class AutomationWindow(QDialog):
             print("Auto Fill: 当前无选择节点")
             return
 
-        # 预扫描一次，连续空槽索引队列（从大到小：最近空槽在最前）
+        # 预扫描一次，连续空槽索引队列（从小到大：填充时从前往后消费，
+        # **末尾保留** 空槽给用户手动填，详见 _find_trailing_empty_slots 注释）
         empty_iter = iter(self._find_trailing_empty_slots())
 
         processed = 0
