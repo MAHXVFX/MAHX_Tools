@@ -8,20 +8,12 @@ Singleton QDialog，非模态独立窗口。
 import logging
 
 from PySide6.QtWidgets import (
-    QDialog,
-    QVBoxLayout,
-    QHBoxLayout,
-    QPushButton,
-    QScrollArea,
-    QSizePolicy,
-    QWidget,
-    QComboBox,
-    QLineEdit,
-    QCheckBox,
-    QLabel,
-    QStackedWidget,
+    QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox,
+    QLineEdit, QStackedWidget, QCheckBox, QWidget, QScrollArea, QSizePolicy,
+    QGraphicsDropShadowEffect,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal, QPoint
+from PySide6.QtGui import QColor
 
 from MA.ma_automation.data_manager import MA_Automation_DataManager
 from MA.ma_automation.task_types import (
@@ -94,6 +86,63 @@ def show_automation_window():
     return _window
 
 
+# ── 任务槽手柄 ────────────────────────────────────────────────
+
+class _SlotHandle(QLabel):
+    """任务槽"手柄"标签,即序号所在区域。
+
+    设计意图:
+    - 序号区不只是显示数字,还是一个**可交互的拖动手柄 + 选中触发器**
+    - 左键单击 → 选中该槽(高亮)
+    - 左键按住 + 拖动 → 重排任务顺序
+    - 拖动时 cursor 切换 OpenHand → ClosedHand
+
+    通过 3 个 Signal 把事件转发给 ``AutomationWindow`` 处理,
+    避免在 widget 内部维护复杂状态。
+
+    Signals:
+        handlePressed(slot_widget, global_pos): 左键按下
+        handleMoved(slot_widget, global_pos): 鼠标移动(无论是否按下都发,接收方按需过滤)
+        handleReleased(slot_widget, global_pos): 左键松开
+    """
+
+    handlePressed = Signal(object, object)  # slot_widget, QPoint
+    handleMoved = Signal(object, object)
+    handleReleased = Signal(object, object)
+
+    def __init__(self, slot_widget: QWidget) -> None:
+        """``slot_widget`` 同时也是 Qt parent(单参避免调用方传错)。
+
+        设计:手柄的 Qt parent == 任务槽卡片自身,故 ``self.parentWidget()`` 即槽。
+        唯一参数 ``slot_widget`` 显式声明这个意图,杜绝把"序号文字"误传成槽引用。
+        """
+        super().__init__(slot_widget)
+        self._slot = slot_widget
+        self.setObjectName("taskSlotHandle")
+        self.setCursor(Qt.OpenHandCursor)
+        self.setMouseTracking(True)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton:
+            self.grabMouse()  # 捕获所有鼠标事件,确保 drag 过程不出丢 release
+            self.setCursor(Qt.ClosedHandCursor)
+            self.handlePressed.emit(self._slot, event.globalPos())
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        # 注意:无论是否按下都发,接收方按 _drag_active 过滤
+        self.handleMoved.emit(self._slot, event.globalPos())
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton:
+            if self.mouseGrabber() == self:
+                self.releaseMouse()
+            self.setCursor(Qt.OpenHandCursor)
+            self.handleReleased.emit(self._slot, event.globalPos())
+        super().mouseReleaseEvent(event)
+
+
 class AutomationWindow(QDialog):
     """MA Automation 主窗口。
 
@@ -113,6 +162,13 @@ class AutomationWindow(QDialog):
         self._slot_widgets: list[QWidget] = []
         self._running = False
         self._engine: ExecutionEngine | None = None
+
+        # 选中 + 拖动状态
+        self._selected_index: int | None = None  # 单选,None=无选中
+        self._drag_active: bool = False  # 拖动是否已激活(超过阈值)
+        self._drag_source_index: int | None = None  # 拖动起点槽索引
+        self._drag_press_pos = None  # type: QPoint | None  # 拖动按下时的全局坐标
+        self._drag_threshold: int = 5  # 像素,超过才认作拖动
 
         self._build_ui()
         self._load_data()
@@ -186,10 +242,17 @@ class AutomationWindow(QDialog):
         hbox.setContentsMargins(8, 6, 8, 6)
         hbox.setSpacing(8)
 
-        # ── 序号标签 ──
-        idx_label = QLabel(str(index + 1))
-        idx_label.setFixedWidth(24)
+        # ── 序号手柄(可点击选中 + 拖动重排)──
+        # 关键:第一个位置参数是"任务槽"本身(同时也是 Qt parent),不是序号文字。
+        # 之前误传 str(index+1) 导致 handlePressed 发出的 slot 是字符串,
+        # handler 里 list.index(str) 抛 ValueError 提前返回,选中/拖动全失效。
+        idx_label = _SlotHandle(slot)
+        idx_label.setText(str(index + 1))
+        idx_label.setFixedWidth(32)
         idx_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        idx_label.handlePressed.connect(self._on_handle_pressed)
+        idx_label.handleMoved.connect(self._on_handle_moved)
+        idx_label.handleReleased.connect(self._on_handle_released)
 
         # ── 类型下拉框 ──
         combo = QComboBox()
@@ -316,21 +379,214 @@ class AutomationWindow(QDialog):
         self._slot_layout.insertWidget(self._slot_layout.count() - 1, slot)
         self._renumber_slots()
 
-    def _remove_slot(self):
-        """移除最后一个槽。允许列表为空（0 槽）。"""
+    def _remove_slot(self, index: int | None = None) -> None:
+        """移除指定索引的槽(默认末尾,兼容工具栏 - 按钮)。
+
+        Args:
+            index: 要移除的槽索引;``None`` 表示末尾(工具栏 - 按钮的行为)。
+
+        边界:
+        - 列表为空:no-op
+        - 索引越界:no-op
+        - 删除后自动调整 ``_selected_index``(被删则清空,大于被删索引则 -1)
+        """
         if not self._slot_widgets:
             return
-        slot = self._slot_widgets.pop()
+        if index is None:
+            index = len(self._slot_widgets) - 1
+        if not (0 <= index < len(self._slot_widgets)):
+            return
+
+        slot = self._slot_widgets.pop(index)
         self._slot_layout.removeWidget(slot)
         slot.deleteLater()
+
+        # 调整选中索引
+        if self._selected_index is not None:
+            if self._selected_index == index:
+                self._selected_index = None
+            elif self._selected_index > index:
+                self._selected_index -= 1
+
         self._renumber_slots()
+        self._update_selection_style()
 
     def _renumber_slots(self):
-        """更新所有槽的序号。"""
+        """更新所有槽的序号(序号手柄的文字)。"""
         for i, slot in enumerate(self._slot_widgets):
-            label = slot.findChild(QLabel)
-            if label is not None:
-                label.setText(str(i + 1))
+            handle = slot.findChild(QWidget, "taskSlotHandle")
+            if handle is not None:
+                handle.setText(str(i + 1))
+
+    # ── 选中(单击手柄) ─────────────────────────────────────
+
+    def _select_slot(self, index: int) -> None:
+        """选中指定索引的槽(单选)。
+
+        已选中同一索引则 no-op。索引越界忽略。选中后通过
+        ``_update_selection_style`` 刷新视觉。
+        """
+        if not (0 <= index < len(self._slot_widgets)):
+            return
+        if self._selected_index == index:
+            return
+        self._selected_index = index
+        self._update_selection_style()
+
+    def _update_selection_style(self) -> None:
+        """根据 ``_selected_index`` 刷新所有槽的 ``selected`` 动态属性。
+
+        配合 ``styles.py`` 的 ``QWidget#taskSlot[selected="true"]`` 选择器
+        实现选中视觉。Qt 不会自动检测动态属性变化,所以需要 unpolish + polish
+        强制重评估。
+        """
+        for i, slot in enumerate(self._slot_widgets):
+            is_selected = (i == self._selected_index)
+            slot.setProperty("selected", is_selected)
+            slot.style().unpolish(slot)
+            slot.style().polish(slot)
+            slot.update()
+
+    # ── 拖动重排(按住手柄拖动) ──────────────────────────────
+
+    def _on_handle_pressed(self, slot: QWidget, global_pos: QPoint) -> None:
+        """手柄被按下:选中该槽 + 准备拖动(尚未激活,等超过阈值) + 应用"抬起"样式。"""
+        # 用 ``is`` 身份比较(不依赖 QWidget.__eq__,QWidget 的 __eq__ 语义不一定身份比较)
+        index = None
+        for i, s in enumerate(self._slot_widgets):
+            if s is slot:
+                index = i
+                break
+        if index is None:
+            return
+        self._select_slot(index)
+        self._drag_source_index = index
+        self._drag_press_pos = global_pos
+        self._drag_active = False
+        # 加阴影 + CSS dragging 状态,视觉上"浮起来"
+        self._apply_drag_effect(slot, True)
+
+    def _on_handle_moved(self, slot: QWidget, global_pos: QPoint) -> None:
+        """手柄被拖动:超过阈值后实时换位(序号在 release 时统一刷新)。"""
+        if self._drag_source_index is None or self._drag_press_pos is None:
+            return
+        if not self._drag_active:
+            # 距离按下点 < 阈值 → 仍认作点击,不算拖动
+            if (global_pos - self._drag_press_pos).manhattanLength() < self._drag_threshold:
+                return
+            self._drag_active = True
+        # 计算目标索引
+        target = self._index_at_global_y(global_pos.y())
+        if target is None or target == self._drag_source_index:
+            return
+        # 换位后,从新位置继续跟踪(否则下一次 move 会基于旧索引)
+        # 注:_move_slot 不再调 _renumber_slots,序号保持"过期"直到 release
+        self._move_slot(self._drag_source_index, target)
+        self._drag_source_index = target
+
+    def _on_handle_released(self, slot: QWidget, global_pos: QPoint) -> None:
+        """手柄松开:移除抬起样式 + 统一刷新序号。"""
+        if self._drag_source_index is None:
+            return
+        # 移除阴影 + dragging 状态
+        self._apply_drag_effect(slot, False)
+        # 拖动结束后统一刷一次序号(配合 _move_slot 不再自动刷新,实现
+        # "拖动期序号不刷新、松开统一更新"的交互)
+        self._renumber_slots()
+        # 重置 drag 状态
+        self._drag_source_index = None
+        self._drag_press_pos = None
+        self._drag_active = False
+
+    def _apply_drag_effect(self, slot: QWidget, enabled: bool) -> None:
+        """应用 / 移除"抬起"拖动视觉效果。
+
+        视觉组合:
+        - ``QGraphicsDropShadowEffect``:真实阴影,槽在视觉上"浮"在布局上方
+        - ``setProperty("dragging", ...)`` + CSS:让 Qt 样式表可以单独定制
+          dragging 状态(目前用于蓝色边框 + 更亮的背景)
+        """
+        if enabled:
+            effect = QGraphicsDropShadowEffect(slot)
+            effect.setBlurRadius(24)
+            effect.setColor(QColor(0, 0, 0, 200))
+            effect.setOffset(0, 6)
+            slot.setGraphicsEffect(effect)
+            slot.setProperty("dragging", True)
+        else:
+            slot.setGraphicsEffect(None)
+            slot.setProperty("dragging", False)
+        # Qt 不会自动检测动态属性变化 → 强制重评估
+        slot.style().unpolish(slot)
+        slot.style().polish(slot)
+
+    def _move_slot(self, from_index: int, to_index: int) -> None:
+        """把槽从 ``from_index`` 移到 ``to_index``(同时更新 list + 布局 + 选中索引)。
+
+        ``_slot_layout.insertWidget(to_index, slot)`` 会把 slot 插到布局的
+        ``to_index`` 位置(布局末尾的 stretch 自动推后,不需要手动 +1)。
+
+        **不在此调** ``_renumber_slots()`` **:拖动期序号保持"过期",只在 release 时
+        统一刷新,符合"按下拖动时序号不变"的交互预期(与 Finder / Explorer
+        拖动行为一致)。调用方负责 release 时刷新。
+        """
+        if not (0 <= from_index < len(self._slot_widgets)):
+            return
+        if not (0 <= to_index < len(self._slot_widgets)):
+            return
+        if from_index == to_index:
+            return
+
+        slot = self._slot_widgets.pop(from_index)
+        self._slot_widgets.insert(to_index, slot)
+        self._slot_layout.removeWidget(slot)
+        self._slot_layout.insertWidget(to_index, slot)
+
+        # 调整 _selected_index(槽在 list 中的位置变了,选中指针要跟着挪)
+        if self._selected_index is not None:
+            if from_index < to_index:
+                # 向下挪:[from, to] 之间的索引都 -1
+                if from_index < self._selected_index <= to_index:
+                    self._selected_index -= 1
+            else:  # from_index > to_index
+                # 向上挪:[to, from) 之间的索引都 +1
+                if to_index <= self._selected_index < from_index:
+                    self._selected_index += 1
+
+        self._update_selection_style()
+
+    def _index_at_global_y(self, global_y: int) -> int:
+        """根据全局 Y 坐标返回对应的目标槽索引(中心锚定算法)。
+
+        算法:取每个 handle 的**中心 Y** 作为"分隔线"。
+        - cursor Y < handle[0] 中心 → 返回 0(最前)
+        - handle[i] 中心 <= cursor Y < handle[i+1] 中心 → 返回 i+1
+        - cursor Y >= 末位 handle 中心 → 返回 N-1(末尾)
+
+        旧实现用 ``top <= y < bottom``(handle 的精确边界),但 handle 只 32px 宽,
+        槽间间隙 (8-16px 间距) cursor 完全不命中 handle,fallback 落到 ``return N-1``
+        导致"拖到间隙就瞬移末尾"。中心锚定后,间隙也被正确归到相邻槽。
+        """
+        for i, slot in enumerate(self._slot_widgets):
+            handle = slot.findChild(QWidget, "taskSlotHandle")
+            if handle is None:
+                continue
+            center_y = (
+                handle.mapToGlobal(QPoint(0, 0)).y() + handle.height() // 2
+            )
+            if global_y < center_y:
+                return i
+        return len(self._slot_widgets) - 1
+
+    # ── 键盘事件(Delete 删除选中) ──────────────────────────
+
+    def keyPressEvent(self, event) -> None:
+        """Delete 键:删除当前选中槽。无选中则交给父类处理。"""
+        if event.key() == Qt.Key_Delete and self._selected_index is not None:
+            self._remove_slot(self._selected_index)
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     # ── 数据持久化 ─────────────────────────────────────────
 

@@ -185,6 +185,7 @@ def install_pyside_mock():
         "QSlider", "QSpinBox", "QGroupBox", "QListWidget",
         "QListWidgetItem", "QProgressBar", "QApplication",
         "QSplitter", "QTabWidget", "QTextEdit", "QPlainTextEdit",
+        "QGraphicsDropShadowEffect",  # 拖动抬起阴影
     ]
     for cls_name in _OTHER_WIDGET_CLASSES:
         setattr(qt_widgets_mod, cls_name, MagicMock())
