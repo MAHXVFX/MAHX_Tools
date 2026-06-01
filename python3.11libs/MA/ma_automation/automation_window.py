@@ -397,6 +397,11 @@ class AutomationWindow(QDialog):
 
         self._start_btn = QPushButton("Start")
         self._start_btn.setObjectName("startBtn")
+        # 关闭 autoDefault / default:在 QDialog 里按 Enter 会触发 default
+        # 按钮,用户在可编辑 _config_combo 里键入新名按 Enter 提交文字时
+        # 会被错误地转成 Start 触发。要求 Start 只能**手动鼠标点击**
+        self._start_btn.setAutoDefault(False)
+        self._start_btn.setDefault(False)
         # 用 lambda 包装避免 Qt clicked(bool) 信号把 False 当作 data 参数传入
         self._start_btn.clicked.connect(lambda: self._on_start())
 

@@ -1551,6 +1551,20 @@ class TestConfigComboSourceContract(unittest.TestCase):
         self.assertIn("setStyleSheet(_CONFIG_COMBO_ICON_STYLE)", src)
         self.assertIn("image: url(", src)
 
+    def test_start_btn_is_mouse_click_only(self):
+        """``startBtn`` 必须 setAutoDefault(False) + setDefault(False),防 Enter 误触发。
+
+        QDialog 默认 Enter 触发 default 按钮,用户在可编辑 _config_combo 键入
+        新名按 Enter 提交文字时,会被错误地转成 Start 触发。要求 Start
+        只能手动鼠标点击。
+        """
+        from pathlib import Path
+        src_path = Path(__file__).resolve().parent.parent / "automation_window.py"
+        src = src_path.read_text(encoding="utf-8")
+        # 必须有这两行紧跟 _start_btn 创建后
+        self.assertIn("self._start_btn.setAutoDefault(False)", src)
+        self.assertIn("self._start_btn.setDefault(False)", src)
+
 
 if __name__ == "__main__":
     unittest.main()
