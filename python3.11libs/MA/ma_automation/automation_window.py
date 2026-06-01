@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QWidget,
     QComboBox,
     QLineEdit,
@@ -177,6 +178,9 @@ class AutomationWindow(QDialog):
         slot = QWidget()
         slot.setObjectName("taskSlot")
         slot.setAutoFillBackground(True)
+        # 锁高：滚动区 setWidgetResizable(True) 会把容器拉到视口大小，
+        # 默认 Preferred 会让 slot 在槽数少时撑满空间。Fixed 强制 sizeHint (~42px)
+        slot.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
         hbox = QHBoxLayout(slot)
         hbox.setContentsMargins(8, 6, 8, 6)

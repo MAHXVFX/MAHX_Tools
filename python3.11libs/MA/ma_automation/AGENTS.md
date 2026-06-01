@@ -30,6 +30,7 @@ Qt 面板 UI + JSON 持久化 + QThread 后台执行。
 - **`dl_Submit` 特殊处理**：`parm_name == "dl_Submit"` 时按钮按下后自动 `hou.hipFile.save()`（`ExecutionEngine._execute_button_click`）
 - **样式**：`STYLE_SHEET` 字符串集中定义在 `styles.py`，复用项目暗色主题 `#18181b` / `#0d6399`；任务槽卡片化用 `QWidget#taskSlot { background-color: #252528; border-radius: 6px; }` + `setAutoFillBackground(True)`；关键 objectName：`startBtn`（蓝色 Start 按钮）、`addBtn` / `removeBtn`（± 任务槽增减，padding 8px、字号 16px）、`taskSlot`（任务槽卡片容器）
 - **`clicked.connect` 必须 lambda 包装**：`QPushButton.clicked` 是带 `bool` 参数的信号（`clicked(checked: bool)`），直接 `connect(self.method)` 会把 `False` 当作第一个位置参数传给 method。**正确做法**：`btn.clicked.connect(lambda: self.method())`。`_build_ui` 中 5 个按钮全部遵循此约定
+- **槽卡片锁高 `_create_slot_widget`**：`slot.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)`。`QScrollArea` 用 `setWidgetResizable(True)` 时会强制容器高度 = 视口高度,默认 `Preferred` 会让单个槽撑满空间;`Fixed` 强制 `sizeHint` (~42px) 紧凑布局,槽数多少都一致
 - **`_get_button_click_widgets` 统一 widget 查找**：`_is_slot_empty_at` 和 `_fill_slot_at` 通过该 helper 取 `(np_le, pn_le)`，避免两处镜像的 `findChild` + `None` 守卫。Auto Fill 子系统（槽定位 / 填充）任何新增需求都应先扩此 helper
 - **Auto Fill 末尾保留**：`_find_trailing_empty_slots` 返回索引列表（**从小到大**），使填充从前往后消费、**末尾空槽保留**给用户手动填。这与"贪婪追加到末尾"的直觉相反，是有意的设计选择
 
