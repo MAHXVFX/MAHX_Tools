@@ -7,6 +7,7 @@ Singleton QDialog，非模态独立窗口。
 
 import logging
 import re
+from pathlib import Path
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox,
@@ -28,6 +29,21 @@ from MA.ma_automation.execution_engine import ExecutionEngine
 from MA.ma_automation.styles import STYLE_SHEET
 
 logger = logging.getLogger("MA")
+
+
+# ── 配置下拉图标(SVG,绝对路径避开 Houdini CWD 不可靠) ──────────
+# 蓝色圆 + 下箭头 SVG,放在 ``python3.11libs/MA/icons/``。
+# 用 ``__file__`` 解析绝对路径后注入到 combo-level stylesheet,
+# 不在 styles.py 写死(Houdini 启动 CWD 不固定,相对路径会失效)。
+_MA_ICONS_DIR = Path(__file__).resolve().parent.parent / "icons"
+_ICON_DROP_DOWN = _MA_ICONS_DIR / "drop down button.svg"
+_CONFIG_COMBO_ICON_STYLE = f"""
+QComboBox#configCombo::down-arrow {{
+    image: url({_ICON_DROP_DOWN.as_posix()});
+    width: 16px; height: 16px;
+    margin-right: 4px;
+}}
+"""
 
 
 # ── Parm Path 编解码 ──────────────────────────────────────────
@@ -375,6 +391,9 @@ class AutomationWindow(QDialog):
             "键入不存在的名 → 创建新文件"
         )
         self._config_combo.currentIndexChanged.connect(self._on_config_changed)
+        # 注入 SVG 下拉图标(combo-level stylesheet 覆盖全局,
+        # 路径用绝对 URL 避开 Houdini CWD 不可靠)
+        self._config_combo.setStyleSheet(_CONFIG_COMBO_ICON_STYLE)
 
         self._start_btn = QPushButton("Start")
         self._start_btn.setObjectName("startBtn")

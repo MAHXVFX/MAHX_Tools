@@ -43,21 +43,21 @@ QComboBox#configCombo:focus {
 QComboBox#configCombo::drop-down {
     subcontrol-origin: padding;
     subcontrol-position: top right;
-    width: 22px;
-    border-left: 1px solid #0d6399;
-    background-color: #0d6399;
+    width: 24px;
+    border: none;
+    background-color: transparent;  /* SVG 自身有蓝色圆形,无背景 */
 }
 QComboBox#configCombo::drop-down:hover {
-    background-color: #0e7bc9; border-left-color: #0e7bc9;
+    background-color: rgba(13, 99, 153, 60);  /* hover 微高亮 */
 }
 QComboBox#configCombo::drop-down:on {
-    background-color: #8a5cf5; border-left-color: #8a5cf5;
+    background-color: rgba(138, 92, 245, 80);  /* 按下紫色微高亮 */
 }
 QComboBox#configCombo::down-arrow {
-    width: 0; height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 6px solid white;
+    /* SVG 由 automation_window.py 注入(combo-level stylesheet,
+       路径用 Path(__file__) 算绝对,避免 CWD 不可靠) */
+    image: none;
+    width: 16px; height: 16px;
     margin-right: 4px;
 }
 QLineEdit { background-color: #2d2d2d; color: #e0e0e0; border: 1px solid #3d3d3d;

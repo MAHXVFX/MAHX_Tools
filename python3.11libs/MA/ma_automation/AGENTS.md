@@ -49,8 +49,9 @@ Qt 面板 UI + JSON 持久化 + QThread 后台执行。
   - **选 vs 键入**:**选择**已有项(`currentIndexChanged`)→ 立即重新加载该文件覆盖面板;**键入**新名(无匹配项)→ **不立即加载**,`Start` 时 `_save_data` 把当前面板状态写到 `{name}.json`(不存在则创建;键入空 / 全空白 / 含路径分隔符 → fall back 到默认 `MA_Automation.json`)
   - **状态同步**:`_current_config_name` 跟踪"当前加载的文件名"(`__init__` 默认 `"MA_Automation"`)。`_load_data` 先调 `_refresh_config_dropdown` 再 `load(self._current_config_name)`;`_save_data` 先保存到 `_get_save_target_name()` 决定的 filename,再更新 `_current_config_name` + 刷新下拉(让新文件出现在列表中)
   - **关键契约**:`_refresh_config_dropdown` **必须** `blockSignals(True)` 包住 `clear()` / `addItems()` / `setCurrentIndex()`,否则 `setCurrentIndex` 触发 `currentIndexChanged` → `_on_config_changed` → `_load_data` 死循环。当前配置名不在列表中时**不强制切换**(`setCurrentIndex` 不调),避免覆盖用户已键入但未保存的新名
-  - **样式突出**(防暗色主题看不见):`_config_label` 蓝色加粗(`#0d6399`)+ `_config_combo` 在 `styles.py` 有专属 `QComboBox#configCombo` 段(2px 蓝色边框 + 22px 宽蓝色下拉按钮区 + 自定义 CSS 三角箭头)。**不可拆 label/combo** —— label 是控件用途的显式标识,移除会让裸 `QComboBox` 与其他 QComboBox 混淆
-  - **回归测试**:`TestConfigComboSaveTarget` 9 case(sanitize)+ `TestConfigComboRefresh` 5 case + `TestConfigComboSelectionChange` 3 case + `TestSaveUsesConfigName` 4 case + `TestConfigComboSourceContract` 4 case(源码契约:combo 存在 / 3 helper / label 存在且在 combo 前 / styles.py 专属样式)+ `TestConfigFileSelection` 17 case(DataManager 层),共 **42 个 case** 锁死
+  - **样式突出**(防暗色主题看不见):`_config_label` 蓝色加粗(`#0d6399`)+ `_config_combo` 在 `styles.py` 有专属 `QComboBox#configCombo` 段(2px 蓝色边框 + 透明下拉按钮区 + SVG 图标由 combo-level stylesheet 注入)。**不可拆 label/combo** —— label 是控件用途的显式标识,移除会让裸 `QComboBox` 与其他 QComboBox 混淆
+  - **下拉图标 SVG 注入**:`python3.11libs/MA/icons/drop down button.svg` 蓝色圆+下箭头,绝对路径在 `automation_window.py` 顶部用 `Path(__file__).resolve().parent.parent / "icons"` 计算后注入到 combo 级 stylesheet(`self._config_combo.setStyleSheet(_CONFIG_COMBO_ICON_STYLE)`)。**不在 styles.py 写死路径** —— Houdini 启动 CWD 不固定,相对路径会失效;绝对路径 + combo 级覆盖是唯一可靠方案
+  - **回归测试**:`TestConfigComboSaveTarget` 9 case(sanitize)+ `TestConfigComboRefresh` 5 case + `TestConfigComboSelectionChange` 3 case + `TestSaveUsesConfigName` 4 case + `TestConfigComboSourceContract` 5 case(源码契约:combo 存在 / 3 helper / label 存在且在 combo 前 / styles.py 专属样式 / **SVG 文件存在 + Path(__file__) 注入**)+ `TestConfigFileSelection` 17 case(DataManager 层),共 **43 个 case** 锁死
 
 ## Anti-Patterns
 

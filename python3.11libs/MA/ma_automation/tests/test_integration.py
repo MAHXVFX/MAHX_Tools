@@ -1523,10 +1523,33 @@ class TestConfigComboSourceContract(unittest.TestCase):
         # 蓝色边框(accent color #0d6399)
         self.assertIn("QComboBox#configCombo", styles_src)
         self.assertIn("border: 2px solid #0d6399", styles_src)
-        # 醒目的下拉按钮区(深色背景 + 蓝色,明显区别于主 combo 背景)
+        # 醒目的下拉按钮区(透明,SVG 自己有蓝色圆形)
         self.assertIn("QComboBox#configCombo::drop-down", styles_src)
-        # 自定义下拉箭头(CSS 三角,避免 OS 原生图标被暗色主题吞掉)
+        # 下拉箭头区占位(width/height 留给 SVG image 注入)
         self.assertIn("QComboBox#configCombo::down-arrow", styles_src)
+        # **不再**用 CSS 三角箭头(SVG 替换)
+        self.assertNotIn("border-top: 6px solid white", styles_src)
+
+    def test_config_combo_uses_svg_icon(self):
+        """combo 必须用 ``python3.11libs/MA/icons/drop down button.svg`` 替换 CSS 三角。"""
+        from pathlib import Path
+        # 1. SVG 文件存在(防止误删/改名)
+        svg_path = (
+            Path(__file__).resolve().parent.parent.parent
+            / "icons" / "drop down button.svg"
+        )
+        self.assertTrue(
+            svg_path.is_file(),
+            f"SVG 图标文件不存在:{svg_path}"
+        )
+        # 2. 源码里必须用 Path(__file__) 解析绝对路径
+        src_path = Path(__file__).resolve().parent.parent / "automation_window.py"
+        src = src_path.read_text(encoding="utf-8")
+        self.assertIn('Path(__file__)', src)
+        self.assertIn('"drop down button.svg"', src)
+        # 3. combo-level stylesheet 注入(覆盖全局)
+        self.assertIn("setStyleSheet(_CONFIG_COMBO_ICON_STYLE)", src)
+        self.assertIn("image: url(", src)
 
 
 if __name__ == "__main__":
