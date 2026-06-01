@@ -15,6 +15,9 @@ from unittest.mock import MagicMock, Mock, patch
 # ── 前置：mock PySide6 ────────────────────────────────────
 import _pyside_mock  # noqa: F401
 
+# ── mock 安装后才能从 PySide6.QtCore 拿 Qt(桩里设了关键常量)──
+from PySide6.QtCore import Qt  # noqa: E402  — mock 之后导入
+
 _test_dir = os.path.dirname(os.path.abspath(__file__))
 _ma_automation_dir = os.path.dirname(_test_dir)
 _ma_dir = os.path.dirname(_ma_automation_dir)
@@ -1032,6 +1035,227 @@ class TestSlotInteraction(unittest.TestCase):
         mime.hasUrls.return_value = False
         mime.formats.return_value = []
         self.assertEqual(_extract_drag_text(mime), "")
+
+
+class TestClickDeselect(unittest.TestCase):
+    """点击空白处取消任务槽选中(mousePressEvent 行为契约)。
+
+    核心实现:``mousePressEvent`` 用 ``QApplication.widgetAt(global_pos)``
+    拿最顶层 widget,再走 ``_is_widget_on_slot`` 沿父链 walk-up 判定。
+
+    测试用 ``AutomationWindow.__new__(AutomationWindow)`` 创建**裸实例**绕过
+    ``__init__`` 的 Qt setup(不触发 ``_build_ui`` / ``_load_data``),然后用
+    实例属性覆盖需要 mock 的方法 ``_is_widget_on_slot``。必须用真实例
+    的原因:``super().mousePressEvent(event)`` 要求 self 是 ``AutomationWindow``
+    实例,``MagicMock`` 不满足,会抛 ``TypeError: super(type, obj): obj must
+    be an instance or subtype of type``。
+
+    ``_is_widget_on_slot`` 自身的 walk-up 逻辑(沿 .parent() 链找 slot)
+    单独在 ``TestIsWidgetOnSlot`` 类里测,不在这里重复。
+    """
+
+    def setUp(self):
+        """构造裸 AutomationWindow 实例(跳过 QDialog __init__),只设测试属性。"""
+        # 关键:__new__ 不调 __init__,绕开 _build_ui / _load_data 的 PySide6 依赖
+        self.aw = AutomationWindow.__new__(AutomationWindow)
+        # 默认有选中
+        self.aw._selected_index = 0
+        self.aw._last_selected_index = 0
+        # 默认:_is_widget_on_slot 返回 False(不在 slot 上)→ 触发 deselect
+        self.aw._is_widget_on_slot = MagicMock(return_value=False)
+        self.aw._update_selection_style = MagicMock()
+
+    def _make_event(self, *, button=None, pos=None):
+        """构造 QMouseEvent-like MagicMock。"""
+        event = MagicMock()
+        event.button.return_value = button if button is not None else Qt.LeftButton
+        event.pos.return_value = pos if pos is not None else MagicMock()
+        event.globalPos.return_value = MagicMock()  # QApplication.widgetAt 用
+        return event
+
+    # ── mousePressEvent 行为契约 ──
+
+    def test_mouse_press_off_slot_clears_selection(self):
+        """点不在 slot 上(默认 _is_widget_on_slot=False)+ 有选中 + 左键 → 取消选中。"""
+        event = self._make_event()
+        AutomationWindow.mousePressEvent(self.aw, event)
+        self.assertIsNone(self.aw._selected_index)
+        self.aw._update_selection_style.assert_called_once()
+
+    def test_mouse_press_on_slot_no_deselect(self):
+        """点在 slot 上(_is_widget_on_slot=True)→ 不取消选中。
+
+        覆盖所有"slot 上"的点击:手柄 / combo / line edit / 卡片空隙。
+        用户的选中态保持,方便用 Delete 键删除 / 继续编辑。
+        """
+        self.aw._is_widget_on_slot = MagicMock(return_value=True)
+        event = self._make_event()
+        AutomationWindow.mousePressEvent(self.aw, event)
+        self.assertEqual(self.aw._selected_index, 0)
+        self.aw._update_selection_style.assert_not_called()
+
+    def test_mouse_press_no_selection_noop(self):
+        """无选中时点空白 → no-op(根本不会进 if 块)。"""
+        self.aw._selected_index = None
+        event = self._make_event()
+        AutomationWindow.mousePressEvent(self.aw, event)
+        self.assertIsNone(self.aw._selected_index)
+        self.aw._update_selection_style.assert_not_called()
+
+    def test_mouse_press_right_button_noop(self):
+        """右键 → 不响应(只响应左键)。右键通常用于 context menu,不 deselect。"""
+        event = self._make_event(button=Qt.RightButton)
+        AutomationWindow.mousePressEvent(self.aw, event)
+        self.assertEqual(self.aw._selected_index, 0)
+        self.aw._update_selection_style.assert_not_called()
+
+    def test_mouse_press_calls_widget_at_with_global_pos(self):
+        """mousePressEvent 必须用 ``event.globalPos()`` 调 ``QApplication.widgetAt``。
+
+        防止有人误改成 ``event.pos()``(局部坐标,wrong)或别的错误调用。
+        """
+        fake_global = MagicMock(name="global_pos")
+        event = self._make_event(pos=MagicMock(name="local_pos"))
+        event.globalPos.return_value = fake_global
+        # 预置 widgetAt 返回值
+        with patch("ma_automation.automation_window.QApplication.widgetAt", return_value=None) as wa:
+            AutomationWindow.mousePressEvent(self.aw, event)
+            wa.assert_called_once_with(fake_global)
+
+    def test_mouse_press_calls_is_widget_on_slot(self):
+        """mousePressEvent 必须调 ``_is_widget_on_slot`` 走 walk-up 判定。"""
+        event = self._make_event()
+        AutomationWindow.mousePressEvent(self.aw, event)
+        self.aw._is_widget_on_slot.assert_called_once()
+
+    # ── 源码契约(防回归) ──
+
+    def test_deselect_logic_in_source(self):
+        """源码契约锁死:防止误删关键代码或改坏 walk-up 判定。
+
+        用 ``assertIn`` 字符串匹配(不用 regex 跨行):4 个独立子串断言,
+        任何一个漏写就 fail。核心契约:
+        1. ``_is_widget_on_slot`` helper 必须存在(walk-up 核心)
+        2. ``mousePressEvent`` override 必须存在
+        3. ``QApplication.widgetAt`` 必须调用(拿最顶层 widget)
+        4. ``self._is_widget_on_slot(QApplication.widgetAt(event.globalPos()))``
+           必须在 mousePressEvent 里出现(walk-up 调用的正确语法)
+        """
+        from pathlib import Path
+        # automation_window.py 与 tests/ 目录的相对关系:
+        # tests/ → ma_automation/ → MA/ → python3.11libs/
+        src_path = Path(__file__).resolve().parent.parent / "automation_window.py"
+        src = src_path.read_text(encoding="utf-8")
+        # _is_widget_on_slot helper 必须存在
+        self.assertIn("def _is_widget_on_slot(self, widget)", src)
+        # mousePressEvent override 必须存在
+        self.assertIn("def mousePressEvent(self, event)", src)
+        # QApplication.widgetAt 必须调用
+        self.assertIn("QApplication.widgetAt", src)
+        # walk-up 调用语法必须在 mousePressEvent 里出现
+        self.assertIn(
+            "self._is_widget_on_slot(QApplication.widgetAt(event.globalPos()))",
+            src,
+            "mousePressEvent 必须用 walk-up 语法调 _is_widget_on_slot + QApplication.widgetAt",
+        )
+
+
+class TestIsWidgetOnSlot(unittest.TestCase):
+    """``_is_widget_on_slot`` walk-up 逻辑单元测试。
+
+    沿 ``widget.parent()`` 链向上走,看是否经过 ``_slot_widgets`` 中的
+    某个 slot。返回 True = 在 slot 上(不 deselect),False = 不在(deselect)。
+    """
+
+    def setUp(self):
+        self.aw = AutomationWindow.__new__(AutomationWindow)
+        # 两个假 slot,identity 用 `is` 比较
+        self.slot1 = MagicMock(name="slot1")
+        self.slot2 = MagicMock(name="slot2")
+        # 关键:slot 自己的 parent 必须设成 None,否则 walk-up 会走过头
+        # (MagicMock 默认 parent 又是 MagicMock,无限循环 → RecursionError 卡死测试)
+        self.slot1.parent.return_value = None
+        self.slot2.parent.return_value = None
+        # 同样:self.aw (代 dialog) 的 parent 也设 None,防止 _is_widget_on_slot(self.aw) 走飞
+        self.aw.parent = MagicMock(return_value=None)
+        self.aw._slot_widgets = [self.slot1, self.slot2]
+
+    def _make_chain(self, *widgets):
+        """构造 widget 父链:widgets[0].parent = widgets[1],...,widgets[-2].parent = widgets[-1]。
+
+        返回 widgets[0]。**末尾 widget 的 parent 自动设 None** 终止 walk-up,
+        防止 _is_widget_on_slot 沿链走过头(MagicMock 默认 parent 又生新 mock)。
+        """
+        for i in range(len(widgets) - 1):
+            widgets[i].parent.return_value = widgets[i + 1]
+        # 关键:终止 walk-up(MagicMock 默认 parent() 又返回新 MagicMock,无限递归)
+        widgets[-1].parent.return_value = None
+        return widgets[0]
+
+    def test_none_widget_returns_false(self):
+        """widget=None → 不在 slot 上(None 已是 root 之上)。"""
+        self.assertFalse(self.aw._is_widget_on_slot(None))
+
+    def test_widget_is_slot_returns_true(self):
+        """widget 本身是 slot → True(identity 比对)。"""
+        self.assertTrue(self.aw._is_widget_on_slot(self.slot1))
+        self.assertTrue(self.aw._is_widget_on_slot(self.slot2))
+
+    def test_widget_is_direct_child_of_slot_returns_true(self):
+        """widget 是 slot 的直接子(handle / combo / line edit 之类)→ True。"""
+        child = self._make_chain(MagicMock(name="handle"), self.slot1)
+        self.assertTrue(self.aw._is_widget_on_slot(child))
+
+    def test_widget_is_deep_descendant_of_slot_returns_true(self):
+        """widget 是 slot 的深层后代(如 combo → stacked → page → slot)→ True。"""
+        deep = MagicMock(name="combo")
+        mid = MagicMock(name="stacked")
+        self._make_chain(deep, mid, self.slot1)
+        self.assertTrue(self.aw._is_widget_on_slot(deep))
+
+    def test_widget_in_slot_container_chain_returns_false(self):
+        """点 slot_container 的 stretch 留白(slot_container 是 viewport 子,不是 slot 子)→ False。
+
+        这是 **最关键** 的 case:之前用 ``self.childAt(event.pos()) is None``
+        判定时,这种点击 ``childAt`` 返回 ``QScrollArea``(直接子)而非 None,
+        误判"在子 widget 上"不 deselect。walk-up 正确识别"不在任何 slot 上"。
+        """
+        # 模拟真实 widget 层级:slot_container → viewport → scroll_area → dialog
+        slot_container = MagicMock(name="slot_container")
+        viewport = MagicMock(name="viewport")
+        scroll_area = MagicMock(name="scroll_area")
+        dialog = MagicMock(name="dialog")
+        self._make_chain(slot_container, viewport, scroll_area, dialog)
+        self.assertFalse(self.aw._is_widget_on_slot(slot_container))
+
+    def test_widget_in_toolbar_chain_returns_false(self):
+        """点 toolbar 按钮(start_btn / clear_btn 等)→ False(deselect)。"""
+        btn = MagicMock(name="startBtn")
+        self._make_chain(btn, MagicMock(name="dialog"))
+        self.assertFalse(self.aw._is_widget_on_slot(btn))
+
+    def test_widget_in_dlg_margin_returns_false(self):
+        """点 dialog 自身 margin(没有子 widget)→ False。"""
+        self.assertFalse(self.aw._is_widget_on_slot(self.aw))  # self.aw 是裸实例,代 dialog
+
+    def test_empty_slot_widgets_returns_false(self):
+        """_slot_widgets 为空(没创建任何槽)→ 任何 widget 都不在 slot 上 → False。
+
+        边界:首次打开 dialog、没点 + 加槽的状态。
+        """
+        self.aw._slot_widgets = []
+        widget = MagicMock(name="anything")
+        widget.parent.return_value = None
+        self.assertFalse(self.aw._is_widget_on_slot(widget))
+
+    def test_walk_up_stops_at_first_slot(self):
+        """walk-up 找到第一个 slot 就 True 返回,不会再往上走(防止误把 dialog 当 slot)。"""
+        # 即便 slot 的 parent 链上有更多 widget,找到 slot 立即返回
+        child = MagicMock(name="child")
+        self._make_chain(child, self.slot1)
+        # 关键断言:只调 child.parent() 一次,不会无限 walk
+        self.assertTrue(self.aw._is_widget_on_slot(child))
+        child.parent.assert_called_once()
 
 
 if __name__ == "__main__":

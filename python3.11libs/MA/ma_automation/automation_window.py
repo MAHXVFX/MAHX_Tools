@@ -11,7 +11,7 @@ import re
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox,
     QLineEdit, QStackedWidget, QCheckBox, QWidget, QScrollArea, QSizePolicy,
-    QGraphicsDropShadowEffect,
+    QGraphicsDropShadowEffect, QApplication,
 )
 from PySide6.QtCore import Qt, Signal, QPoint
 from PySide6.QtGui import QColor
@@ -374,9 +374,9 @@ class AutomationWindow(QDialog):
         layout.addLayout(toolbar)
 
         # ── 槽列表滚动区域 ──
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._scroll_area = QScrollArea()
+        self._scroll_area.setWidgetResizable(True)
+        self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         self._slot_container = QWidget()
         self._slot_layout = QVBoxLayout(self._slot_container)
@@ -384,8 +384,8 @@ class AutomationWindow(QDialog):
         self._slot_layout.setSpacing(6)
         self._slot_layout.addStretch()  # 将槽推至顶部
 
-        scroll.setWidget(self._slot_container)
-        layout.addWidget(scroll)
+        self._scroll_area.setWidget(self._slot_container)
+        layout.addWidget(self._scroll_area)
 
     def _create_slot_widget(self, index: int, data: dict | None = None) -> QWidget:
         """创建一个任务槽控件。"""
@@ -784,6 +784,57 @@ class AutomationWindow(QDialog):
             event.accept()
             return
         super().keyPressEvent(event)
+
+    # ── 鼠标事件(空白处取消选中) ───────────────────────────────
+
+    def _is_widget_on_slot(self, widget) -> bool:
+        """检查 ``widget`` 是否在某个任务槽上(widget 自身或父链上是 slot)。
+
+        用于"点空白 deselect"判定的核心 walk-up 逻辑:
+        - 点 handle / combo / line edit → widgetAt 返回最深层子 widget,
+          沿 ``.parent()`` 链向上走到 slot → True(不 deselect)
+        - 点 slot 卡片内部空隙(槽 widget 的 background 区域)→ widgetAt
+          返回 slot 自身 → True
+        - 点 slot_container 的 stretch 区域(最后一个 slot 下面那条
+          "推上去"的留白)→ widgetAt 返回 slot_container,沿父链走到
+          viewport → scroll_area → dialog,都**不是 slot** → False(deselect)
+        - 点 dialog 自身 margin / spacing → widgetAt 返回 dialog → False
+
+        之前的 ``self.childAt(event.pos()) is None`` 判定不靠谱,因为
+        ``childAt`` 只识别**直接子**:点滚动区里 slot_container 的 stretch
+        时,``childAt`` 返回 ``QScrollArea``(直接子)而非 None,所以误判
+        "在子 widget 上"不 deselect。``QApplication.widgetAt`` 拿最顶层
+        widget + walk-up 父链才正确。
+        """
+        while widget is not None:
+            for slot in self._slot_widgets:
+                if widget is slot:
+                    return True
+            widget = widget.parent()
+        return False
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 — Qt 命名约定
+        """点击 dialog 任意空白处 → 取消任务槽选中。
+
+        行为对齐 Houdini 主窗口风格:点空白取消选中,方便用 Delete
+        键连删多个任务时,先 deselect 再选下一个。
+
+        ``QApplication.widgetAt(global_pos)`` 拿全局坐标最顶层 widget,
+        ``_is_widget_on_slot`` 沿父链 walk-up 判定:
+        - 在某 slot 上(handle / combo / line edit / 卡片空隙)→ 不 deselect
+        - 不在任何 slot 上(dialog margin / 滚动区 stretch / 工具栏按钮
+          / 任意非 slot 区域)→ deselect
+
+        只响应左键 + 有选中态;无选中 / 右键都 no-op。
+        """
+        if (
+            event.button() == Qt.LeftButton
+            and self._selected_index is not None
+            and not self._is_widget_on_slot(QApplication.widgetAt(event.globalPos()))
+        ):
+            self._selected_index = None
+            self._update_selection_style()
+        super().mousePressEvent(event)
 
     # ── 数据持久化 ─────────────────────────────────────────
 

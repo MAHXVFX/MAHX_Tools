@@ -39,6 +39,10 @@ Qt 面板 UI + JSON 持久化 + QThread 后台执行。
 - **Auto Fill 静默**:`_on_auto_fill` 无 print / 无 logger / 无弹窗,所有路径(无选中 / 无有效节点 / 正常完成)都静默返回。用户不要任何提醒。测试用 `mock_print.assert_not_called()` 锁死
 - **`_slot_widgets` / `_slot_handles` 平行列表契约**:两个 list 同长、同顺序、同生命周期。任何增/删/清空槽的代码必须**同步**操作两个列表,漏掉 `clear` 会让 `_renumber_slots` 拿到已 `deleteLater()` 的 handle 调 `setText` → `RuntimeError: Internal C++ object (_SlotHandle) already deleted`。`_add_slot` / `_remove_slot` / `_on_clear` 都遵守契约;回归测试 `test_on_clear_clears_handles_in_sync` 锁死
 - **Houdini 拖入支持 `_ParmPathLineEdit`**:parmPath 字段用 `_ParmPathLineEdit(QLineEdit)` 子类(不要直接 `QLineEdit()`),接受 Houdini 参数面板拖入 —— 行为对齐 Houdini Python shell:拖按钮产生 `hou.parm('/obj/.../parm')` 表达式,本控件识别后**只填纯路径**(`/obj/.../parm`,剥 wrapper)。实现:`setAcceptDrops(True)` + override `dragEnterEvent` / `dragMoveEvent` / `dropEvent`,文本提取走 module-level helper `_extract_parm_path`(单/双引号 + 前后空白容错,纯路径原样返回,空串返回空)
+- **点击空白处取消任务槽选中(单路径 + walk-up)**:`AutomationWindow` override `mousePressEvent` 单点实现"点空白 deselect",对齐 Houdini 主窗口风格(用 Delete 键连删多个槽时,先 deselect 再选下一个)。
+  - **核心实现**:`mousePressEvent` 用 `QApplication.widgetAt(event.globalPos())` 拿全局最顶层 widget,再调 `_is_widget_on_slot` 沿 `widget.parent()` 父链 walk-up 判定。**不用 `childAt`** —— `childAt` 只看**直接子**,点滚动区里 `slot_container` 的 stretch 留白时会被 `QScrollArea`(直接子)拦住,误判"在子上"不 deselect
+  - **`_is_widget_on_slot` helper**:`while widget is not None` 沿父链 walk,任一节点是 `self._slot_widgets` 中某 slot(`is` identity 比对)即返回 True。slot 上的子 widget(手柄 / combo / line edit / 卡片空隙)走 walk-up 必经过 slot → True;滚动区空白(父链是 `slot_container → viewport → scroll_area → dialog`,**不经过**任何 slot)→ False
+  - **统一契约**:只响应左键 + 有选中态;无选中 / 右键都 no-op。**eventFilter 已移除**(本轮从 viewport 撤掉 `installEventFilter` + `AutomationWindow.eventFilter` override),dialog 的 `mousePressEvent` 单点足够。`self._scroll_area` 仍是成员但仅用于布局(不参与 click 处理)。回归测试 `TestClickDeselect` 7 个 case(行为 + 源码契约)+ `TestIsWidgetOnSlot` 9 个 case(walk-up 边界)共 16 个锁死
 
 ## Anti-Patterns
 

@@ -127,6 +127,13 @@ def install_pyside_mock():
             pass
         def activateWindow(self):
             pass
+        # ── 事件桩 ──
+        # mousePressEvent 是 AutomationWindow.mousePressEvent 末尾
+        # ``super().mousePressEvent(event)`` 调用所需的 no-op 桩
+        # (MRO 找不到 → AttributeError)。其他事件方法不需要桩,因为
+        # 生产代码不再 override 它们(第二轮清理:eventFilter 已移除)。
+        def mousePressEvent(self, event):
+            pass
 
     class _MockQDialog(_MockQWidget):
         """QDialog 最简桩。"""
