@@ -143,6 +143,18 @@ class _SlotHandle(QLabel):
         super().mouseReleaseEvent(event)
 
 
+class _NoWheelComboBox(QComboBox):
+    """QComboBox 子类:屏蔽 hover 滚轮改值,让事件穿透到父滚动区。
+
+    默认 QComboBox.wheelEvent 会循环选项,误触率高 —— 用户想滚动
+    任务列表时一滚就改了任务类型。直接 ``event.ignore()``(不调 super)
+    让 Qt 把事件回传给父 widget,QScrollArea 自然接管滚动。
+    """
+
+    def wheelEvent(self, event) -> None:  # noqa: N802 — Qt 命名约定
+        event.ignore()
+
+
 class AutomationWindow(QDialog):
     """MA Automation 主窗口。
 
@@ -263,16 +275,20 @@ class AutomationWindow(QDialog):
         slot._handle = idx_label
 
         # ── 类型下拉框 ──
-        combo = QComboBox()
+        # 收短(160→120),让 node_path 获得更多横向空间
+        # 用 _NoWheelComboBox 替 QComboBox,屏蔽 hover 滚轮循环选项
+        combo = _NoWheelComboBox()
         combo.setObjectName("taskType")
         combo.addItems(["按钮点击", "Flipbook", "HomeAssistant Webhook"])
-        combo.setFixedWidth(160)
+        combo.setFixedWidth(120)
 
         # ── 参数区域（QStackedWidget） ──
         stacked = QStackedWidget()
         stacked.setObjectName("paramsStacked")
 
         # Page 0: 按钮点击
+        # node_path stretch=2 / parm_name stretch=1 → 节点路径 拿 2/3 空间,
+        # 节点路径(节点全路径)通常比参数名长得多,理应占更多位置
         page0 = QWidget()
         p0_layout = QHBoxLayout(page0)
         p0_layout.setContentsMargins(0, 0, 0, 0)
@@ -283,8 +299,8 @@ class AutomationWindow(QDialog):
         parm_name_le = QLineEdit()
         parm_name_le.setObjectName("parmName")
         parm_name_le.setPlaceholderText("参数名")
-        p0_layout.addWidget(node_path_le)
-        p0_layout.addWidget(parm_name_le)
+        p0_layout.addWidget(node_path_le, 2)
+        p0_layout.addWidget(parm_name_le, 1)
         stacked.addWidget(page0)
 
         # Page 1: Flipbook

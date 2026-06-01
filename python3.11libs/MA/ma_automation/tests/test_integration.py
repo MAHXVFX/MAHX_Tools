@@ -46,7 +46,7 @@ sys.modules['MA.ma_automation.task_types'] = sys.modules.get('ma_automation.task
 sys.modules['MA.ma_automation.execution_engine'] = sys.modules.get('ma_automation.execution_engine')
 
 # 现在可以安全地导入 automation_window
-from ma_automation.automation_window import AutomationWindow  # noqa: E402
+from ma_automation.automation_window import AutomationWindow, _NoWheelComboBox  # noqa: E402
 
 
 class TestAutoFill(unittest.TestCase):
@@ -625,6 +625,39 @@ class TestSlotInteraction(unittest.TestCase):
             AutomationWindow.keyPressEvent(self._mock_self, event)
         # _remove_slot 是绑定真方法 → 观察 pop 未被调用
         self._mock_self._slot_widgets.pop.assert_not_called()
+
+    # ── 滚轮屏蔽 ──────────────────────────────────────────
+
+    def test_no_wheel_combo_box_ignores_wheel(self):
+        """_NoWheelComboBox 应被定义且 ``wheelEvent`` 调 ``event.ignore()``,
+        让滚轮事件穿透到父 ``QScrollArea``,不循环选项。
+
+        实现选择说明:mock 环境下 ``QComboBox`` 是 ``MagicMock()`` 实例,
+        任何走属性查找的反射(unbound method / ``__dict__`` / ``vars()`` /
+        ``inspect.getsource``)都不可控,见 git 历史讨论。改为直接读源文件
+        验证 —— 一次 IO,语义等价(本特性就是 ``event.ignore()`` 一行)。
+        """
+        from pathlib import Path
+        import ma_automation.automation_window as aw
+
+        src = Path(aw.__file__).read_text(encoding='utf-8')
+
+        # 1. _NoWheelComboBox 类被定义
+        self.assertIn('class _NoWheelComboBox', src, "_NoWheelComboBox 类应被定义")
+        # 2. wheelEvent override
+        self.assertIn('def wheelEvent', src, "应 override wheelEvent")
+        # 3. event.ignore() 让事件穿透
+        self.assertIn('event.ignore()', src, "应调 event.ignore() 让事件穿透到父")
+        # 4. 不要调 super().wheelEvent,否则 QComboBox 默认行为会循环选项
+        self.assertNotIn(
+            'super().wheelEvent', src,
+            "不要 super().wheelEvent,默认实现会循环选项",
+        )
+        # 5. _create_slot_widget 用 _NoWheelComboBox 而非裸 QComboBox
+        self.assertIn(
+            '_NoWheelComboBox()', src,
+            "_create_slot_widget 应实例化 _NoWheelComboBox,屏蔽滚轮",
+        )
 
 
 if __name__ == "__main__":
