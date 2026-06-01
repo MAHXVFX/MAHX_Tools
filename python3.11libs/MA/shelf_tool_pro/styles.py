@@ -11,7 +11,7 @@ TEXT_SECONDARY = "#cccccc"
 BORDER_COLOR = "#3d3d3d"
 
 SETTINGS_BUTTON_STYLE = (
-    f"QPushButton#settingsButton {{ background-color: #6b4c9c; color: white; "
+    f"QPushButton#settingsButton {{ background-color: #57358c; color: white; "
     f"padding: 6px 8px; border-radius: 10px; min-width: 50px; font-weight: bold; }}"
 )
 
