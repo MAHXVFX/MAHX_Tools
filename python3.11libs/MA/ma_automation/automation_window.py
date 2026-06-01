@@ -8,6 +8,7 @@ Singleton QDialog，非模态独立窗口。
 import logging
 import re
 from pathlib import Path
+from urllib.parse import quote
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox,
@@ -35,15 +36,29 @@ logger = logging.getLogger("MA")
 # 蓝色圆 + 下箭头 SVG,放在 ``python3.11libs/MA/icons/``。
 # 用 ``__file__`` 解析绝对路径后注入到 combo-level stylesheet,
 # 不在 styles.py 写死(Houdini 启动 CWD 不固定,相对路径会失效)。
+#
+# **URL 编码**:``as_posix()`` 不编码特殊字符,Win32 路径含空格(如用户名
+# 或文件名 ``drop down button.svg``)时裸空格会让 QSS ``url()`` 解析不可靠。
+# ``quote(safe='/:')`` 把空格编为 ``%20``,保留盘符冒号 + 路径分隔符。
 _MA_ICONS_DIR = Path(__file__).resolve().parent.parent / "icons"
 _ICON_DROP_DOWN = _MA_ICONS_DIR / "drop down button.svg"
 _CONFIG_COMBO_ICON_STYLE = f"""
 QComboBox#configCombo::down-arrow {{
-    image: url({_ICON_DROP_DOWN.as_posix()});
+    image: url({quote(_ICON_DROP_DOWN.as_posix(), safe='/:')});
     width: 16px; height: 16px;
     margin-right: 4px;
 }}
 """
+
+
+# ── Windows 文件名保留名(用于 _get_save_target_name 拒绝) ─────────
+# 含 ``CON`` / ``PRN`` / ``AUX`` / ``NUL`` / ``COM1-9`` / ``LPT1-9``,
+# 大小写不敏感(``text.upper() in _WINDOWS_RESERVED`` 比较)。
+_WINDOWS_RESERVED = frozenset({
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+})
 
 
 # ── Parm Path 编解码 ──────────────────────────────────────────
@@ -977,6 +992,10 @@ class AutomationWindow(QDialog):
           - 空 / 全空白 → ``None``(fall back 到默认 ``MA_Automation.json``)
           - 末尾 ``.json`` → 剥后缀(容错用户键入带后缀)
           - 含 ``/`` 或 ``\\`` → ``None``(拒绝路径分隔符,避免破坏目录结构)
+          - Windows 保留名 (``CON`` / ``PRN`` / ``AUX`` / ``NUL`` / ``COM1-9`` /
+            ``LPT1-9``,大小写不敏感)→ ``None``
+          - NUL 字节 ``\\x00`` → ``None``(POSIX 拒绝)
+          - 纯点号 ``..`` / ``...`` → ``None``(避免 ``....json`` 怪文件)
 
         Returns:
             净化后的 basename,或 ``None``(走默认)。
@@ -990,6 +1009,15 @@ class AutomationWindow(QDialog):
             return None
         # 安全检查:拒绝路径分隔符(防 ``../`` 或 ``C:\\evil`` 等)
         if "/" in text or "\\" in text:
+            return None
+        # 拒绝 Windows 保留名(大小写不敏感)
+        if text.upper() in _WINDOWS_RESERVED:
+            return None
+        # 拒绝 NUL 字节
+        if "\x00" in text:
+            return None
+        # 拒绝纯点号(全部由 ``.`` 组成)
+        if text.replace(".", "") == "":
             return None
         return text
 
@@ -1078,14 +1106,26 @@ class AutomationWindow(QDialog):
           - 空 / 全空白 / 含路径分隔符 → fall back 到默认 ``MA_Automation.json``
           - 其它 → 写到该名 .json(**不存在则创建**,这是"键入新名 + Start"的核心)
 
-        保存完成后:
+        **失败处理**:``MA_Automation_DataManager.save()`` 返回 ``False``(写盘
+        异常:磁盘满 / 权限 / 只读 / OS 拒绝保留名)时,``logger.warning``
+        记录 + **不**更新 ``_current_config_name`` / **不** refresh 下拉,
+        让用户重试。否则 UI 会"假装成功",后续 ``_load_data`` 加载错误的旧
+        数据,看起来"丢失未保存修改"。
+
+        保存成功完成后:
           1. 更新 ``_current_config_name`` 为刚保存的文件名(状态同步,
              让后续操作基于新保存的文件)
           2. 刷新下拉(让新建文件出现在列表中,用户能看到自己刚保存的配置)
         """
         tasks_data = self._collect_data()
         save_name = self._get_save_target_name()  # 可能为 None
-        MA_Automation_DataManager.save(tasks_data, filename=save_name)
+        ok = MA_Automation_DataManager.save(tasks_data, filename=save_name)
+        if not ok:
+            # 写盘失败:不更新状态,让用户重试 + 看到日志提示
+            logger.warning(
+                "MA Automation: 保存失败 filename=%s", save_name
+            )
+            return tasks_data
         # 状态同步:更新当前配置名(只有显式保存到某名时才更新)
         if save_name:
             self._current_config_name = save_name

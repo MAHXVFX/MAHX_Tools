@@ -1323,6 +1323,50 @@ class TestConfigComboSaveTarget(unittest.TestCase):
         self.aw._config_combo.currentText.return_value = ".json"
         self.assertIsNone(self.aw._get_save_target_name())
 
+    def test_windows_reserved_name_returns_none(self):
+        """Windows 保留名 ``CON`` / ``PRN`` / ``AUX`` / ``NUL`` / ``COM1-9`` /
+        ``LPT1-9``(大小写不敏感)→ None(防 OS 拒绝创建,save 静默失败)。"""
+        for reserved in ("CON", "PRN", "AUX", "NUL",
+                         "COM1", "COM9", "LPT1", "LPT9",
+                         "con", "Con", "prn"):  # 大小写不敏感
+            self.aw._config_combo.currentText.return_value = reserved
+            self.assertIsNone(
+                self.aw._get_save_target_name(),
+                f"Windows 保留名 {reserved!r} 应返回 None"
+            )
+
+    def test_nul_byte_returns_none(self):
+        """NUL 字节 ``\\x00`` → None(POSIX 拒绝,Windows 行为不一致)。"""
+        self.aw._config_combo.currentText.return_value = "test\x00evil"
+        self.assertIsNone(self.aw._get_save_target_name())
+
+    def test_only_dots_returns_none(self):
+        """纯点号 ``..`` / ``...`` / ``....`` → None(避免 ``....json`` 怪文件)。"""
+        for dots in ("..", "...", "....", ".....", "."):
+            self.aw._config_combo.currentText.return_value = dots
+            self.assertIsNone(
+                self.aw._get_save_target_name(),
+                f"纯点号 {dots!r} 应返回 None(``...json`` 类怪文件)"
+            )
+
+    def test_leading_dot_returns_as_is(self):
+        """前导点 ``.hidden`` → 原样返回(用户意图;Unix 下隐藏但 list_configs
+        仍会列出,行为一致)。让 save 端 / OS 决定处理,不在 sanitize 层拦截。"""
+        self.aw._config_combo.currentText.return_value = ".hidden"
+        self.assertEqual(self.aw._get_save_target_name(), ".hidden")
+
+    def test_long_name_returns_unchanged(self):
+        """超长名(>200 字符)→ 原样返回(让 save 端报 OS 错误,不预判限制)。"""
+        long_name = "a" * 250
+        self.aw._config_combo.currentText.return_value = long_name
+        self.assertEqual(self.aw._get_save_target_name(), long_name)
+
+    def test_internal_control_chars_returns_unchanged(self):
+        """中段控制字符(``\\n`` / ``\\t``)→ 原样返回(让 save 端 / OS 处理)。
+        ``_get_save_target_name`` 不预判控制字符,简单透传。"""
+        self.aw._config_combo.currentText.return_value = "test\nname"
+        self.assertEqual(self.aw._get_save_target_name(), "test\nname")
+
 
 class TestConfigComboRefresh(unittest.TestCase):
     """``_refresh_config_dropdown`` 行为契约。
@@ -1469,6 +1513,64 @@ class TestSaveUsesConfigName(unittest.TestCase):
         # 不更新 _current_config_name(避免误覆盖)
         self.assertEqual(self.aw._current_config_name, "MA_Automation")
 
+    @patch("ma_automation.automation_window.MA_Automation_DataManager")
+    def test_save_failure_does_not_update_state(self, mock_dm):
+        """save 返回 ``False``(写盘失败)→ 不更新 ``_current_config_name``,
+        **不** refresh 下拉。状态保持"未保存前",用户可重试 + 看到 logger 提示。"""
+        mock_dm.save.return_value = False  # 写盘失败(磁盘满 / 权限 / OS 拒绝)
+        self.aw._current_config_name = "MA_Automation"  # 旧值
+        self.aw._save_data()
+        # _current_config_name 不变(避免后续 _load_data 加载错的文件)
+        self.assertEqual(self.aw._current_config_name, "MA_Automation")
+        # _refresh_config_dropdown 不调(因为没新文件)
+        self.aw._refresh_config_dropdown.assert_not_called()
+        # save 仍被尝试(数据已 _collect_data 完)
+        mock_dm.save.assert_called_once()
+
+
+class TestConfigComboEndToEnd(unittest.TestCase):
+    """``_save_data`` 端到端回归:键入新名 → save → 状态同步 + refresh 串联。
+
+    锁死"``_save_data`` 调用 ``_refresh_config_dropdown`` + 更新
+    ``_current_config_name``"的顺序契约。若未来误改顺序(比如把
+    ``_refresh_config_dropdown()`` 注释掉),无各 helper 独立测试会
+    抓到此回归。
+    """
+
+    def setUp(self):
+        self.aw = AutomationWindow.__new__(AutomationWindow)
+        self.aw._config_combo = MagicMock()
+        self.aw._config_combo.currentText.return_value = "MAtest_new"
+        self.aw._collect_data = MagicMock(return_value=[{"name": "x"}])
+        self.aw._refresh_config_dropdown = MagicMock()
+        self.aw._current_config_name = "MA_Automation"  # 旧值
+
+    @patch("ma_automation.automation_window.MA_Automation_DataManager")
+    def test_save_success_flow(self, mock_dm):
+        """save 成功路径端到端:键入新名 → save → 状态同步 + refresh 必调。"""
+        mock_dm.save.return_value = True
+        self.aw._save_data()
+        # 1. save 必调(用键入名作为 filename)
+        mock_dm.save.assert_called_once()
+        call_kwargs = mock_dm.save.call_args.kwargs
+        self.assertEqual(call_kwargs.get("filename"), "MAtest_new")
+        # 2. _current_config_name 同步到刚保存的
+        self.assertEqual(self.aw._current_config_name, "MAtest_new")
+        # 3. _refresh_config_dropdown 必调(让新名出现在下拉)
+        self.aw._refresh_config_dropdown.assert_called_once()
+
+    @patch("ma_automation.automation_window.MA_Automation_DataManager")
+    def test_save_failure_flow(self, mock_dm):
+        """save 失败路径端到端:键入新名 → save 失败 → 状态不更新。"""
+        mock_dm.save.return_value = False
+        self.aw._save_data()
+        # _current_config_name 保持旧值
+        self.assertEqual(self.aw._current_config_name, "MA_Automation")
+        # _refresh_config_dropdown 不调
+        self.aw._refresh_config_dropdown.assert_not_called()
+        # save 仍被尝试
+        mock_dm.save.assert_called_once()
+
 
 class TestConfigComboSourceContract(unittest.TestCase):
     """源码契约锁死 configCombo 关键代码(防误删 / 改坏)。"""
@@ -1550,6 +1652,10 @@ class TestConfigComboSourceContract(unittest.TestCase):
         # 3. combo-level stylesheet 注入(覆盖全局)
         self.assertIn("setStyleSheet(_CONFIG_COMBO_ICON_STYLE)", src)
         self.assertIn("image: url(", src)
+        # 4. **URL 编码**:Win32 路径含空格时必须 quote() 编码,防 QSS
+        #    ``url()`` 解析不可靠(Qt 部分版本对裸空格宽容、部分忽略)。
+        self.assertIn("from urllib.parse import quote", src)
+        self.assertIn("quote(_ICON_DROP_DOWN.as_posix(), safe='/:')", src)
 
     def test_start_btn_is_mouse_click_only(self):
         """``startBtn`` 必须 setAutoDefault(False) + setDefault(False),防 Enter 误触发。

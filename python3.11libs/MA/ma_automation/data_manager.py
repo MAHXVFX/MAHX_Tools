@@ -154,7 +154,7 @@ class MA_Automation_DataManager:
             return []
         try:
             return sorted(
-                name[:-5] if name.endswith(".json") else name
+                name[:-5]
                 for name in os.listdir(json_dir)
                 if name.endswith(".json")
                 and os.path.isfile(os.path.join(json_dir, name))
