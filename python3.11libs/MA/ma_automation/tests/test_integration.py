@@ -74,17 +74,17 @@ class TestAutoFill(unittest.TestCase):
 
     @patch('builtins.print')
     def test_auto_fill_no_selection(self, mock_print):
-        """无选中节点时应打印提示且不添加任务。"""
+        """无选中节点时静默返回,不打印不弹窗。"""
         self._mock_hou.selectedNodes.return_value = []
         AutomationWindow._on_auto_fill(self._mock_self)
-        mock_print.assert_called_once_with("Auto Fill: 当前无选择节点")
+        mock_print.assert_not_called()
         self._mock_self._add_slot.assert_not_called()
 
     # ── Test 2: 选中节点但无 execute 参数 ────────────────────
 
     @patch('builtins.print')
     def test_auto_fill_no_valid_nodes(self, mock_print):
-        """选中节点但都没有 execute 参数时应打印无有效节点。"""
+        """选中节点但都没有 execute 参数时静默返回,不打印。"""
         fake_node = MagicMock()
         fake_node.parm.return_value = None
         fake_node.path.return_value = "/obj/geo1"
@@ -93,8 +93,8 @@ class TestAutoFill(unittest.TestCase):
         AutomationWindow._on_auto_fill(self._mock_self)
 
         fake_node.parm.assert_called_once_with("execute")
-        # 验证打印了无有效节点提示
-        mock_print.assert_called_once_with("Auto Fill: 当前无有效节点")
+        # Auto Fill 完全静默,无 print 无日志
+        mock_print.assert_not_called()
         self._mock_self._add_slot.assert_not_called()
 
     # ── Test 3: 选中有效节点，追加 BUTTON_CLICK 任务 ─────────
@@ -104,7 +104,7 @@ class TestAutoFill(unittest.TestCase):
         """选中带 execute 参数的节点时应追加 BUTTON_CLICK 任务。
 
         MagicMock 环境下 ``_find_trailing_empty_slots`` 默认返回空 list，
-        因此走 ``_add_slot`` 分支。
+        因此走 ``_add_slot`` 分支。Auto Fill 静默完成,不打印。
         """
         parm = MagicMock()
         fake_node = MagicMock()
@@ -124,14 +124,14 @@ class TestAutoFill(unittest.TestCase):
         }
         self._mock_self._add_slot.assert_called_once_with(expected)
         self._mock_self._fill_slot_at.assert_not_called()
-        mock_print.assert_called_once_with("Auto Fill: 已处理 1 个按钮点击任务")
+        mock_print.assert_not_called()
 
     # ── Test 5: 存在连续空槽时直接填充，不新增 ─────────────────
 
     @patch('builtins.print')
     def test_auto_fill_fills_empty_last_slot(self, mock_print):
         """当 ``_find_trailing_empty_slots`` 返回非空列表时，Auto Fill 应调用
-        ``_fill_slot_at`` 填充最近的空槽，而非 ``_add_slot`` 新增。
+        ``_fill_slot_at`` 填充最近的空槽，而非 ``_add_slot`` 新增。静默完成。
         """
         parm = MagicMock()
         fake_node = MagicMock()
@@ -146,7 +146,7 @@ class TestAutoFill(unittest.TestCase):
 
         self._mock_self._fill_slot_at.assert_called_once()
         self._mock_self._add_slot.assert_not_called()
-        mock_print.assert_called_once_with("Auto Fill: 已处理 1 个按钮点击任务")
+        mock_print.assert_not_called()
 
     # ── Test 6: 连续多个空槽时从前往后填入，末尾保留 ───────────
 
@@ -154,6 +154,7 @@ class TestAutoFill(unittest.TestCase):
     def test_auto_fill_fills_multiple_consecutive_empty_slots(self, mock_print):
         """当从后往前有 3 个连续空槽（索引 0、1、2），
         选中 3 个节点时，Auto Fill 应从前往后填入 0、1、2（不调用 ``_add_slot``）。
+        静默完成。
 
         关键：``_find_trailing_empty_slots`` 只调用一次（迭代器消费），
         且返回顺序为 [0, 1, 2]（从小到大），使末尾槽保留供用户手动填。
@@ -182,7 +183,7 @@ class TestAutoFill(unittest.TestCase):
         ]
         self.assertEqual(fill_indices, [0, 1, 2])
         self._mock_self._add_slot.assert_not_called()
-        mock_print.assert_called_once_with("Auto Fill: 已处理 3 个按钮点击任务")
+        mock_print.assert_not_called()
 
     # ── Test 4: 实例方法存在且可调用 ────────────────────────
 
@@ -397,6 +398,47 @@ class TestSlotInteraction(unittest.TestCase):
         AutomationWindow._remove_slot(self._mock_self, -1)
         self._mock_self._slot_widgets.pop.assert_not_called()
         self._mock_self._slot_layout.removeWidget.assert_not_called()
+
+    # ── 清空(回归:_on_clear 必须清 _slot_handles)────
+
+    def test_on_clear_clears_handles_in_sync(self):
+        """**回归测试**:`_on_clear` 必须**同步清空** ``_slot_handles`` 平行列表,
+        否则下次 ``_renumber_slots``(在 ``_add_slot`` 里调)会拿一堆已经被
+        ``deleteLater()`` 的 handle 调 ``setText``,触发
+        ``RuntimeError: Internal C++ object (_SlotHandle) already deleted``。
+
+        历史 bug:点击 Auto Fill 后再点 Clear → 后续任何按钮(增/删/拖/选)
+        都炸,因为平行列表 ``_slot_handles`` 还指着已 deleteLater 的对象。
+        修复:`_on_clear`` 末尾 ``self._slot_handles.clear()``。
+
+        注:``_add_slot`` 不 patch —— production 调 ``self._add_slot()`` 走
+        MagicMock 实例属性查找(不是类方法),直接落到 ``self._mock_self``
+        上 auto-generated 的 mock,调用被自动记录,直接 assert 即可。
+        """
+        # 模拟当前有 2 个槽(平行列表契约下 _slot_widgets 和 _slot_handles 同长)
+        old_widgets = [MagicMock(), MagicMock()]
+        old_handles = [MagicMock(), MagicMock()]
+        self._mock_self._slot_widgets = old_widgets
+        self._mock_self._slot_handles = old_handles
+        self._mock_self._slot_layout = MagicMock()
+
+        AutomationWindow._on_clear(self._mock_self)
+
+        # 1. 两个列表都被清空(平行列表契约)
+        self.assertEqual(
+            self._mock_self._slot_widgets, [],
+            "_on_clear 后 _slot_widgets 应为空",
+        )
+        self.assertEqual(
+            self._mock_self._slot_handles, [],
+            "_on_clear 后 _slot_handles 必须为空(回归点!漏掉会触发 RuntimeError)",
+        )
+        # 2. deleteLater 在每个旧 slot 上被调
+        for slot in old_widgets:
+            slot.deleteLater.assert_called_once()
+        # 3. 保留 1 个空槽的 _add_slot 被调(走 mock 实例属性查找,
+        #    self._mock_self._add_slot 是 auto-generated MagicMock)
+        self._mock_self._add_slot.assert_called_once_with()
 
     # ── 重排 ───────────────────────────────────────────────
 
@@ -764,6 +806,232 @@ class TestSlotInteraction(unittest.TestCase):
         # 4. helper 函数被定义
         self.assertIn("def _split_parm_path", src, "拆分 helper 应被定义")
         self.assertIn("def _combine_parm_path", src, "合并 helper 应被定义")
+
+    # ── Houdini 拖入支持 ─────────────────────────────
+
+    def test_extract_parm_path_from_hou_parm_expression(self):
+        """``_extract_parm_path`` 识别 Houdini Python shell 的 hou.parm(...) 格式
+        并剥掉 wrapper,只留纯 parm 路径。
+        """
+        from ma_automation.automation_window import _extract_parm_path
+
+        # 标准场景:Houdini 拖到 Python shell 产生的表达式
+        self.assertEqual(
+            _extract_parm_path("hou.parm('/obj/billowy_smoke/filecache1/execute')"),
+            "/obj/billowy_smoke/filecache1/execute",
+        )
+        # 双引号也支持
+        self.assertEqual(
+            _extract_parm_path('hou.parm("/obj/foo/bar")'),
+            "/obj/foo/bar",
+        )
+        # 前后空白容错
+        self.assertEqual(
+            _extract_parm_path("  hou.parm('/obj/foo/bar')  "),
+            "/obj/foo/bar",
+        )
+        # hou. 与 parm( 之间允许空格
+        self.assertEqual(
+            _extract_parm_path("hou . parm ( '/obj/foo/bar' )"),
+            "/obj/foo/bar",
+        )
+
+    def test_extract_parm_path_passthrough_pure_path(self):
+        """纯 parm 路径输入原样返回(节点面板拖出可能只有 node_path,让用户补 parm)。
+        """
+        from ma_automation.automation_window import _extract_parm_path
+
+        # 纯节点路径
+        self.assertEqual(
+            _extract_parm_path("/obj/foo/bar"),
+            "/obj/foo/bar",
+        )
+        # 纯参数名
+        self.assertEqual(
+            _extract_parm_path("execute"),
+            "execute",
+        )
+
+    def test_extract_parm_path_empty(self):
+        """空字符串 / 纯空白 → 空串。
+        """
+        from ma_automation.automation_window import _extract_parm_path
+
+        self.assertEqual(_extract_parm_path(""), "")
+        self.assertEqual(_extract_parm_path("   "), "")
+        self.assertEqual(_extract_parm_path("\n\t  \n"), "")
+
+    def test_extract_parm_path_malformed_passthrough(self):
+        """不匹配 hou.parm(...) 格式的非空输入 → 原样返回(让 UI 显示让用户修正)。
+        """
+        from ma_automation.automation_window import _extract_parm_path
+
+        # hou.parm 没参数 → 原样
+        self.assertEqual(
+            _extract_parm_path("hou.parm()"),
+            "hou.parm()",
+        )
+        # 别的 Python 表达式 → 原样
+        self.assertEqual(
+            _extract_parm_path("hou.node('/obj/foo')"),
+            "hou.node('/obj/foo')",
+        )
+
+    def test_parm_path_line_edit_in_source(self):
+        """``_ParmPathLineEdit`` 子类应在 production 源码中,接受 Houdini 拖入。
+
+        **回归点**:`dragEnterEvent` 不能有 ``hasText() or hasUrls()`` 守卫 —
+        Houdini 参数拖动用自定义 MIME(类似 ``application/x-houdini-parm``),
+        这两个都是 False,守卫会让鼠标显示禁止图标。改用"全接受"策略
+        (dragEnter 一律 acceptProposedAction,文本提取下沉到 dropEvent)。
+
+        mock 环境下 Qt 反射不可控(同 _NoWheelComboBox),改用源码检查。
+        """
+        from pathlib import Path
+        import ma_automation.automation_window as aw
+
+        src = Path(aw.__file__).read_text(encoding='utf-8')
+
+        # 1. 类被定义
+        self.assertIn(
+            'class _ParmPathLineEdit(QLineEdit)', src,
+            "_ParmPathLineEdit 子类应被定义",
+        )
+        # 2. 启用 drop
+        self.assertIn(
+            'setAcceptDrops(True)', src,
+            "_ParmPathLineEdit 应启用 drop 接收",
+        )
+        # 3. override 三个 drop 事件
+        self.assertIn('def dragEnterEvent', src, "应 override dragEnterEvent")
+        self.assertIn('def dragMoveEvent', src, "应 override dragMoveEvent")
+        self.assertIn('def dropEvent', src, "应 override dropEvent")
+        # 4. dropEvent 用 _extract_parm_path 处理文本
+        self.assertIn(
+            '_extract_parm_path(text)', src,
+            "dropEvent 应调 _extract_parm_path 剥 hou.parm wrapper",
+        )
+        # 5. _create_slot_widget 用 _ParmPathLineEdit 而非裸 QLineEdit
+        self.assertIn(
+            'parm_path_le = _ParmPathLineEdit()', src,
+            "parmPath 字段应用 _ParmPathLineEdit,接收 Houdini 拖入",
+        )
+        # 6. 【回归】dragEnter 不能有 hasText/hasUrls 守卫 —— Houdini 拖
+        #    出来这两个都为 False,守卫会让鼠标变禁止图标
+        #    检查 dragEnterEvent 方法体不含这两个调用
+        self._assert_drag_enter_has_no_text_url_guard(src)
+        # 7. dragEnter 应直接 acceptProposedAction(无守卫)
+        #    找 dragEnterEvent 方法体,验证第一句就是 acceptProposedAction
+        self._assert_drag_enter_accepts_unconditionally(src)
+
+    def _assert_drag_enter_has_no_text_url_guard(self, src):
+        """辅助:定位 ``dragEnterEvent`` 方法体,断言不含 ``hasText()`` / ``hasUrls()`` 守卫。"""
+        lines = src.split('\n')
+        in_method = False
+        body_lines = []
+        for line in lines:
+            if 'def dragEnterEvent(' in line:
+                in_method = True
+                continue
+            if in_method:
+                stripped = line.strip()
+                if not stripped or stripped.startswith('#'):
+                    continue  # 跳空行/注释
+                if stripped.startswith('def ') or stripped.startswith('class '):
+                    break  # 下一个方法/类
+                body_lines.append(line)
+        self.assertTrue(
+            body_lines, "找不到 dragEnterEvent 方法体(非空非注释行)",
+        )
+        body = '\n'.join(body_lines)
+        self.assertNotIn(
+            "hasText()", body,
+            "dragEnterEvent 不能有 hasText() 守卫(Houdini 自定义 MIME 会 False)",
+        )
+        self.assertNotIn(
+            "hasUrls()", body,
+            "dragEnterEvent 不能有 hasUrls() 守卫(Houdini 自定义 MIME 会 False)",
+        )
+
+    def _assert_drag_enter_accepts_unconditionally(self, src):
+        """辅助:dragEnterEvent 方法体第一句应是 ``acceptProposedAction()``。"""
+        lines = src.split('\n')
+        in_method = False
+        first_code_line = None
+        for line in lines:
+            if 'def dragEnterEvent(' in line:
+                in_method = True
+                continue
+            if in_method:
+                stripped = line.strip()
+                if not stripped or stripped.startswith('#'):
+                    continue
+                first_code_line = stripped
+                break
+        self.assertIsNotNone(
+            first_code_line, "dragEnterEvent 方法体为空",
+        )
+        self.assertIn(
+            "acceptProposedAction()", first_code_line,
+            f"dragEnterEvent 第一句应直接 acceptProposedAction(全接受策略),"
+            f"实际: {first_code_line!r}",
+        )
+
+    def test_extract_drag_text_from_mime(self):
+        """``_extract_drag_text`` 从 ``QMimeData`` 抽可读文本,兼容 Houdini 自定义 MIME。
+
+        优先级:text/plain → text/uri-list → 任意格式 raw bytes(Houdini 拖参数
+        走自定义 MIME,内容仍是 UTF-8 文本)。
+        """
+        from ma_automation.automation_window import _extract_drag_text
+        from unittest.mock import MagicMock
+
+        # 1. hasText() True → mime.text()
+        mime = MagicMock()
+        mime.hasText.return_value = True
+        mime.text.return_value = "hou.parm('/obj/foo/bar')"
+        self.assertEqual(
+            _extract_drag_text(mime), "hou.parm('/obj/foo/bar')",
+            "text/plain 优先",
+        )
+
+        # 2. hasText False, hasUrls True → urls[0].toString()
+        mime = MagicMock()
+        mime.hasText.return_value = False
+        mime.hasUrls.return_value = True
+        mime.urls.return_value = [MagicMock(toString=MagicMock(return_value="file:///a/b"))]
+        # 上面的 toString 不是方法,需要重新设置
+        url = MagicMock()
+        url.toString.return_value = "file:///a/b"
+        mime.urls.return_value = [url]
+        self.assertEqual(
+            _extract_drag_text(mime), "file:///a/b",
+            "text/uri-list 兜底",
+        )
+
+        # 3. hasText False, hasUrls False, 但有 Houdini 自定义 MIME
+        #    (模拟 raw bytes 是 UTF-8 文本)
+        mime = MagicMock()
+        mime.hasText.return_value = False
+        mime.hasUrls.return_value = False
+        mime.formats.return_value = ["application/x-houdini-parm"]
+        mime.data.return_value.data.return_value = b"hou.parm('/obj/foo/execute')"
+        # QMimeData.data() 返回 QByteArray,bytes(QByteArray) 解码
+        # MagicMock 的 .data() 返回 MagicMock,要让它返回 QByteArray-like
+        # 实际 production: bytes(mime.data(fmt)) —— 我们用真正的 bytes
+        qbytearray_like = b"hou.parm('/obj/foo/execute')"
+        mime.data.return_value = qbytearray_like
+        self.assertEqual(
+            _extract_drag_text(mime), "hou.parm('/obj/foo/execute')",
+            "Houdini 自定义 MIME 走 raw bytes 兜底",
+        )
+
+        # 4. 完全空 → 返回空串
+        mime = MagicMock()
+        mime.hasText.return_value = False
+        mime.hasUrls.return_value = False
+        mime.formats.return_value = []
+        self.assertEqual(_extract_drag_text(mime), "")
 
 
 if __name__ == "__main__":

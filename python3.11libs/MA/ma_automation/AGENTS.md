@@ -34,12 +34,15 @@ Qt 面板 UI + JSON 持久化 + QThread 后台执行。
 - **屏蔽 hover 滚轮改值 `_NoWheelComboBox`**：任务槽内 combo 用 `_NoWheelComboBox(QComboBox)` 子类，override `wheelEvent` 调 `event.ignore()`（不调 super）。原因：默认 `QComboBox.wheelEvent` 会循环选项，误触率高（用户想滚动任务列表却改了任务类型）。`event.ignore()` 让事件穿透到父 `QScrollArea` 自然接管滚动。`_create_slot_widget` 全部用此子类，不要直接 `QComboBox()`
 - **`clicked.connect` 必须 lambda 包装**：`QPushButton.clicked` 是带 `bool` 参数的信号（`clicked(checked: bool)`），直接 `connect(self.method)` 会把 `False` 当作第一个位置参数传给 method。**正确做法**：`btn.clicked.connect(lambda: self.method())`。`_build_ui` 中 5 个按钮全部遵循此约定
 - **槽卡片锁高 `_create_slot_widget`**：`slot.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)`。`QScrollArea` 用 `setWidgetResizable(True)` 时会强制容器高度 = 视口高度,默认 `Preferred` 会让单个槽撑满空间;`Fixed` 强制 `sizeHint` (~42px) 紧凑布局,槽数多少都一致
-- **`_get_button_click_widgets` 统一 widget 查找**：`_is_slot_empty_at` 和 `_fill_slot_at` 通过该 helper 取 `(np_le, pn_le)`，避免两处镜像的 `findChild` + `None` 守卫。Auto Fill 子系统（槽定位 / 填充）任何新增需求都应先扩此 helper
+- **`_get_button_click_widgets` 统一 widget 查找**：`_is_slot_empty_at` 和 `_fill_slot_at` 通过该 helper 取单字段 ``parmPath_le``(UI 层把 ``node_path`` + ``parm_name`` 合并显示,数据收集时再拆分),避免两处镜像的 `findChild` + `None` 守卫。Auto Fill 子系统(槽定位 / 填充)任何新增需求都应先扩此 helper
 - **Auto Fill 末尾保留**：`_find_trailing_empty_slots` 返回索引列表（**从小到大**），使填充从前往后消费、**末尾空槽保留**给用户手动填。这与"贪婪追加到末尾"的直觉相反，是有意的设计选择
+- **Auto Fill 静默**:`_on_auto_fill` 无 print / 无 logger / 无弹窗,所有路径(无选中 / 无有效节点 / 正常完成)都静默返回。用户不要任何提醒。测试用 `mock_print.assert_not_called()` 锁死
+- **`_slot_widgets` / `_slot_handles` 平行列表契约**:两个 list 同长、同顺序、同生命周期。任何增/删/清空槽的代码必须**同步**操作两个列表,漏掉 `clear` 会让 `_renumber_slots` 拿到已 `deleteLater()` 的 handle 调 `setText` → `RuntimeError: Internal C++ object (_SlotHandle) already deleted`。`_add_slot` / `_remove_slot` / `_on_clear` 都遵守契约;回归测试 `test_on_clear_clears_handles_in_sync` 锁死
+- **Houdini 拖入支持 `_ParmPathLineEdit`**:parmPath 字段用 `_ParmPathLineEdit(QLineEdit)` 子类(不要直接 `QLineEdit()`),接受 Houdini 参数面板拖入 —— 行为对齐 Houdini Python shell:拖按钮产生 `hou.parm('/obj/.../parm')` 表达式,本控件识别后**只填纯路径**(`/obj/.../parm`,剥 wrapper)。实现:`setAcceptDrops(True)` + override `dragEnterEvent` / `dragMoveEvent` / `dropEvent`,文本提取走 module-level helper `_extract_parm_path`(单/双引号 + 前后空白容错,纯路径原样返回,空串返回空)
 
 ## Anti-Patterns
 
-- **print() 而非 logger**：UI 回调（`_on_task_started` / `_on_task_completed` / `_on_all_completed`）和 Auto Fill 提示全部 `print()`，与项目统一的 `logging.getLogger("MA")` 风格不一致。已确认保持现状（按用户要求）
+- **print() 而非 logger**：UI 执行回调（`_on_task_started` / `_on_task_completed` / `_on_all_completed`）用 `print()`(用户要看执行进度,刻意保持)。Auto Fill 改用**完全静默**(无 print 无 logger)。`logging.getLogger("MA")` 仅在模块级 + 业务错误场景使用
 - **大量 `findChild(...)` 反查 UI 控件**：`_collect_data()` 通过 `findChild(QComboBox, "taskType")` 等按 objectName 找子控件收集数据；正确做法是 slot 控件保存控件引用为属性。可读性差但当前可用。**注**：Auto Fill 子系统（`_is_slot_empty_at` / `_fill_slot_at`）已通过 `_get_button_click_widgets` helper 集中此模式，仅 `_collect_data` 仍保留散落调用（待后续重构）
 - **直接 `clicked.connect(self.method)`**：会把 Qt 的 `clicked(bool)` 信号 `False` 当成 `method` 的第一个位置参数（典型 bug：`method(data: dict)` 收到 `False` → TypeError）。**必须** lambda 包装或 `functools.partial`
 - **`closeEvent` 内 `super().closeEvent(event)` 之前清单例**：`_window = None` 在 `super().closeEvent()` 之前调用，依赖 Qt 删除流程不触发额外回调；若 closeEvent 中出现异常，状态可能不一致

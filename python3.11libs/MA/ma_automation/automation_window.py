@@ -6,6 +6,7 @@ Singleton QDialog，非模态独立窗口。
 """
 
 import logging
+import re
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox,
@@ -63,6 +64,38 @@ def _combine_parm_path(node_path: str, parm_name: str) -> str:
     if node_path and parm_name:
         return f"{node_path}/{parm_name}"
     return node_path or parm_name
+
+
+# 匹配 ``hou.parm('...')`` 表达式(拖到 Python shell 的格式),DOTALL 容许多行。
+# 单/双引号都接受,前后空白容错。
+_PARM_PATH_RE = re.compile(
+    r"""^\s*hou\s*\.\s*parm\s*\(\s*['"](.+?)['"]\s*\)\s*$""",
+    re.DOTALL,
+)
+
+
+def _extract_parm_path(text: str) -> str:
+    """从拖入的 Houdini 表达式文本里提取 parm 路径。
+
+    Houdini 参数面板拖到 Python shell 会产生 ``hou.parm('/obj/foo/parm')``
+    表达式;本函数把这种 wrapper 剥掉,只留纯路径。也接受纯路径输入(节点面板
+    拖出可能只有 ``/obj/foo``)和空文本。
+
+    返回:
+    - ``hou.parm('/obj/foo/parm')`` → ``/obj/foo/parm``
+    - ``hou.parm("/obj/foo/parm")`` → ``/obj/foo/parm``(双引号)
+    - ``  hou.parm('/obj/foo/parm')  `` → ``/obj/foo/parm``(前后空白)
+    - ``/obj/foo``(纯文本)→ 原样返回
+    - ``""`` / 纯空白 → ``""``
+    - 解析失败(不匹配且非纯路径)→ 原样返回(让 UI 显示,让用户修正)
+    """
+    text = text.strip()
+    if not text:
+        return ""
+    m = _PARM_PATH_RE.match(text)
+    if m:
+        return m.group(1)
+    return text
 
 # ── Singleton ────────────────────────────────────────────────
 
@@ -189,6 +222,78 @@ class _NoWheelComboBox(QComboBox):
 
     def wheelEvent(self, event) -> None:  # noqa: N802 — Qt 命名约定
         event.ignore()
+
+
+class _ParmPathLineEdit(QLineEdit):
+    """QLineEdit 子类:接受 Houdini 参数拖入,自动填充 parm 路径。
+
+    行为对齐 Houdini Python shell:从参数面板拖按钮到本控件,等价于
+    ``hou.parm('/obj/foo/parm')`` 表达式,本控件识别后只填纯路径
+    ``/obj/foo/parm``(剥 wrapper)。也接受普通文本拖入(节点面板拖出
+    可能只有 ``/obj/foo``,原样填入让用户补 parm)。
+
+    关键:走 ``setAcceptDrops(True)`` + override ``dragEnterEvent`` /
+    ``dragMoveEvent`` / ``dropEvent``。文本提取用 ``_extract_parm_path``
+    module-level helper(单/双引号 + 空白容错)。
+
+    **dragEnter 全接受策略**:Houdini 参数拖动用自定义 MIME(类似
+    ``application/x-houdini-parm``),``hasText()`` / ``hasUrls()`` 都 False,
+    严格检查会让鼠标显示禁止图标。改为 dragEnter 一律 acceptProposedAction,
+    文本提取下沉到 dropEvent,失败才 ignore —— 用户体验更顺(光标始终是
+    "可放下"图标,即使最终 drop 没改文本也不报错)。
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event) -> None:  # noqa: N802 — Qt 命名约定
+        # 全接受:具体能否提取出 parm 路径交给 dropEvent 判断
+        event.acceptProposedAction()
+
+    def dragMoveEvent(self, event) -> None:  # noqa: N802 — Qt 命名约定
+        # dragEnter 接受后,dragMove 也得 accept,否则 drop 不会触发
+        event.acceptProposedAction()
+
+    def dropEvent(self, event) -> None:  # noqa: N802 — Qt 命名约定
+        mime = event.mimeData()
+        text = _extract_drag_text(mime)
+        path = _extract_parm_path(text) if text else ""
+        if path:
+            self.setText(path)
+            event.acceptProposedAction()
+        else:
+            # dragEnter 已 accept,这里 ignore 不会回滚光标状态(用户看到
+            # "放下"动作完成,但文本未变 —— 不报错)
+            event.ignore()
+
+
+def _extract_drag_text(mime) -> str:
+    """从 ``QMimeData`` 抽取可读文本,兼容 Houdini 自定义 MIME。
+
+    优先级:
+    1. ``text/plain``(普通文本 / 外部文本拖入)
+    2. ``text/uri-list``(文件 URL)
+    3. 任意格式的 raw bytes(``application/x-houdini-*`` 等自定义 MIME,
+       Houdini 拖参数可能用这些,内容仍是 UTF-8 文本)
+    """
+    if mime.hasText():
+        return mime.text()
+    if mime.hasUrls():
+        urls = mime.urls()
+        if urls:
+            return urls[0].toString()
+    # 兜底:遍历所有格式,解码 raw bytes。Houdini 自定义 MIME 内容
+    # 通常仍是 UTF-8 文本(``hou.parm('...')`` 表达式),decode errors=ignore
+    # 容错非文本格式(比如图片 binary)。
+    for fmt in mime.formats():
+        try:
+            data = bytes(mime.data(fmt)).decode("utf-8", errors="ignore").strip()
+            if data:
+                return data
+        except Exception:  # noqa: BLE001
+            continue
+    return ""
 
 
 class AutomationWindow(QDialog):
@@ -329,7 +434,7 @@ class AutomationWindow(QDialog):
         p0_layout = QHBoxLayout(page0)
         p0_layout.setContentsMargins(0, 0, 0, 0)
         p0_layout.setSpacing(4)
-        parm_path_le = QLineEdit()
+        parm_path_le = _ParmPathLineEdit()
         parm_path_le.setObjectName("parmPath")
         parm_path_le.setPlaceholderText("参数路径")
         p0_layout.addWidget(parm_path_le)
@@ -928,7 +1033,9 @@ class AutomationWindow(QDialog):
         构造 BUTTON_CLICK 任务：
           - 预扫描连续空槽队列（从后往前），逐个填入（不新增）
           - 空槽用完后仍有节点剩余 → 追加新槽
-        无选中节点或没有有效节点时打印提示。
+
+        **静默执行**：无选中节点 / 无有效节点 / 正常完成都**不打印、不弹窗、
+        不写日志**(用户不要任何提醒)。失败由调用方(选中无效节点)默默处理。
 
         注意：``_find_trailing_empty_slots`` 只在循环开始前调用一次，
         维护索引队列逐个消费。否则 fill 后 widget text 立即更新，
@@ -938,7 +1045,6 @@ class AutomationWindow(QDialog):
 
         selected = hou.selectedNodes()
         if not selected:
-            print("Auto Fill: 当前无选择节点")
             return
 
         # 预扫描一次，连续空槽索引队列（从小到大：填充时从前往后消费，
@@ -966,17 +1072,20 @@ class AutomationWindow(QDialog):
                 self._add_slot(data)
             processed += 1
 
-        if processed > 0:
-            print(f"Auto Fill: 已处理 {processed} 个按钮点击任务")
-        else:
-            print("Auto Fill: 当前无有效节点")
-
     def _on_clear(self):
-        """清空所有槽，保留 1 个空槽。"""
+        """清空所有槽,保留 1 个空槽。
+
+        **必须同步清空 ``_slot_handles`` 平行列表** —— 漏掉会导致下次
+        ``_renumber_slots``(在 ``_add_slot`` 里调)拿一堆已经被
+        ``deleteLater()`` 的 handle 调 ``setText``,触发
+        ``RuntimeError: Internal C++ object (_SlotHandle) already deleted``。
+        与 ``_remove_slot``(双 pop)同款契约。
+        """
         for slot in self._slot_widgets:
             self._slot_layout.removeWidget(slot)
             slot.deleteLater()
         self._slot_widgets.clear()
+        self._slot_handles.clear()  # 平行列表必须同步 —— 见 docstring
         self._add_slot()
 
     # ── 窗口关闭 ───────────────────────────────────────────
