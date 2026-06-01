@@ -38,13 +38,17 @@ class MA_Automation_DataManager:
 
     @classmethod
     def get_data_path(cls) -> str:
-        """返回数据文件的绝对路径，并确保目录存在。
+        """返回数据文件的绝对路径(纯计算,不创建目录)。
 
         优先级:
           1. ``hou.getenv("HIP")`` — Houdini $HIP 环境变量
-          2. ``tempfile.gettempdir()`` — 系统临时目录（fallback）
+          2. ``tempfile.gettempdir()`` — 系统临时目录(fallback)
 
-        ``hou`` 只在函数内部 try/except 导入，避免 Houdini 外 ImportError。
+        ``hou`` 只在函数内部 try/except 导入,避免 Houdini 外 ImportError。
+
+        **无副作用**:不创建任何文件/目录。MAJson 目录只在 ``save()`` 真正
+        写入时才创建(由调用方负责)。这保证"打开面板不会产生任何文件"
+        的契约。
         """
         try:
             import hou  # noqa: N812 — only available inside Houdini
@@ -56,9 +60,7 @@ class MA_Automation_DataManager:
         except ImportError:
             base = tempfile.gettempdir()
 
-        path = os.path.join(base, "MAJson", "MA_Automation.json")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        return path
+        return os.path.join(base, "MAJson", "MA_Automation.json")
 
     # ── 核心 IO ──────────────────────────────────────────
 
@@ -86,13 +88,19 @@ class MA_Automation_DataManager:
         """将任务 dict 列表写入 JSON 文件。
 
         写入结构: ``{"tasks": tasks_data}``
-        使用 ``ensure_ascii=False``（支持中文）和 ``indent=2``。
+        使用 ``ensure_ascii=False``(支持中文)和 ``indent=2``。
+
+        **副作用**:首次调用会创建 ``{HIP}/MAJson/`` 目录
+        (``os.makedirs(exist_ok=True)``)。这是 DataManager 中**唯一**允许
+        创建 MAJson 目录的入口,与"仅在 Start 时落盘"的语义配合
+        —— 打开面板不会产生任何文件。
 
         Returns:
-            True 写入成功，False 写入异常。
+            True 写入成功,False 写入异常。
         """
         try:
             path = cls.get_data_path()
+            os.makedirs(os.path.dirname(path), exist_ok=True)  # 仅此处创建 MAJson
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(
                     {"tasks": tasks_data},

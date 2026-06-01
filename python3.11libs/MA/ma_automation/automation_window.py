@@ -430,10 +430,11 @@ class AutomationWindow(QDialog):
 
         return tasks
 
-    def _save_data(self):
-        """收集并持久化任务数据。"""
+    def _save_data(self) -> list[dict]:
+        """收集并持久化任务数据,返回收集到的 ``list[dict]`` 供调用方使用。"""
         tasks_data = self._collect_data()
         MA_Automation_DataManager.save(tasks_data)
+        return tasks_data
 
     # ── 执行集成 ───────────────────────────────────────────
 
@@ -445,8 +446,13 @@ class AutomationWindow(QDialog):
         self._start_execution()
 
     def _start_execution(self):
-        """收集任务 → 创建 ExecutionEngine → 启动后台执行。"""
-        tasks_data = self._collect_data()
+        """收集任务 → 落盘 JSON → 创建 ExecutionEngine → 启动后台执行。
+
+        JSON 仅在 Start 时落盘,关窗不保存。
+        语义:JSON = 用户决定执行的任务,不是当前 UI 状态;
+        编辑后未点 Start 直接关窗 = 丢弃未执行编辑(有意为之)。
+        """
+        tasks_data = self._save_data()  # 收集 + 落盘(只此一处)
         task_items = [TaskItem.from_dict(d) for d in tasks_data]
 
         self._engine = ExecutionEngine(task_items)
@@ -624,8 +630,7 @@ class AutomationWindow(QDialog):
     # ── 窗口关闭 ───────────────────────────────────────────
 
     def closeEvent(self, event):
-        """关闭前保存数据，清理单例引用。"""
+        """关闭时清理单例引用,不保存数据(JSON 仅在 Start 时落盘)。"""
         global _window
-        self._save_data()
         _window = None
         super().closeEvent(event)

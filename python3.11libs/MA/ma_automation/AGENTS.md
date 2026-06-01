@@ -20,7 +20,8 @@ Qt 面板 UI + JSON 持久化 + QThread 后台执行。
 - **3 种任务类型**：`BUTTON_CLICK`（节点参数按钮）、`FLIPBOOK`（视口拍屏）、`HOME_ASSISTANT`（Webhook POST），对应 `TaskType` 枚举值
 - **Singleton QDialog**：模块级 `_window` + `isVisible()` 判定；二次打开时 `raise_()` + `activateWindow()` 激活；窗口挂到 Houdini 主窗口下（`parent=hou.qt.mainWindow()`），与 `hdr_library/main.py` 同款做法
 - **Win32 窗口样式（保持在前）**：`__init__` 中 `setWindowFlags(Qt.Window)` 之后调用 `_apply_window_flags(self)`，通过 `ctypes.windll` 设置 `WS_EX_APPWINDOW` (0x00040000) 扩展样式，标记窗口为独立应用窗口；与 Houdini 父子关系配合，确保激活 Houdini 时面板不被主窗口遮挡；同时 `SetCurrentProcessExplicitAppUserModelID('MA.Automation.1')` 让任务栏分组正确。与 `hdr_library/main.py` 同款实现（仅 AppUserModelID 不同）
-- **数据持久化**：所有槽状态序列化为 `list[dict]`，关闭时 `closeEvent` 自动 `_save_data()`；加载在 `__init__._load_data()`
+- **数据持久化**：所有槽状态序列化为 `list[dict]`，**仅在点击 Start 时落盘**（`_start_execution` → `_save_data`），关窗不保存。语义：JSON = 用户决定执行的任务，不是当前 UI 状态；编辑后未点 Start 直接关窗 = 丢弃未执行编辑（有意为之）。加载在 `__init__._load_data()`
+  - **副作用契约**：`DataManager` 三方法严格分离副作用 —— `get_data_path()` 纯计算不创建目录、`load()` 纯只读（文件/目录不存在时返回 `[]`，不创建任何东西）、`save()` 是**唯一**允许创建 MAJson 目录的入口（`os.makedirs(exist_ok=True)` 在写入前）。这保证"打开面板 + 编辑 + 关闭 = 0 文件副作用"，MAJson 目录和 JSON 文件只在点 Start 时才出现
 - **Houdini 隔离**：`import hou` / `import hdefereval` / `import requests` 全部 try/except；测试/非 Houdini 环境可正常 import 模块
 - **线程安全**：`ExecutionEngine.run()` 是 QThread 内部循环；Houdini API 调用经 `_run_deferred()` → `hdefereval.executeDeferred` + `threading.Event` 同步等待；Webhook 是纯网络请求，不需派发
 - **可取消**：`cancel()` 置 `_cancelled` 标志，`run()` 在任务间隙（`msleep(100)`）检查；Start 按钮在 Start / 取消 文案间切换

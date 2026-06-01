@@ -54,7 +54,7 @@ class TestGetDataPath(unittest.TestCase):
     # ---- Test 1: $HIP 路径 ----
     @patch('os.makedirs')
     def test_get_data_path_returns_correct_format(self, mock_makedirs):
-        """Test 1: $HIP 存在时路径格式正确。"""
+        """Test 1: $HIP 存在时路径格式正确,且不创建目录。"""
         # 延迟导入以确保 hou mock 已就位
         from ma_automation.data_manager import MA_Automation_DataManager as DM
 
@@ -68,8 +68,8 @@ class TestGetDataPath(unittest.TestCase):
         )
         # 包含 $HIP 路径
         self.assertIn("/project/my_hip", norm_path)
-        # 确保目录创建被调用
-        mock_makedirs.assert_called_once()
+        # get_data_path 是纯计算,不创建目录(只有 save() 才会)
+        mock_makedirs.assert_not_called()
 
     # ---- Test 2: fallback 到 tempdir ----
     @patch('os.makedirs')
@@ -397,6 +397,95 @@ class TestSaveDirect(unittest.TestCase):
             content = f.read()
         # 验证有缩进
         self.assertIn('  "', content)
+
+
+# ============================================================================
+# 副作用契约测试:open panel + 编辑 + 关闭 = 0 文件副作用
+# ============================================================================
+class TestSideEffects(unittest.TestCase):
+    """DataManager 三方法的副作用边界测试。
+
+    设计目标(配合"仅在 Start 时落盘"语义):
+      - ``get_data_path()`` 纯计算路径,不创建目录
+      - ``load()`` 纯只读,文件/目录不存在时返回 [],不创建任何东西
+      - ``save()`` 唯一允许创建 MAJson 目录的入口
+
+    打开 MA Automation 面板 + 编辑 + 关闭 = 不应在 $HIP 下出现 MAJson 目录
+    或 MA_Automation.json 文件。只有点 Start 才会真正落盘。
+    """
+
+    def setUp(self):
+        from ma_automation.data_manager import MA_Automation_DataManager as DM
+        self.DM = DM
+        # 不预创建任何目录,验证各方法的真实副作用
+        self._tmpdir = tempfile.mkdtemp()
+        self._json_path = os.path.join(self._tmpdir, "MAJson", "MA_Automation.json")
+
+    def tearDown(self):
+        if os.path.exists(self._tmpdir):
+            import shutil
+            shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def _ensure_hou_mock(self, hip_value):
+        """确保 hou mock 在 sys.modules 中,getenv 返回给定值。"""
+        if 'hou' not in sys.modules:
+            mock_hou = MagicMock()
+            sys.modules['hou'] = mock_hou
+        sys.modules['hou'].getenv.return_value = hip_value
+
+    @patch('ma_automation.data_manager.os.makedirs')
+    def test_get_data_path_does_not_create_directory(self, mock_makedirs):
+        """get_data_path() 不应调用 os.makedirs(纯计算)。"""
+        self._ensure_hou_mock(self._tmpdir)
+        path = self.DM.get_data_path()
+        self.assertEqual(path, self._json_path)
+        mock_makedirs.assert_not_called()
+        # 目录也不应在文件系统上被创建
+        self.assertFalse(
+            os.path.exists(os.path.dirname(path)),
+            f"get_data_path 不应在 {os.path.dirname(path)} 创建目录",
+        )
+
+    def test_save_is_the_only_creator_of_directory(self):
+        """save() 写入前应创建 MAJson 目录(若不存在),并写入 JSON 文件。
+
+        不 patch os.makedirs:这里要验证"事后副作用",即目录和文件真实存在。
+        配合 ``_ensure_hou_mock`` 让 ``get_data_path`` 返回 ``$HIP = self._tmpdir``,
+        实际写到 ``{tmpdir}/MAJson/MA_Automation.json``。
+        """
+        # 关键:调用前 $HIP 下没有 MAJson 目录
+        self.assertFalse(
+            os.path.exists(os.path.dirname(self._json_path)),
+            f"测试前不应存在 {os.path.dirname(self._json_path)}",
+        )
+
+        self._ensure_hou_mock(self._tmpdir)
+        result = self.DM.save([{"name": "test", "type": "BUTTON_CLICK"}])
+        self.assertTrue(result, "save() 应返回 True")
+
+        # 事后:MAJson 目录 + JSON 文件都应真实存在
+        self.assertTrue(
+            os.path.isdir(os.path.dirname(self._json_path)),
+            f"save() 后应创建目录 {os.path.dirname(self._json_path)}",
+        )
+        self.assertTrue(
+            os.path.isfile(self._json_path),
+            f"save() 后应写入文件 {self._json_path}",
+        )
+
+    @patch('ma_automation.data_manager.os.makedirs')
+    def test_load_does_not_create_directory(self, mock_makedirs):
+        """load() 不应创建任何文件/目录(纯只读,文件不存在时返回 [])。"""
+        nonexistent = os.path.join(self._tmpdir, "no_such_dir", "no_such.json")
+        with patch.object(self.DM, 'get_data_path', return_value=nonexistent):
+            result = self.DM.load()
+        self.assertEqual(result, [])
+        mock_makedirs.assert_not_called()
+        # 父目录也不应在文件系统上被创建
+        self.assertFalse(
+            os.path.exists(os.path.dirname(nonexistent)),
+            "load() 不应在不存在的路径上创建目录",
+        )
 
 
 if __name__ == "__main__":
