@@ -160,11 +160,16 @@ class AutomationWindow(QDialog):
 
         # ── 状态 ──
         self._slot_widgets: list[QWidget] = []
+        # 平行于 _slot_widgets 的 handle 引用列表,在 _create_slot_widget 时
+        # 一次性存到 slot._handle,之后 _add_slot 同步 append。替掉原来 3 处
+        # (renumber / index_at_global_y) 的 findChild 热路径,O(N×M) → O(N)
+        self._slot_handles: list[QLabel] = []
         self._running = False
         self._engine: ExecutionEngine | None = None
 
         # 选中 + 拖动状态
         self._selected_index: int | None = None  # 单选,None=无选中
+        self._last_selected_index: int | None = None  # 差量更新 _update_selection_style 用
         self._drag_active: bool = False  # 拖动是否已激活(超过阈值)
         self._drag_source_index: int | None = None  # 拖动起点槽索引
         self._drag_press_pos = None  # type: QPoint | None  # 拖动按下时的全局坐标
@@ -253,6 +258,9 @@ class AutomationWindow(QDialog):
         idx_label.handlePressed.connect(self._on_handle_pressed)
         idx_label.handleMoved.connect(self._on_handle_moved)
         idx_label.handleReleased.connect(self._on_handle_released)
+        # 把 handle 引用存到 slot 上,让 _add_slot 能 append 到 _slot_handles
+        # 替掉 findChild 热路径;handle 生命周期 = slot 生命周期,无泄漏
+        slot._handle = idx_label
 
         # ── 类型下拉框 ──
         combo = QComboBox()
@@ -375,6 +383,8 @@ class AutomationWindow(QDialog):
         index = len(self._slot_widgets)
         slot = self._create_slot_widget(index, data)
         self._slot_widgets.append(slot)
+        # 同步 append handle(平行列表,_renumber / _index_at_global_y 用)
+        self._slot_handles.append(slot._handle)
         # 插入到 stretch 之前
         self._slot_layout.insertWidget(self._slot_layout.count() - 1, slot)
         self._renumber_slots()
@@ -398,6 +408,7 @@ class AutomationWindow(QDialog):
             return
 
         slot = self._slot_widgets.pop(index)
+        self._slot_handles.pop(index)  # 同步 pop handle
         self._slot_layout.removeWidget(slot)
         slot.deleteLater()
 
@@ -408,15 +419,24 @@ class AutomationWindow(QDialog):
             elif self._selected_index > index:
                 self._selected_index -= 1
 
+        # _last_selected_index 也要跟着挪(否则下次更新会用错槽)
+        if self._last_selected_index is not None:
+            if self._last_selected_index == index:
+                self._last_selected_index = None
+            elif self._last_selected_index > index:
+                self._last_selected_index -= 1
+
         self._renumber_slots()
         self._update_selection_style()
 
     def _renumber_slots(self):
-        """更新所有槽的序号(序号手柄的文字)。"""
-        for i, slot in enumerate(self._slot_widgets):
-            handle = slot.findChild(QWidget, "taskSlotHandle")
-            if handle is not None:
-                handle.setText(str(i + 1))
+        """更新所有槽的序号(序号手柄的文字)。
+
+        用 ``_slot_handles`` 平行列表替原来 ``findChild`` 树走 ——
+        ``_renumber_slots`` 会在增/删/拖动结束时调,O(N×M) → O(N)。
+        """
+        for i, handle in enumerate(self._slot_handles):
+            handle.setText(str(i + 1))
 
     # ── 选中(单击手柄) ─────────────────────────────────────
 
@@ -434,18 +454,30 @@ class AutomationWindow(QDialog):
         self._update_selection_style()
 
     def _update_selection_style(self) -> None:
-        """根据 ``_selected_index`` 刷新所有槽的 ``selected`` 动态属性。
+        """根据 ``_selected_index`` **差量更新**槽的 ``selected`` 动态属性。
+
+        拖动期 N 次 unpolish/polish → 2 次:仅重绘 prev 槽(False) + curr 槽(True)。
+        prev/curr 索引相同时完全 no-op(连 setProperty 都不调)。
 
         配合 ``styles.py`` 的 ``QWidget#taskSlot[selected="true"]`` 选择器
         实现选中视觉。Qt 不会自动检测动态属性变化,所以需要 unpolish + polish
         强制重评估。
         """
-        for i, slot in enumerate(self._slot_widgets):
-            is_selected = (i == self._selected_index)
-            slot.setProperty("selected", is_selected)
-            slot.style().unpolish(slot)
-            slot.style().polish(slot)
-            slot.update()
+        prev = self._last_selected_index
+        curr = self._selected_index
+        if prev == curr:
+            return
+        if prev is not None and 0 <= prev < len(self._slot_widgets):
+            s = self._slot_widgets[prev]
+            s.setProperty("selected", False)
+            s.style().unpolish(s)
+            s.style().polish(s)
+        if curr is not None and 0 <= curr < len(self._slot_widgets):
+            s = self._slot_widgets[curr]
+            s.setProperty("selected", True)
+            s.style().unpolish(s)
+            s.style().polish(s)
+        self._last_selected_index = curr
 
     # ── 拖动重排(按住手柄拖动) ──────────────────────────────
 
@@ -538,7 +570,9 @@ class AutomationWindow(QDialog):
             return
 
         slot = self._slot_widgets.pop(from_index)
+        handle = self._slot_handles.pop(from_index)  # 同步 pop handle
         self._slot_widgets.insert(to_index, slot)
+        self._slot_handles.insert(to_index, handle)  # 同步 insert handle
         self._slot_layout.removeWidget(slot)
         self._slot_layout.insertWidget(to_index, slot)
 
@@ -553,6 +587,15 @@ class AutomationWindow(QDialog):
                 if to_index <= self._selected_index < from_index:
                     self._selected_index += 1
 
+        # _last_selected_index 同理挪(否则 _update_selection_style 会用错槽)
+        if self._last_selected_index is not None:
+            if from_index < to_index:
+                if from_index < self._last_selected_index <= to_index:
+                    self._last_selected_index -= 1
+            else:
+                if to_index <= self._last_selected_index < from_index:
+                    self._last_selected_index += 1
+
         self._update_selection_style()
 
     def _index_at_global_y(self, global_y: int) -> int:
@@ -566,17 +609,16 @@ class AutomationWindow(QDialog):
         旧实现用 ``top <= y < bottom``(handle 的精确边界),但 handle 只 32px 宽,
         槽间间隙 (8-16px 间距) cursor 完全不命中 handle,fallback 落到 ``return N-1``
         导致"拖到间隙就瞬移末尾"。中心锚定后,间隙也被正确归到相邻槽。
+
+        用 ``_slot_handles`` 平行列表替 findChild,拖动期每次 move 调,
+        O(N×M) → O(N)。
         """
-        for i, slot in enumerate(self._slot_widgets):
-            handle = slot.findChild(QWidget, "taskSlotHandle")
-            if handle is None:
-                continue
-            center_y = (
-                handle.mapToGlobal(QPoint(0, 0)).y() + handle.height() // 2
-            )
+        for i, handle in enumerate(self._slot_handles):
+            top_y = handle.mapToGlobal(QPoint(0, 0)).y()
+            center_y = top_y + (handle.height() >> 1)
             if global_y < center_y:
                 return i
-        return len(self._slot_widgets) - 1
+        return len(self._slot_handles) - 1
 
     # ── 键盘事件(Delete 删除选中) ──────────────────────────
 
@@ -603,6 +645,8 @@ class AutomationWindow(QDialog):
             self._slot_layout.removeWidget(slot)
             slot.deleteLater()
         self._slot_widgets.clear()
+        self._slot_handles.clear()  # 同步清空 handle 平行列表
+        self._last_selected_index = None  # 重置差量状态
 
         for item_data in raw_list:
             self._add_slot(item_data)

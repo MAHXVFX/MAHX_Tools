@@ -33,9 +33,10 @@ QCheckBox { color: #e0e0e0; spacing: 6px; }
 QScrollArea { border: none; background-color: transparent; }
 QLabel { background-color: transparent; color: #e0e0e0; border: none; }
 QWidget#taskSlot { background-color: #252528; }
-QWidget#taskSlot[selected="true"] { background-color: #2d2d32; }
+QWidget#taskSlot[selected="true"],
+QWidget#taskSlot[dragging="true"] { background-color: #2d2d32; }
 QWidget#taskSlot[selected="true"] QLabel#taskSlotHandle { color: #0d6399; }
-QWidget#taskSlot[dragging="true"] { background-color: #2d2d32; border: 1px solid #0d6399; }
+QWidget#taskSlot[dragging="true"] { border: 1px solid #0d6399; }
 QLabel#taskSlotHandle { background-color: transparent; padding: 2px 4px; }
 QLabel#taskSlotHandle:hover { background-color: #2d2d32; }
 """

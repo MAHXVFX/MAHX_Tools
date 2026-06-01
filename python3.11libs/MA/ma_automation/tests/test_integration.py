@@ -260,9 +260,15 @@ class TestSlotInteraction(unittest.TestCase):
         self._mock_self._slot_widgets = _TrackedList(
             [Mock(name=f"slot{i}") for i in range(5)]
         )
+        # 平行 handle 列表(_renumber / _index_at_global_y 用),
+        # 真实 _add_slot 会同步 append,这里直接准备好
+        self._mock_self._slot_handles = _TrackedList(
+            [Mock(name=f"handle{i}") for i in range(5)]
+        )
         self._mock_self._slot_layout = MagicMock()
         # state
         self._mock_self._selected_index = None
+        self._mock_self._last_selected_index = None  # _update_selection_style 差量用
         self._mock_self._drag_active = False
         self._mock_self._drag_source_index = None
         self._mock_self._drag_press_pos = None
@@ -307,15 +313,40 @@ class TestSlotInteraction(unittest.TestCase):
         AutomationWindow._select_slot(self._mock_self, -1)
         self.assertEqual(self._mock_self._selected_index, 1)
 
-    def test_update_selection_style_sets_property(self):
-        """_update_selection_style 应为每个 slot 设置 selected 属性。"""
+    def test_update_selection_style_only_updates_changed(self):
+        """_update_selection_style 走差量更新:从 None→3 时,只重绘 slot[3],其他 no-op。"""
+        self._mock_self._last_selected_index = None
         self._mock_self._selected_index = 3
-        for slot in self._mock_self._slot_widgets:
-            slot.setProperty.return_value = None
         AutomationWindow._update_selection_style(self._mock_self)
+        # 只 slot[3] 被 setProperty("selected", True)
+        self._mock_self._slot_widgets[3].setProperty.assert_called_once_with("selected", True)
+        # 其他槽 setProperty 未被调(差量更新)
         for i, slot in enumerate(self._mock_self._slot_widgets):
-            expected = (i == 3)
-            slot.setProperty.assert_any_call("selected", expected)
+            if i == 3:
+                continue
+            slot.setProperty.assert_not_called()
+        # _last_selected_index 已更新
+        self.assertEqual(self._mock_self._last_selected_index, 3)
+
+    def test_update_selection_style_transitions_prev_to_curr(self):
+        """_update_selection_style 应把 prev 设为 False、curr 设为 True,其他不动。"""
+        self._mock_self._last_selected_index = 1
+        self._mock_self._selected_index = 4
+        AutomationWindow._update_selection_style(self._mock_self)
+        self._mock_self._slot_widgets[1].setProperty.assert_called_once_with("selected", False)
+        self._mock_self._slot_widgets[4].setProperty.assert_called_once_with("selected", True)
+        # 其他槽不动
+        for i in (0, 2, 3):
+            self._mock_self._slot_widgets[i].setProperty.assert_not_called()
+        self.assertEqual(self._mock_self._last_selected_index, 4)
+
+    def test_update_selection_style_same_index_noop(self):
+        """_update_selection_style 在 prev == curr 时应完全 no-op(连 setProperty 都不调)。"""
+        self._mock_self._last_selected_index = 2
+        self._mock_self._selected_index = 2
+        AutomationWindow._update_selection_style(self._mock_self)
+        for slot in self._mock_self._slot_widgets:
+            slot.setProperty.assert_not_called()
 
     # ── 删除 ───────────────────────────────────────────────
 
@@ -488,20 +519,43 @@ class TestSlotInteraction(unittest.TestCase):
         - 拖到槽 i 的中心 → 返回 i
         - 拖到两槽之间的间隙(中心 ± height//2 之外)→ 返回正确相邻槽,不再跌到末尾
         - 拖到列表最下方 → 返回 N-1
+
+        直接 stub ``_slot_handles[i]``(生产代码已不再走 findChild,
+        handle 引用在 __init__ 时一次性缓存到 ``_slot_handles`` 平行列表)。
         """
-        # 让 mock slot.findChild 返回 handle,handle.height() = 32,中心 = top_y + 16
+        # 5 个 handle 中心:50, 150, 250, 350, 450
+        # mapToGlobal(QPoint(0,0)).y() = 中心 - 16 → 34/134/234/334/434
         # 用 MagicMock 替 QPoint(mock 不可解析 PySide6.QtCore.QPoint,不能 import)
-        for i, slot in enumerate(self._mock_self._slot_widgets):
-            fake_handle = MagicMock()
-            fake_handle.height.return_value = 32
-            # handle.mapToGlobal(...).y() = i*100 + (50 - 16) = 中心 50/150/...
-            fake_handle.mapToGlobal.return_value.y.return_value = i * 100 + 34
-            slot.findChild.return_value = fake_handle
+        for i, handle in enumerate(self._mock_self._slot_handles):
+            handle.height.return_value = 32
+            handle.mapToGlobal.return_value.y.return_value = i * 100 + 34
 
         # 5 个槽中心:50, 150, 250, 350, 450
+        # y < 50(第一个中心)→ 0(最前)
         self.assertEqual(
             AutomationWindow._index_at_global_y(self._mock_self, 30), 0,
-        )  # 30 < 50 → 0(最前)
+        )
+        # y = 50(在第一个中心上)→ 走第二个 handle(50<150 True)→ 1
+        self.assertEqual(
+            AutomationWindow._index_at_global_y(self._mock_self, 50), 1,
+        )
+        # y = 100(在 handle 0/1 间隙)→ 100<150 True → 1
+        # 关键:不再跌到末尾(旧 top<=y<bottom 算法会)
+        self.assertEqual(
+            AutomationWindow._index_at_global_y(self._mock_self, 100), 1,
+        )
+        # y = 200(在 handle 1/2 间隙)→ 200<250 True → 2
+        self.assertEqual(
+            AutomationWindow._index_at_global_y(self._mock_self, 200), 2,
+        )
+        # y = 460(超过最后 handle 中心 450)→ 走完所有 handle → N-1 = 4
+        self.assertEqual(
+            AutomationWindow._index_at_global_y(self._mock_self, 460), 4,
+        )
+        # y = 9999(远超末尾)→ N-1 = 4
+        self.assertEqual(
+            AutomationWindow._index_at_global_y(self._mock_self, 9999), 4,
+        )
 
     def test_on_handle_released_resets_state(self):
         """_on_handle_released 应清空 drag 状态。"""
