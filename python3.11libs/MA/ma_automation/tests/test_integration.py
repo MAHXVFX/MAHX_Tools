@@ -659,6 +659,112 @@ class TestSlotInteraction(unittest.TestCase):
             "_create_slot_widget 应实例化 _NoWheelComboBox,屏蔽滚轮",
         )
 
+    # ── 参数路径合并/拆分 ─────────────────────────────────
+
+    def test_split_parm_path(self):
+        """``_split_parm_path`` 把 ``/obj/foo/aa/execute`` 拆成 ``(node, parm)``。
+
+        边界:
+        - 空 → ``("", "")``
+        - 无 ``/`` → ``(text, "")``
+        - 末尾 ``/`` → ``(node, "")``
+        - 多段 → 取最后一个 ``/`` 切
+        - 首尾空白 → strip
+        """
+        from ma_automation.automation_window import _split_parm_path
+
+        # 正常路径
+        self.assertEqual(
+            _split_parm_path("/obj/billowy_smoke/aa/execute"),
+            ("/obj/billowy_smoke/aa", "execute"),
+        )
+        # 末尾斜杠 → parm_name 为空
+        self.assertEqual(
+            _split_parm_path("/obj/foo/aa/"),
+            ("/obj/foo/aa", ""),
+        )
+        # 无斜杠 → 整体当 node_path
+        self.assertEqual(
+            _split_parm_path("execute"),
+            ("execute", ""),
+        )
+        # 空 / 全空白
+        self.assertEqual(_split_parm_path(""), ("", ""))
+        self.assertEqual(_split_parm_path("   "), ("", ""))
+        # 前后空白
+        self.assertEqual(
+            _split_parm_path("  /obj/foo/bar  "),
+            ("/obj/foo", "bar"),
+        )
+        # 多个斜杠 → 取最后一个
+        self.assertEqual(
+            _split_parm_path("/obj/a/b/c/d"),
+            ("/obj/a/b/c", "d"),
+        )
+
+    def test_combine_parm_path(self):
+        """``_combine_parm_path`` 把 ``(node, parm)`` 拼回 UI 显示字符串。
+
+        边界:一边空时直接返回另一边(避免多余 ``/``),都空返回空。
+        """
+        from ma_automation.automation_window import _combine_parm_path
+
+        # 两边都非空
+        self.assertEqual(
+            _combine_parm_path("/obj/foo/aa", "execute"),
+            "/obj/foo/aa/execute",
+        )
+        # node 为空 → 返回 parm(避免前导斜杠)
+        self.assertEqual(
+            _combine_parm_path("", "execute"),
+            "execute",
+        )
+        # parm 为空 → 返回 node
+        self.assertEqual(
+            _combine_parm_path("/obj/foo", ""),
+            "/obj/foo",
+        )
+        # 都空
+        self.assertEqual(_combine_parm_path("", ""), "")
+
+    def test_split_combine_roundtrip(self):
+        """split 之后 combine 应回到原值(逆运算自洽)。"""
+        from ma_automation.automation_window import (
+            _combine_parm_path, _split_parm_path,
+        )
+
+        for original in (
+            "/obj/billowy_smoke/aa/execute",
+            "/obj/foo/aa/bar/dl_Submit",
+            "/obj/a",
+            "",
+        ):
+            node, parm = _split_parm_path(original)
+            self.assertEqual(
+                _combine_parm_path(node, parm), original,
+                f"split→combine roundtrip 失败: {original!r}",
+            )
+
+    def test_parm_path_widget_in_source(self):
+        """``parmPath`` 字段应在 production 源码中,且旧的 ``nodePath``/``parmName``
+        都不应再出现(已合并为单字段)。
+        """
+        from pathlib import Path
+        import ma_automation.automation_window as aw
+
+        src = Path(aw.__file__).read_text(encoding='utf-8')
+
+        # 1. 新字段在源码里
+        self.assertIn('setObjectName("parmPath")', src, "Page 0 应用 parmPath")
+        # 2. 旧的两个字段名不再用
+        self.assertNotIn('setObjectName("nodePath")', src, "nodePath 字段应已合并掉")
+        self.assertNotIn('setObjectName("parmName")', src, "parmName 字段应已合并掉")
+        # 3. placeholder 用参数路径
+        self.assertIn("参数路径", src, "placeholder 提示完整参数路径")
+        # 4. helper 函数被定义
+        self.assertIn("def _split_parm_path", src, "拆分 helper 应被定义")
+        self.assertIn("def _combine_parm_path", src, "合并 helper 应被定义")
+
 
 if __name__ == "__main__":
     unittest.main()

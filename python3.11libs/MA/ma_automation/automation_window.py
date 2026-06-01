@@ -28,6 +28,42 @@ from MA.ma_automation.styles import STYLE_SHEET
 
 logger = logging.getLogger("MA")
 
+
+# ── Parm Path 编解码 ──────────────────────────────────────────
+
+def _split_parm_path(parm_path: str) -> tuple[str, str]:
+    """把 UI 里的参数路径(如 ``/obj/foo/aa/execute``)拆成 ``(node_path, parm_name)``。
+
+    数据模型 ``ButtonClickParams`` 仍是 ``node_path`` + ``parm_name`` 两个
+    字段(向后兼容 JSON),UI 层合并显示为单个 parmPath 输入框。本函数是
+    合并显示到持久化的拆分半边。
+
+    拆分规则:按最后一个 ``/`` 切,前面是节点路径,后面是参数名。
+    边界:
+    - 空字符串 → ``("", "")``
+    - 无 ``/``(纯参数名)→ ``(原字符串, "")``
+    - 末尾 ``/``(如 ``/obj/foo/``)→ ``("/obj/foo", "")``
+    """
+    parm_path = parm_path.strip()
+    if not parm_path:
+        return "", ""
+    if "/" not in parm_path:
+        return parm_path, ""
+    node_path, parm_name = parm_path.rsplit("/", 1)
+    return node_path, parm_name
+
+
+def _combine_parm_path(node_path: str, parm_name: str) -> str:
+    """把 ``(node_path, parm_name)`` 拼回 UI 用的参数路径。逆运算见 ``_split_parm_path``。
+
+    - 两边都非空 → ``f"{node_path}/{parm_name}"``
+    - 一边空 → 直接返回另一边(避免多余 ``/``)
+    - 都空 → 空串
+    """
+    if node_path and parm_name:
+        return f"{node_path}/{parm_name}"
+    return node_path or parm_name
+
 # ── Singleton ────────────────────────────────────────────────
 
 _window = None
@@ -279,7 +315,7 @@ class AutomationWindow(QDialog):
         # 用 _NoWheelComboBox 替 QComboBox,屏蔽 hover 滚轮循环选项
         combo = _NoWheelComboBox()
         combo.setObjectName("taskType")
-        combo.addItems(["按钮点击", "Flipbook", "HomeAssistant Webhook"])
+        combo.addItems(["按钮点击", "Flipbook", "Webhook"])
         combo.setFixedWidth(120)
 
         # ── 参数区域（QStackedWidget） ──
@@ -287,20 +323,16 @@ class AutomationWindow(QDialog):
         stacked.setObjectName("paramsStacked")
 
         # Page 0: 按钮点击
-        # node_path stretch=2 / parm_name stretch=1 → 节点路径 拿 2/3 空间,
-        # 节点路径(节点全路径)通常比参数名长得多,理应占更多位置
+        # 单字段 parmPath(完整参数路径如 /obj/foo/aa/execute),
+        # 数据模型仍是 node_path+parm_name(向后兼容 JSON),UI 层合并显示
         page0 = QWidget()
         p0_layout = QHBoxLayout(page0)
         p0_layout.setContentsMargins(0, 0, 0, 0)
         p0_layout.setSpacing(4)
-        node_path_le = QLineEdit()
-        node_path_le.setObjectName("nodePath")
-        node_path_le.setPlaceholderText("节点路径")
-        parm_name_le = QLineEdit()
-        parm_name_le.setObjectName("parmName")
-        parm_name_le.setPlaceholderText("参数名")
-        p0_layout.addWidget(node_path_le, 2)
-        p0_layout.addWidget(parm_name_le, 1)
+        parm_path_le = QLineEdit()
+        parm_path_le.setObjectName("parmPath")
+        parm_path_le.setPlaceholderText("参数路径")
+        p0_layout.addWidget(parm_path_le)
         stacked.addWidget(page0)
 
         # Page 1: Flipbook
@@ -354,7 +386,7 @@ class AutomationWindow(QDialog):
             self._populate_slot_from_data(
                 slot, data,
                 combo, stacked,
-                node_path_le, parm_name_le,
+                parm_path_le,
                 frame_range_le, output_path_le, output_enabled_cb,
                 webhook_url_le,
                 enabled_cb,
@@ -365,7 +397,7 @@ class AutomationWindow(QDialog):
     @staticmethod
     def _populate_slot_from_data(
         slot, data, combo, stacked,
-        node_path_le, parm_name_le,
+        parm_path_le,
         frame_range_le, output_path_le, output_enabled_cb,
         webhook_url_le, enabled_cb,
     ):
@@ -376,8 +408,10 @@ class AutomationWindow(QDialog):
 
         if type_str == "BUTTON_CLICK":
             combo.setCurrentIndex(0)
-            node_path_le.setText(params.get("node_path", ""))
-            parm_name_le.setText(params.get("parm_name", ""))
+            parm_path_le.setText(_combine_parm_path(
+                params.get("node_path", ""),
+                params.get("parm_name", ""),
+            ))
         elif type_str == "FLIPBOOK":
             combo.setCurrentIndex(1)
             fr = params.get("frame_range", [1, 100])
@@ -686,10 +720,9 @@ class AutomationWindow(QDialog):
                 node_path = ""
                 parm_name = ""
                 if current_page:
-                    np_le = current_page.findChild(QLineEdit, "nodePath")
-                    pn_le = current_page.findChild(QLineEdit, "parmName")
-                    node_path = np_le.text() if np_le else ""
-                    parm_name = pn_le.text() if pn_le else ""
+                    pp_le = current_page.findChild(QLineEdit, "parmPath")
+                    if pp_le is not None:
+                        node_path, parm_name = _split_parm_path(pp_le.text())
                 params = ButtonClickParams(node_path=node_path, parm_name=parm_name)
                 item = TaskItem(
                     task_type=TaskType.BUTTON_CLICK,
@@ -811,25 +844,26 @@ class AutomationWindow(QDialog):
     def _is_slot_empty_at(self, index: int) -> bool:
         """检查指定索引的槽是否为空（仅对 BUTTON_CLICK 类型判断）。
 
-        判定条件：BUTTON_CLICK 类型 + nodePath 和 parmName 都为空字符串。
+        判定条件：BUTTON_CLICK 类型 + parmPath 为空字符串。
         索引越界 或 非 BUTTON_CLICK → 返回 False（避免误覆盖其他类型任务）。
         """
-        widgets = self._get_button_click_widgets(index)
-        if widgets is None:
+        pp_le = self._get_button_click_widgets(index)
+        if pp_le is None:
             return False
-        np_le, pn_le = widgets
-        return not np_le.text().strip() and not pn_le.text().strip()
+        return not pp_le.text().strip()
 
-    def _get_button_click_widgets(self, index: int) -> tuple[QLineEdit, QLineEdit] | None:
-        """定位指定槽的 BUTTON_CLICK 参数 LineEdit。
+    def _get_button_click_widgets(self, index: int) -> QLineEdit | None:
+        """定位指定槽的 BUTTON_CLICK 参数路径 LineEdit。
 
-        返回 ``(nodePath_le, parmName_le)``；任一前置条件不满足返回 ``None``：
+        返回 ``parmPath_le``(单字段,UI 层把 ``node_path`` + ``parm_name`` 合并
+        显示,数据收集时再拆分 —— 见 ``_split_parm_path`` / ``_combine_parm_path``);
+        任一前置条件不满足返回 ``None``:
           - 索引越界
           - 槽内缺少 ``taskType`` combo / 当前不是 BUTTON_CLICK
           - 缺少 ``paramsStacked`` / 当前 page 为空
-          - 缺少 ``nodePath`` / ``parmName`` LineEdit
+          - 缺少 ``parmPath`` LineEdit
 
-        统一 ``_is_slot_empty_at`` 和 ``_fill_slot_at`` 的 widget 查找逻辑，
+        统一 ``_is_slot_empty_at`` 和 ``_fill_slot_at`` 的 widget 查找逻辑,
         避免两处镜像的 findChild + None 守卫代码。
         """
         if not (0 <= index < len(self._slot_widgets)):
@@ -845,27 +879,29 @@ class AutomationWindow(QDialog):
         if current_page is None:
             return None
 
-        np_le = current_page.findChild(QLineEdit, "nodePath")
-        pn_le = current_page.findChild(QLineEdit, "parmName")
-        if np_le is None or pn_le is None:
+        pp_le = current_page.findChild(QLineEdit, "parmPath")
+        if pp_le is None:
             return None
-        return np_le, pn_le
+        return pp_le
 
     def _fill_slot_at(self, index: int, data: dict) -> None:
         """用 data 填充指定索引的槽的输入控件（不创建新槽）。
 
         仅处理 BUTTON_CLICK 类型；其他类型直接 noop（防御性）。
+        数据模型 ``node_path`` + ``parm_name`` 在 UI 层合并为单个
+        ``parmPath`` 字段(见 ``_combine_parm_path``)。
         """
         if data.get("type") != "BUTTON_CLICK":
             return
 
-        widgets = self._get_button_click_widgets(index)
-        if widgets is None:
+        pp_le = self._get_button_click_widgets(index)
+        if pp_le is None:
             return
-        np_le, pn_le = widgets
         params = data.get("params", {})
-        np_le.setText(params.get("node_path", ""))
-        pn_le.setText(params.get("parm_name", ""))
+        pp_le.setText(_combine_parm_path(
+            params.get("node_path", ""),
+            params.get("parm_name", ""),
+        ))
 
     def _find_trailing_empty_slots(self) -> list[int]:
         """从后往前扫描连续空槽（BUTTON_CLICK），返回索引列表（从小到大）。
