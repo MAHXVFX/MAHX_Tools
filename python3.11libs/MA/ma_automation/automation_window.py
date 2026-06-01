@@ -61,17 +61,55 @@ QLabel { background-color: transparent; color: #e0e0e0; border: none; }
 """
 
 
+def _apply_window_flags(window):
+    """应用 Win32 扩展样式，让 MA Automation 窗口在 Houdini 中保持在前。
+
+    复用 hdr_library/main.py 同款实现：
+    通过 SetWindowLongW 设置 ``WS_EX_APPWINDOW`` (0x00040000)，
+    标记窗口为独立应用窗口，避免 Houdini 宿主进程把它压到 Z 序底部。
+    ``SetCurrentProcessExplicitAppUserModelID`` 让任务栏图标和窗口分组正确。
+
+    必须在 ``setWindowFlags`` 之后调用（``winId()`` 第一次访问会触发原生窗口创建）。
+    失败时静默忽略（跨平台兼容、ctypes 缺失等场景）。
+    """
+    try:
+        from ctypes import windll
+        GWL_EXSTYLE = -20
+        WS_EX_APPWINDOW = 0x00040000
+        hwnd = int(window.winId())
+        SetWindowLong = windll.user32.SetWindowLongW
+        GetWindowLong = windll.user32.GetWindowLongW
+        style = GetWindowLong(hwnd, GWL_EXSTYLE)
+        style |= WS_EX_APPWINDOW
+        SetWindowLong(hwnd, GWL_EXSTYLE, style)
+        windll.shell32.SetCurrentProcessExplicitAppUserModelID('MA.Automation.1')
+    except Exception:
+        pass
+
+
 def show_automation_window():
     """打开 MA Automation 主窗口（单例）。
 
     若窗口已存在且可见则将其激活并置顶，否则创建新实例。
+    窗口挂到 Houdini 主窗口下作为子窗口，确保 Z 序由 Houdini 内部管理
+    （与 hdr_library/main.py 同款做法）。
     """
     global _window
     if _window is not None and _window.isVisible():
         _window.raise_()
         _window.activateWindow()
         return _window
-    _window = AutomationWindow()
+
+    # 获取 Houdini 主窗口作为 parent —— 关键：建立父子关系后，
+    # WS_EX_APPWINDOW 才能配合 Houdini 内部 Z 序保持面板在前。
+    parent_window = None
+    try:
+        import hou  # noqa: WPS433 — Houdini-only, 函数内导入
+        parent_window = hou.qt.mainWindow()
+    except (ImportError, AttributeError):
+        pass
+
+    _window = AutomationWindow(parent_window)
     _window.show()
     return _window
 
@@ -88,6 +126,7 @@ class AutomationWindow(QDialog):
         self.setWindowTitle("MA Automation")
         self.setMinimumSize(600, 450)
         self.setWindowFlags(Qt.Window)
+        _apply_window_flags(self)
         self.setStyleSheet(STYLE_SHEET)
 
         # ── 状态 ──
@@ -460,8 +499,7 @@ class AutomationWindow(QDialog):
 
     # ── Auto Fill ───────────────────────────────────────────────────
 
-    @staticmethod
-    def _on_auto_fill():
+    def _on_auto_fill(self):
         """从当前选中的节点中提取 execute 按钮路径，追加到任务列表。
 
         遍历 hou.selectedNodes()，对每个有 'execute' 参数的节点，
@@ -480,18 +518,16 @@ class AutomationWindow(QDialog):
         for node in selected:
             parm = node.parm("execute")
             if parm is not None:
-                global _window
-                if _window is not None and _window.isVisible():
-                    data = {
-                        "type": "BUTTON_CLICK",
-                        "params": {
-                            "node_path": node.path(),
-                            "parm_name": "execute",
-                        },
-                        "enabled": True,
-                    }
-                    _window._add_slot(data)
-                    found += 1
+                data = {
+                    "type": "BUTTON_CLICK",
+                    "params": {
+                        "node_path": node.path(),
+                        "parm_name": "execute",
+                    },
+                    "enabled": True,
+                }
+                self._add_slot(data)
+                found += 1
 
         if found > 0:
             print(f"Auto Fill: 已添加 {found} 个按钮点击任务")

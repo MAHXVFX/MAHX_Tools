@@ -107,6 +107,8 @@ def install_pyside_mock():
             pass
         def setWindowFlags(self, f):
             pass
+        def winId(self):
+            return 0
         def setLayout(self, layout):
             pass
         def layout(self):
