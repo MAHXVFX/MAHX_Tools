@@ -48,6 +48,9 @@ QPushButton:hover { background-color: #3d3d3d; }
 QPushButton:pressed { background-color: #0d6399; }
 QPushButton#startBtn { background-color: #0d6399; color: white; font-weight: bold; }
 QPushButton#startBtn:hover { background-color: #0e7bc9; }
+QPushButton#addBtn, QPushButton#removeBtn {
+    padding: 6px 8px; font-size: 16px; font-weight: bold; min-width: 28px;
+}
 QComboBox { background-color: #2d2d2d; color: #e0e0e0; border: 1px solid #3d3d3d;
             padding: 4px 8px; border-radius: 4px; }
 QComboBox::drop-down { border: none; }
@@ -58,6 +61,7 @@ QLineEdit { background-color: #2d2d2d; color: #e0e0e0; border: 1px solid #3d3d3d
 QCheckBox { color: #e0e0e0; spacing: 6px; }
 QScrollArea { border: none; background-color: transparent; }
 QLabel { background-color: transparent; color: #e0e0e0; border: none; }
+QWidget#taskSlot { background-color: #252528; border-radius: 6px; }
 """
 
 
@@ -151,21 +155,24 @@ class AutomationWindow(QDialog):
 
         self._start_btn = QPushButton("Start")
         self._start_btn.setObjectName("startBtn")
-        self._start_btn.clicked.connect(self._on_start)
+        # 用 lambda 包装避免 Qt clicked(bool) 信号把 False 当作 data 参数传入
+        self._start_btn.clicked.connect(lambda: self._on_start())
 
         auto_fill_btn = QPushButton("Auto Fill")
-        auto_fill_btn.clicked.connect(self._on_auto_fill)
+        auto_fill_btn.clicked.connect(lambda: self._on_auto_fill())
 
         clear_btn = QPushButton("Clear")
-        clear_btn.clicked.connect(self._on_clear)
+        clear_btn.clicked.connect(lambda: self._on_clear())
 
         add_btn = QPushButton("+")
+        add_btn.setObjectName("addBtn")
         add_btn.setFixedWidth(32)
-        add_btn.clicked.connect(self._add_slot)
+        add_btn.clicked.connect(lambda: self._add_slot())
 
         remove_btn = QPushButton("-")
+        remove_btn.setObjectName("removeBtn")
         remove_btn.setFixedWidth(32)
-        remove_btn.clicked.connect(self._remove_slot)
+        remove_btn.clicked.connect(lambda: self._remove_slot())
 
         toolbar.addWidget(self._start_btn)
         toolbar.addWidget(auto_fill_btn)
@@ -193,9 +200,11 @@ class AutomationWindow(QDialog):
     def _create_slot_widget(self, index: int, data: dict | None = None) -> QWidget:
         """创建一个任务槽控件。"""
         slot = QWidget()
+        slot.setObjectName("taskSlot")
+        slot.setAutoFillBackground(True)
 
         hbox = QHBoxLayout(slot)
-        hbox.setContentsMargins(4, 4, 4, 4)
+        hbox.setContentsMargins(8, 6, 8, 6)
         hbox.setSpacing(8)
 
         # ── 序号标签 ──
@@ -329,8 +338,8 @@ class AutomationWindow(QDialog):
         self._renumber_slots()
 
     def _remove_slot(self):
-        """移除最后一个槽（至少保留 1 个）。"""
-        if len(self._slot_widgets) <= 1:
+        """移除最后一个槽。允许列表为空（0 槽）。"""
+        if not self._slot_widgets:
             return
         slot = self._slot_widgets.pop()
         self._slot_layout.removeWidget(slot)
@@ -347,7 +356,11 @@ class AutomationWindow(QDialog):
     # ── 数据持久化 ─────────────────────────────────────────
 
     def _load_data(self):
-        """从 DataManager 加载数据并重建 UI 槽。"""
+        """从 DataManager 加载数据并重建 UI 槽。
+
+        尊重持久化的空状态：若 JSON 存的是空列表，重开后保持 0 槽。
+        用户可点 + 自行添加。
+        """
         raw_list = MA_Automation_DataManager.load()
 
         # 清空现有槽
@@ -356,13 +369,8 @@ class AutomationWindow(QDialog):
             slot.deleteLater()
         self._slot_widgets.clear()
 
-        if raw_list:
-            for item_data in raw_list:
-                self._add_slot(item_data)
-
-        # 确保至少 1 个空槽
-        if not self._slot_widgets:
-            self._add_slot()
+        for item_data in raw_list:
+            self._add_slot(item_data)
 
     def _collect_data(self) -> list[dict]:
         """读取 UI 槽，构建 list[dict]（与 TaskItem.to_dict() 格式一致）。"""
@@ -499,13 +507,90 @@ class AutomationWindow(QDialog):
 
     # ── Auto Fill ───────────────────────────────────────────────────
 
+    def _is_slot_empty_at(self, index: int) -> bool:
+        """检查指定索引的槽是否为空（仅对 BUTTON_CLICK 类型判断）。
+
+        判定条件：BUTTON_CLICK 类型 + nodePath 和 parmName 都为空字符串。
+        索引越界 或 非 BUTTON_CLICK → 返回 False（避免误覆盖其他类型任务）。
+        """
+        if index < 0 or index >= len(self._slot_widgets):
+            return False
+        slot = self._slot_widgets[index]
+
+        combo = slot.findChild(QComboBox, "taskType")
+        if combo is None or combo.currentIndex() != 0:  # 0 = BUTTON_CLICK
+            return False
+
+        stacked = slot.findChild(QStackedWidget, "paramsStacked")
+        if stacked is None:
+            return False
+        current_page = stacked.currentWidget()
+        if current_page is None:
+            return False
+
+        np_le = current_page.findChild(QLineEdit, "nodePath")
+        pn_le = current_page.findChild(QLineEdit, "parmName")
+        if np_le is None or pn_le is None:
+            return False
+
+        return not np_le.text().strip() and not pn_le.text().strip()
+
+    def _fill_slot_at(self, index: int, data: dict) -> None:
+        """用 data 填充指定索引的槽的输入控件（不创建新槽）。
+
+        仅处理 BUTTON_CLICK 类型；其他类型直接 noop（防御性）。
+        """
+        if index < 0 or index >= len(self._slot_widgets):
+            return
+        slot = self._slot_widgets[index]
+        if data.get("type") != "BUTTON_CLICK":
+            return
+
+        params = data.get("params", {})
+        stacked = slot.findChild(QStackedWidget, "paramsStacked")
+        if stacked is None:
+            return
+        current_page = stacked.currentWidget()
+        if current_page is None:
+            return
+
+        np_le = current_page.findChild(QLineEdit, "nodePath")
+        pn_le = current_page.findChild(QLineEdit, "parmName")
+        if np_le is not None:
+            np_le.setText(params.get("node_path", ""))
+        if pn_le is not None:
+            pn_le.setText(params.get("parm_name", ""))
+
+    def _find_trailing_empty_slots(self) -> list[int]:
+        """从后往前扫描连续空槽（BUTTON_CLICK），返回索引列表（从小到大）。
+
+        "连续"：从末尾往前，遇到第一个非空槽时停止扫描。
+        返回从小到大：填充时从前往后顺序消费，**末尾保留空槽**
+        （用户可继续手动填，而非末尾被填掉）。
+
+        例：列表 [填, 填, 空, 空, 空] → 返回 [2, 3, 4]。
+        """
+        result = []
+        for i in range(len(self._slot_widgets) - 1, -1, -1):
+            if self._is_slot_empty_at(i):
+                result.append(i)
+            else:
+                break
+        result.reverse()
+        return result
+
     def _on_auto_fill(self):
-        """从当前选中的节点中提取 execute 按钮路径，追加到任务列表。
+        """从当前选中的节点中提取 execute 按钮路径，填入任务列表。
 
         遍历 hou.selectedNodes()，对每个有 'execute' 参数的节点，
-        构造 BUTTON_CLICK 任务并追加到列表末尾。
-        不会覆盖已有任务（追加模式）。
+        构造 BUTTON_CLICK 任务：
+          - 预扫描连续空槽队列（从后往前），逐个填入（不新增）
+          - 空槽用完后仍有节点剩余 → 追加新槽
         无选中节点或没有有效节点时打印提示。
+
+        注意：``_find_trailing_empty_slots`` 只在循环开始前调用一次，
+        维护索引队列逐个消费。否则 fill 后 widget text 立即更新，
+        循环内重新扫描会把"刚填的槽"误判为非空，导致后续节点走新增分支。
         """
         import hou  # Houdini-only, 放入方法内部
 
@@ -514,23 +599,32 @@ class AutomationWindow(QDialog):
             print("Auto Fill: 当前无选择节点")
             return
 
-        found = 0
+        # 预扫描一次，连续空槽索引队列（从大到小：最近空槽在最前）
+        empty_iter = iter(self._find_trailing_empty_slots())
+
+        processed = 0
         for node in selected:
             parm = node.parm("execute")
-            if parm is not None:
-                data = {
-                    "type": "BUTTON_CLICK",
-                    "params": {
-                        "node_path": node.path(),
-                        "parm_name": "execute",
-                    },
-                    "enabled": True,
-                }
+            if parm is None:
+                continue
+            data = {
+                "type": "BUTTON_CLICK",
+                "params": {
+                    "node_path": node.path(),
+                    "parm_name": "execute",
+                },
+                "enabled": True,
+            }
+            try:
+                idx = next(empty_iter)
+                self._fill_slot_at(idx, data)
+            except StopIteration:
+                # 连续空槽已用完，新增
                 self._add_slot(data)
-                found += 1
+            processed += 1
 
-        if found > 0:
-            print(f"Auto Fill: 已添加 {found} 个按钮点击任务")
+        if processed > 0:
+            print(f"Auto Fill: 已处理 {processed} 个按钮点击任务")
         else:
             print("Auto Fill: 当前无有效节点")
 

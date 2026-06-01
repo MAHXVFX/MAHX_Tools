@@ -101,7 +101,11 @@ class TestAutoFill(unittest.TestCase):
 
     @patch('builtins.print')
     def test_auto_fill_adds_slot_for_valid_node(self, mock_print):
-        """选中带 execute 参数的节点时应追加 BUTTON_CLICK 任务。"""
+        """选中带 execute 参数的节点时应追加 BUTTON_CLICK 任务。
+
+        MagicMock 环境下 ``_is_last_slot_empty`` 默认返回 False，
+        因此走 ``_add_slot`` 分支。
+        """
         parm = MagicMock()
         fake_node = MagicMock()
         fake_node.parm.return_value = parm
@@ -119,7 +123,66 @@ class TestAutoFill(unittest.TestCase):
             "enabled": True,
         }
         self._mock_self._add_slot.assert_called_once_with(expected)
-        mock_print.assert_called_once_with("Auto Fill: 已添加 1 个按钮点击任务")
+        self._mock_self._fill_last_slot.assert_not_called()
+        mock_print.assert_called_once_with("Auto Fill: 已处理 1 个按钮点击任务")
+
+    # ── Test 5: 存在连续空槽时直接填充，不新增 ─────────────────
+
+    @patch('builtins.print')
+    def test_auto_fill_fills_empty_last_slot(self, mock_print):
+        """当 ``_find_trailing_empty_slots`` 返回非空列表时，Auto Fill 应调用
+        ``_fill_slot_at`` 填充最近的空槽，而非 ``_add_slot`` 新增。
+        """
+        parm = MagicMock()
+        fake_node = MagicMock()
+        fake_node.parm.return_value = parm
+        fake_node.path.return_value = "/obj/geo1"
+        self._mock_hou.selectedNodes.return_value = [fake_node]
+
+        with patch.object(
+            self._mock_self, '_find_trailing_empty_slots', return_value=[2],
+        ):
+            AutomationWindow._on_auto_fill(self._mock_self)
+
+        self._mock_self._fill_slot_at.assert_called_once()
+        self._mock_self._add_slot.assert_not_called()
+        mock_print.assert_called_once_with("Auto Fill: 已处理 1 个按钮点击任务")
+
+    # ── Test 6: 连续多个空槽时从前往后填入，末尾保留 ───────────
+
+    @patch('builtins.print')
+    def test_auto_fill_fills_multiple_consecutive_empty_slots(self, mock_print):
+        """当从后往前有 3 个连续空槽（索引 0、1、2），
+        选中 3 个节点时，Auto Fill 应从前往后填入 0、1、2（不调用 ``_add_slot``）。
+
+        关键：``_find_trailing_empty_slots`` 只调用一次（迭代器消费），
+        且返回顺序为 [0, 1, 2]（从小到大），使末尾槽保留供用户手动填。
+        """
+        parm = MagicMock()
+        nodes = []
+        for name in ["/obj/geo1", "/obj/geo2", "/obj/geo3"]:
+            n = MagicMock()
+            n.parm.return_value = parm
+            n.path.return_value = name
+            nodes.append(n)
+        self._mock_hou.selectedNodes.return_value = nodes
+
+        with patch.object(
+            self._mock_self,
+            '_find_trailing_empty_slots',
+            return_value=[0, 1, 2],
+        ) as mock_find:
+            AutomationWindow._on_auto_fill(self._mock_self)
+
+        # 关键断言 1：只调用一次（避免循环内重复扫描导致 bug）
+        mock_find.assert_called_once()
+        # 关键断言 2：填充顺序严格为 0, 1, 2（从前往后，末尾保留）
+        fill_indices = [
+            call.args[0] for call in self._mock_self._fill_slot_at.call_args_list
+        ]
+        self.assertEqual(fill_indices, [0, 1, 2])
+        self._mock_self._add_slot.assert_not_called()
+        mock_print.assert_called_once_with("Auto Fill: 已处理 3 个按钮点击任务")
 
     # ── Test 4: 实例方法存在且可调用 ────────────────────────
 

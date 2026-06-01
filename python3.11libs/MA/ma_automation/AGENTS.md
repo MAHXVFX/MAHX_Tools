@@ -27,7 +27,7 @@ Qt 面板 UI + JSON 持久化 + QThread 后台执行。
 - **路径 fallback**：`$HIP` 不可用时降级到 `tempfile.gettempdir()`，保证测试环境可写
 - **Flipbook 路径占位符**：`output_path` 中 `#date` → `YYYYMMDD`、`#time` → `HHMMSS`（`ExecutionEngine._execute_flipbook`）
 - **`dl_Submit` 特殊处理**：`parm_name == "dl_Submit"` 时按钮按下后自动 `hou.hipFile.save()`（`ExecutionEngine._execute_button_click`）
-- **样式**：内联 `STYLE_SHEET` 字符串定义在 `automation_window.py` 顶部，复用项目暗色主题 `#18181b` / `#0d6399`
+- **样式**：内联 `STYLE_SHEET` 字符串定义在 `automation_window.py` 顶部，复用项目暗色主题 `#18181b` / `#0d6399`；任务槽卡片化用 `QWidget#taskSlot { background-color: #252528; border-radius: 6px; }` + `setAutoFillBackground(True)`；关键 objectName：`startBtn`（蓝色 Start 按钮）、`addBtn` / `removeBtn`（± 任务槽增减，padding 8px、字号 16px）、`taskSlot`（任务槽卡片容器）
 
 ## Anti-Patterns
 
