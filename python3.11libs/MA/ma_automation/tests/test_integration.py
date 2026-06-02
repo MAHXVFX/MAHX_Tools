@@ -1652,10 +1652,10 @@ class TestConfigComboSourceContract(unittest.TestCase):
         # 3. combo-level stylesheet 注入(覆盖全局)
         self.assertIn("setStyleSheet(_CONFIG_COMBO_ICON_STYLE)", src)
         self.assertIn("image: url(", src)
-        # 4. **URL 编码**:Win32 路径含空格时必须 quote() 编码,防 QSS
-        #    ``url()`` 解析不可靠(Qt 部分版本对裸空格宽容、部分忽略)。
-        self.assertIn("from urllib.parse import quote", src)
-        self.assertIn("quote(_ICON_DROP_DOWN.as_posix(), safe='/:')", src)
+        # 4. **裸 ``as_posix()`` 路径**(129c444 引入时即采用):SVG 绝对路径
+        #    直接嵌入 ``url(...)``,Qt 在 Win32 上能正确解析该本地路径形式
+        self.assertIn("_ICON_DROP_DOWN.as_posix()", src)
+        self.assertNotIn("from urllib.parse import quote", src)
 
     def test_start_btn_is_mouse_click_only(self):
         """``startBtn`` 必须 setAutoDefault(False) + setDefault(False),防 Enter 误触发。

@@ -8,7 +8,6 @@ Singleton QDialog，非模态独立窗口。
 import logging
 import re
 from pathlib import Path
-from urllib.parse import quote
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox,
@@ -36,15 +35,11 @@ logger = logging.getLogger("MA")
 # 蓝色圆 + 下箭头 SVG,放在 ``python3.11libs/MA/icons/``。
 # 用 ``__file__`` 解析绝对路径后注入到 combo-level stylesheet,
 # 不在 styles.py 写死(Houdini 启动 CWD 不固定,相对路径会失效)。
-#
-# **URL 编码**:``as_posix()`` 不编码特殊字符,Win32 路径含空格(如用户名
-# 或文件名 ``drop down button.svg``)时裸空格会让 QSS ``url()`` 解析不可靠。
-# ``quote(safe='/:')`` 把空格编为 ``%20``,保留盘符冒号 + 路径分隔符。
 _MA_ICONS_DIR = Path(__file__).resolve().parent.parent / "icons"
 _ICON_DROP_DOWN = _MA_ICONS_DIR / "drop down button.svg"
 _CONFIG_COMBO_ICON_STYLE = f"""
 QComboBox#configCombo::down-arrow {{
-    image: url({quote(_ICON_DROP_DOWN.as_posix(), safe='/:')});
+    image: url({_ICON_DROP_DOWN.as_posix()});
     width: 16px; height: 16px;
     margin-right: 4px;
 }}
