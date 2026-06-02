@@ -827,13 +827,11 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
         for name in sorted(shelf_color_map.keys()):
             self.filter_combo.addItem(name, userData=name)
-            # 设置背景色和文字颜色
+            # 设置背景色和文字颜色（文字色统一，不因背景切换）
             bg_color, border_color = shelf_color_map[name]
-            # 白色块需配黑色文字，否则不可读
-            fg_color = "#000000" if bg_color.lower() == "#ffffff" else TEXT_PRIMARY
             index = self.filter_combo.count() - 1
             self.filter_combo.setItemData(index, QtGui.QColor(bg_color), QtCore.Qt.BackgroundRole)
-            self.filter_combo.setItemData(index, QtGui.QColor(fg_color), QtCore.Qt.ForegroundRole)
+            self.filter_combo.setItemData(index, QtGui.QColor(TEXT_PRIMARY), QtCore.Qt.ForegroundRole)
 
         # 确定要恢复的筛选项
         if restore_filter:
