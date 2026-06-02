@@ -28,6 +28,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
     _NOTES_PANEL_WIDTH = 450
     _NOTES_PANEL_HEIGHT = 600
     _NOTES_HIDE_DELAY = 100  # 鼠标离开备注面板后的延迟隐藏时间（ms）
+    _DEFAULT_NOTES_SHOW_DELAY = 800  # 备注悬停延迟默认值（ms），可由设置面板覆盖
 
     def __init__(self, unique_id, display_name, size, parent=None, icon_path="", bg_color="", border_color=""):
         super().__init__(parent)
@@ -36,6 +37,8 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self._drag_start = None
         self._size = 0
         self._notes_timer_id = None
+        # 备注悬停延迟（ms）：由面板从 ShelfToolsSettingsManager 注入
+        self._notes_show_delay = self._DEFAULT_NOTES_SHOW_DELAY
         self._icon_path = icon_path
         self._bg_color = bg_color
         self._border_color = border_color
@@ -959,13 +962,20 @@ class ThumbnailWidget(QtWidgets.QWidget):
         notes_renderer.render(current_note, _show_after_render, fade=True)
 
     def enterEvent(self, event):
-        """鼠标进入：启动 500ms 延迟定时器 + GIF 播放。"""
+        """鼠标进入：启动延迟定时器（可由设置面板调整） + GIF 播放。"""
         super().enterEvent(event)
-        # 启动备注定时器
-        self._notes_timer_id = self.startTimer(500)
+        # 启动备注定时器（延迟由设置面板控制，默认 800ms）
+        self._notes_timer_id = self.startTimer(self._notes_show_delay)
         # 播放 GIF
         if self._movie:
             self._movie.start()
+
+    def set_notes_show_delay(self, value: int):
+        """更新备注悬停延迟（ms）。由设置面板在用户调整时调用。
+
+        正在等待的定时器不会被重置——只影响下一次 enterEvent。
+        """
+        self._notes_show_delay = max(100, min(2000, int(value)))
 
     def leaveEvent(self, event):
         """鼠标离开：停止定时器 + GIF + 检查是否移向备注面板。"""

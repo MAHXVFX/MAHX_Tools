@@ -129,6 +129,29 @@ class ShelfToolsSettingsManager(BaseJsonManager):
         """保存当前筛选项。"""
         cls.update(cls._FILTER_KEY, filter_value)
 
+    # ── 备注悬停延迟 ───────────────────────────
+    # 鼠标进入缩略图后到备注面板出现的延迟（ms）。
+    _NOTES_SHOW_DELAY_KEY = "notes_show_delay"
+    _DEFAULT_NOTES_SHOW_DELAY = 800  # 首次使用 / 缺失字段时的默认值
+    _MIN_NOTES_SHOW_DELAY = 100
+    _MAX_NOTES_SHOW_DELAY = 2000
+    # 弹窗中向用户展示的推荐范围（仅作 UX 引导，不约束输入）
+    _RECOMMENDED_MIN_NOTES_SHOW_DELAY = 500
+    _RECOMMENDED_MAX_NOTES_SHOW_DELAY = 1000
+
+    @classmethod
+    def get_notes_show_delay(cls) -> int:
+        """获取备注悬停延迟（ms），缺省返回 800。"""
+        data = cls.load()
+        return data.get(cls._NOTES_SHOW_DELAY_KEY, cls._DEFAULT_NOTES_SHOW_DELAY)
+
+    @classmethod
+    def set_notes_show_delay(cls, value: int):
+        """保存备注悬停延迟（ms），自动夹到 [_MIN, _MAX] 范围内。"""
+        clamped = max(cls._MIN_NOTES_SHOW_DELAY,
+                      min(cls._MAX_NOTES_SHOW_DELAY, int(value)))
+        cls.update(cls._NOTES_SHOW_DELAY_KEY, clamped)
+
 
 class ShelfToolsCacheManager(BaseJsonManager):
     _file = SHELFTOOLS_CACHE_FILE

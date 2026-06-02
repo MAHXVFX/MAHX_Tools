@@ -14,8 +14,9 @@ from MA.common import ShelfToolsSettingsManager, ShelfToolsCacheManager
 from MA.common.animation_helper import elastic_resize
 from MA.shelf_tool_pro.styles import (
     BG_PRIMARY, BG_SECONDARY, BG_INPUT, BG_HOVER, TEXT_PRIMARY, TEXT_SECONDARY, BORDER_COLOR,
-    ACCENT_BLUE,
+    ACCENT_BLUE, ACCENT_PURPLE,
     SETTINGS_BUTTON_STYLE, THUMB_SLIDER_STYLE,
+    SAVE_BUTTON_STYLE, CANCEL_BUTTON_STYLE, SUFFIX_STYLE,
 )
 from MA.shelf_tool_pro.shelf_loader import _TOOL_NAMES, _TOOL_REGISTRY
 from MA.shelf_tool_pro.thumbnail_widget import ThumbnailWidget, _FAVORITE_PIXMAP
@@ -302,6 +303,8 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
             tw = ThumbnailWidget(unique_id, display_name, size, icon_path=icon, 
                                  bg_color=bg_color, border_color=border_color)
+            # 从设置注入当前备注悬停延迟（覆盖默认值 800ms）
+            tw.set_notes_show_delay(ShelfToolsSettingsManager.get_notes_show_delay())
             self._thumb_widgets.append(tw)
             layout.addWidget(tw, idx // cols, idx % cols)
 
@@ -540,7 +543,71 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         dir_row.addWidget(self.browse_btn)
 
         settings_layout.addLayout(dir_row)
+
+        # ── 备注悬停延迟设置 ────────────────────────
+        delay_row = QtWidgets.QHBoxLayout()
+        delay_label = QtWidgets.QLabel("备注悬停延迟：")
+        delay_label.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: 13px; font-weight: bold; background-color: transparent;")
+        delay_row.addWidget(delay_label)
+
+        # 数值显示：自定义 widget（数字 + 紫色下划线，下划线宽度随数字变化）
+        self.notes_delay_field = _UnderlinedNumber(
+            ShelfToolsSettingsManager.get_notes_show_delay()
+        )
+        self.notes_delay_field.setStyleSheet(
+            f"color: {TEXT_PRIMARY}; font-size: 11px; font-weight: bold; "
+            f"background-color: transparent;"
+        )
+        delay_row.addWidget(self.notes_delay_field)
+
+        # 单位 "ms" 紧贴数值右侧（灰色 SUFFIX_STYLE）
+        self.notes_delay_unit = QtWidgets.QLabel("ms")
+        self.notes_delay_unit.setStyleSheet(SUFFIX_STYLE)
+        delay_row.addWidget(self.notes_delay_unit)
+        delay_row.addSpacing(6)
+
+        # 修改按钮：点击弹窗输入新值
+        self.modify_delay_btn = QtWidgets.QPushButton("修改")
+        self.modify_delay_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self.modify_delay_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {BORDER_COLOR}; color: white; border: none; "
+            f"border-radius: 10px; padding: 5px 14px; font-size: 11px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background-color: {BG_HOVER}; }}"
+            f"QPushButton:pressed {{ background-color: {ACCENT_BLUE}; }}"
+        )
+        self.modify_delay_btn.clicked.connect(self._on_modify_delay)
+        delay_row.addWidget(self.modify_delay_btn)
+        delay_row.addStretch(1)
+
+        settings_layout.addLayout(delay_row)
         return self.settings_widget
+
+    def _on_modify_delay(self):
+        """打开修改延迟弹窗：确认后持久化、刷新面板、状态提示。"""
+        current = ShelfToolsSettingsManager.get_notes_show_delay()
+        dialog = _NotesDelayDialog(current, parent=self)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+        new_value = dialog.get_value()
+        if new_value == current:
+            return  # 无变化，跳过
+
+        # 1. 持久化
+        ShelfToolsSettingsManager.set_notes_show_delay(new_value)
+
+        # 2. 更新数值显示（下划线会自动随数字宽度重算）
+        self.notes_delay_field.setValue(new_value)
+
+        # 3. 触发面板刷新（与刷新按钮一致：重建缩略图，新 widget 读取最新值）
+        self._refresh_tools()
+
+        # 4. 状态提示（与刷新按钮风格一致）
+        if hou is not None:
+            hou.ui.setStatusMessage(
+                f"延迟已更新：{new_value} ms",
+                hou.severityType.ImportantMessage
+            )
 
     def _create_scroll_area(self, init_size):
         """创建带滚动区域的工具区，参考 HDR 面板架构。"""
@@ -924,3 +991,167 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         current_filter = self.filter_combo.itemData(self.filter_combo.currentIndex())
         ShelfToolsSettingsManager.set_filter(current_filter)
         super().closeEvent(event)
+
+
+class _NotesDelayDialog(QtWidgets.QDialog):
+    """备注悬停延迟调整对话框。模态输入：输入框 + 确认/取消。
+
+    设计要点：
+    - 内容居中布局，左右留白对等
+    - 固定大小，不允许用户拖拽边框调整
+    - 右上角 × 可点击关闭
+    """
+
+    def __init__(self, current_value: int, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("修改备注悬停延迟")
+        self.setModal(True)
+        # 显式声明 WindowCloseButtonHint：Qt.WindowType.Dialog 本身不包含
+        # 关闭按钮 hint，部分平台/版本下不显式声明就不会渲染右上角 ×
+        self.setWindowFlags(
+            QtCore.Qt.WindowType.Dialog
+            | QtCore.Qt.WindowType.WindowCloseButtonHint
+        )
+        # 双保险：setFixedSize 已锁死大小，但显式禁用 sizeGrip 避免后续若
+        # setFixedSize 被误删时，右下角又出现可拖拽的三角柄
+        self.setSizeGripEnabled(False)
+        self.setStyleSheet(f"QDialog {{ background-color: {BG_PRIMARY}; }}")
+
+        layout = QtWidgets.QVBoxLayout(self)
+        # 水平内边距 24 → 12（收窄一半），垂直 22 → 18，整体更紧凑
+        layout.setContentsMargins(12, 18, 12, 18)
+        layout.setSpacing(14)
+
+        # 标题（居中）
+        # 注：label 样式中的 background-color: transparent 是防御性设置——
+        # QLabel 默认 autoFillBackground=False，但部分主题/调色板下会继承
+        # 父级 QFrame 背景；显式声明避免出现与 BG_PRIMARY 不同的色块
+        title = QtWidgets.QLabel("修改备注悬停延迟")
+        title.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet(
+            f"color: {TEXT_PRIMARY}; font-size: 15px; font-weight: bold; "
+            f"background-color: transparent;"
+        )
+        layout.addWidget(title)
+
+        # 建议范围（居中，灰色提示，仅作 UX 引导）
+        recommend = QtWidgets.QLabel(
+            f"建议范围 "
+            f"{ShelfToolsSettingsManager._RECOMMENDED_MIN_NOTES_SHOW_DELAY} - "
+            f"{ShelfToolsSettingsManager._RECOMMENDED_MAX_NOTES_SHOW_DELAY} ms"
+        )
+        recommend.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        recommend.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: 12px; "
+            f"background-color: transparent;"
+        )
+        layout.addWidget(recommend)
+
+        # 输入框行（居中：两侧 stretch）
+        input_row = QtWidgets.QHBoxLayout()
+        input_row.setSpacing(6)
+        input_row.addStretch(1)
+
+        self.spin = QtWidgets.QSpinBox()
+        self.spin.setRange(
+            ShelfToolsSettingsManager._MIN_NOTES_SHOW_DELAY,
+            ShelfToolsSettingsManager._MAX_NOTES_SHOW_DELAY,
+        )
+        self.spin.setValue(current_value)
+        # 取消上下三角形按钮：只允许手动输入
+        self.spin.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
+        # min-width 不是死代码：被后续 setFixedSize 覆盖，但会被 adjustSize()
+        # 在计算 sizeHint 时看到——影响弹窗最终宽度。删掉则 spin 缩到默认
+        # 30px，整个弹窗宽度跟着塌陷
+        self.spin.setMinimumWidth(90)
+        self.spin.setStyleSheet(
+            f"QSpinBox {{ background-color: {BG_INPUT}; color: {TEXT_PRIMARY}; "
+            f"border: 1px solid {BORDER_COLOR}; border-radius: 4px; "
+            f"padding: 8px 12px; font-size: 14px; font-weight: bold; }}"
+            f"QSpinBox:focus {{ border-color: {ACCENT_BLUE}; }}"
+        )
+        input_row.addWidget(self.spin)
+
+        ms_label = QtWidgets.QLabel("ms")
+        ms_label.setStyleSheet(SUFFIX_STYLE)
+        input_row.addWidget(ms_label)
+        input_row.addStretch(1)
+
+        layout.addLayout(input_row)
+
+        # 按钮行（居中：两侧 stretch）
+        button_row = QtWidgets.QHBoxLayout()
+        button_row.setSpacing(8)
+        button_row.addStretch(1)
+
+        def _btn(text: str, style: str, slot, default: bool = False) -> QtWidgets.QPushButton:
+            """创建样式化按钮：统一光标/最小高度/样式表/信号连接。
+
+            注：setMinimumHeight(32) 不是死代码——被后续 setFixedSize 覆盖，
+            但会被 adjustSize() 的 sizeHint 计算看到，影响弹窗最终高度。
+            32px 是触屏目标标准高度，删掉则按钮缩到默认 24px，弹窗塌陷。
+            """
+            b = QtWidgets.QPushButton(text)
+            b.setCursor(QtCore.Qt.PointingHandCursor)
+            b.setDefault(default)
+            b.setMinimumHeight(32)
+            b.setStyleSheet(style)
+            b.clicked.connect(slot)
+            return b
+
+        button_row.addWidget(_btn("确认", SAVE_BUTTON_STYLE, self.accept, default=True))
+        button_row.addWidget(_btn("取消", CANCEL_BUTTON_STYLE, self.reject))
+        button_row.addStretch(1)
+
+        layout.addLayout(button_row)
+
+        # 锁死弹窗尺寸：adjustSize 计算内容理想尺寸，setFixedSize 设为该尺寸
+        # 等价于 setMinimumSize == setMaximumSize，setSizePolicy/Fixed 只能约束
+        # layout 中的行为，无法阻止用户拖拽边框——setFixedSize 才是真正锁死
+        self.adjustSize()
+        self.setFixedSize(self.size())
+
+    def get_value(self) -> int:
+        """返回用户在弹窗中输入的新值。"""
+        return self.spin.value()
+
+
+class _UnderlinedNumber(QtWidgets.QWidget):
+    """只读数字 + 下方紫色下划线 widget。
+
+    下划线宽度始终匹配数字文本宽度（数字位数变化时下划线自动伸缩）。
+    替代 QLineEdit+border-bottom 方案，避免下划线横跨固定宽度。
+    """
+
+    def __init__(self, value: int, parent=None):
+        super().__init__(parent)
+        self._value = str(int(value))
+        # Maximum + Fixed：宽由 sizeHint 决定（=文字宽度），不会被迫拉伸
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Maximum,
+            QtWidgets.QSizePolicy.Policy.Fixed,
+        )
+
+    def setValue(self, value: int):
+        """设置新数字。触发 sizeHint 重算和重绘，下划线自动适配。"""
+        self._value = str(int(value))
+        self.updateGeometry()
+        self.update()
+
+    def sizeHint(self):
+        fm = self.fontMetrics()
+        text_w = fm.horizontalAdvance(self._value)
+        return QtCore.QSize(text_w, fm.height() + 4)
+
+    def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        # 数字文字（占据除下划线外的全部区域，居中）
+        painter.setPen(QtGui.QColor(TEXT_PRIMARY))
+        painter.setFont(self.font())
+        text_rect = QtCore.QRect(0, 0, self.width(), self.height() - 4)
+        painter.drawText(text_rect, QtCore.Qt.AlignmentFlag.AlignCenter, self._value)
+        # 紫色下划线：底部 2px，宽度 = widget 宽 = 文字宽
+        painter.setPen(QtCore.Qt.NoPen)
+        painter.setBrush(QtGui.QColor(ACCENT_PURPLE))
+        painter.drawRect(0, self.height() - 2, self.width(), 2)
