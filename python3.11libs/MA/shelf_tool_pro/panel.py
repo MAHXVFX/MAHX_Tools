@@ -115,6 +115,13 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
         main_layout.addWidget(self._create_scroll_area(init_size), 1)
 
+        # Bug fix: 首次显示时 _build_thumb_widgets 在 viewport 尚未确定宽度
+        # 时执行，导致 cols 计算错误、缩略图被固定为错误列数（典型 3 列）。
+        # QTimer.singleShot(0, ...) 延迟到事件循环下一帧 reflow——此时
+        # viewport 宽度已定，_relayout_grid 重新计算 cols 并重排所有 widget。
+        # 后续用户拖动面板由 resizeEvent -> _relayout_grid 处理。
+        QtCore.QTimer.singleShot(0, self._relayout_grid)
+
     # ── 拖放事件 ──────────────────────────────────
 
     def dragEnterEvent(self, event):
