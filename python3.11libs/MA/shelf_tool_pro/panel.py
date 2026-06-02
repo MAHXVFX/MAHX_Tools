@@ -52,15 +52,28 @@ def load_thumb_size():
 
 
 def _get_shelf_color_map():
-    """获取统一的 shelf 颜色映射（确保所有地方使用相同的映射）。"""
-    shelf_names = set()
+    """获取统一的 shelf 颜色映射（确保所有地方使用相同的映射）。
+
+    内置工具的 shelf 统一使用白色，与缩略图标签的"白底黑字"风格保持一致；
+    用户 shelf 沿用彩虹色。builtin 判定委托给 shelf_loader.is_builtin_tool。
+    """
+    from MA.shelf_tool_pro.shelf_loader import is_builtin_tool
+
+    builtin_names = set()
+    user_names = set()
     for uid, info in _TOOL_REGISTRY.items():
-        shelf_names.add(info[0])  # shelf_stem
-    
+        shelf_stem = info[0]
+        if is_builtin_tool(uid):
+            builtin_names.add(shelf_stem)
+        else:
+            user_names.add(shelf_stem)
+
     color_map = {}
-    for i, name in enumerate(sorted(shelf_names)):
+    for name in builtin_names:
+        color_map[name] = ("#ffffff", "#ffffff")
+    for i, name in enumerate(sorted(user_names)):
         color_map[name] = _SHELF_COLORS[i % len(_SHELF_COLORS)]
-    
+
     return color_map
 
 
@@ -816,9 +829,11 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             self.filter_combo.addItem(name, userData=name)
             # 设置背景色和文字颜色
             bg_color, border_color = shelf_color_map[name]
+            # 白色块需配黑色文字，否则不可读
+            fg_color = "#000000" if bg_color.lower() == "#ffffff" else TEXT_PRIMARY
             index = self.filter_combo.count() - 1
             self.filter_combo.setItemData(index, QtGui.QColor(bg_color), QtCore.Qt.BackgroundRole)
-            self.filter_combo.setItemData(index, QtGui.QColor(TEXT_PRIMARY), QtCore.Qt.ForegroundRole)
+            self.filter_combo.setItemData(index, QtGui.QColor(fg_color), QtCore.Qt.ForegroundRole)
 
         # 确定要恢复的筛选项
         if restore_filter:

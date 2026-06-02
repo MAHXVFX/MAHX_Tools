@@ -158,12 +158,9 @@ class ShelfToolsCacheManager(BaseJsonManager):
 
     @classmethod
     def _is_builtin_tool(cls, tool_name: str) -> bool:
-        """检查工具是否为内置工具。"""
-        from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
-        if tool_name in _TOOL_REGISTRY:
-            _, _, _, _, shelf_path = _TOOL_REGISTRY[tool_name]
-            return "builtin_tools" in shelf_path
-        return False
+        """检查工具是否为内置工具。委托给 shelf_loader.is_builtin_tool。"""
+        from MA.shelf_tool_pro.shelf_loader import is_builtin_tool
+        return is_builtin_tool(tool_name)
 
     @classmethod
     def get_note(cls, tool_name):

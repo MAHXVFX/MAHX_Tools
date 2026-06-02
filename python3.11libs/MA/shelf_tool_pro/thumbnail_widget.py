@@ -118,7 +118,17 @@ class ThumbnailWidget(QtWidgets.QWidget):
 
     def _update_name_label_style(self):
         """更新名称标签样式（带背景色）。"""
-        if self._bg_color and self._border_color:
+        # 内置工具：固定白底黑字，覆盖默认的 shelf 颜色样式
+        if self._is_builtin:
+            self.name_label.setStyleSheet(
+                "color: #000000; "
+                "background-color: #ffffff; "
+                "border: 1px solid #ffffff; "
+                "border-radius: 4px; "
+                "padding: 2px 8px; "
+                "font-weight: bold;"
+            )
+        elif self._bg_color and self._border_color:
             # 半透明背景 + 边框
             self.name_label.setStyleSheet(
                 f"color: {TEXT_SECONDARY}; "
@@ -311,12 +321,9 @@ class ThumbnailWidget(QtWidgets.QWidget):
 
     @property
     def _is_builtin(self) -> bool:
-        """判断当前工具是否为内置工具。"""
-        from MA.shelf_tool_pro.shelf_loader import _TOOL_REGISTRY
-        if self._unique_id in _TOOL_REGISTRY:
-            _, _, _, _, shelf_path = _TOOL_REGISTRY[self._unique_id]
-            return "builtin_tools" in shelf_path
-        return False
+        """判断当前工具是否为内置工具。委托给 shelf_loader.is_builtin_tool。"""
+        from MA.shelf_tool_pro.shelf_loader import is_builtin_tool
+        return is_builtin_tool(self._unique_id)
 
     def _get_note(self) -> str:
         """获取当前工具的备注内容。内置工具从 BuiltinToolsCacheManager 读取。"""

@@ -42,6 +42,16 @@ def _fix_encoding(text: str) -> str:
 _TOOL_NAMES = []      # 唯一标识列表：["shelfA_cam", "shelfB_cam"]
 _TOOL_REGISTRY = {}   # 唯一标识 -> (shelf_stem, tool_name, label, icon, shelf_path)
 _TOOL_SCRIPTS = {}    # 唯一标识 -> script content (直接从 XML 解析)
+_BUILTIN_TOOL_IDS = set()  # 内置工具 unique_id 集合（来自 builtin_tools/ 目录下的 .shelf）
+
+
+# 内置工具目录名（与 shelf_loader.scan_tool_names() 中判断 shelf 是否属于内置的逻辑对应）
+_BUILTIN_SHELF_DIR_NAME = "builtin_tools"
+
+
+def is_builtin_tool(unique_id: str) -> bool:
+    """判断 unique_id 是否对应内置工具。模块级唯一入口，封装判断细节。"""
+    return unique_id in _BUILTIN_TOOL_IDS
 
 
 def project_root():
@@ -73,14 +83,16 @@ def scan_tool_names():
     """解析 MAtoolbar/*.shelf 和 builtin_tools/*.shelf 文件，提取所有 tool 信息。
     
     Returns:
-        tuple: (names, registry, scripts) 三元组
+        tuple: (names, registry, scripts, builtin_ids) 四元组
             - names: list of str, 唯一标识列表
             - registry: dict, 唯一标识 -> (shelf_stem, tool_name, label, icon, shelf_path)
             - scripts: dict, 唯一标识 -> script content
+            - builtin_ids: set of str, 内置工具的 unique_id 集合
     """
     names = []
     registry = {}
     scripts = {}
+    builtin_ids = set()
     
     # 扫描两个目录：MAtoolbar（用户工具）和 builtin_tools（内置工具）
     shelf_dirs = [
@@ -91,6 +103,8 @@ def scan_tool_names():
     for shelf_dir in shelf_dirs:
         if not os.path.isdir(shelf_dir):
             continue
+        # 整个目录都是内置工具：扫描时一次性标记，目录内所有工具都属 builtin
+        is_builtin_dir = _BUILTIN_SHELF_DIR_NAME in shelf_dir
         for f in sorted(glob.glob(os.path.join(shelf_dir, "*.shelf"))):
             shelf_stem = os.path.splitext(os.path.basename(f))[0]
             try:
@@ -114,6 +128,8 @@ def scan_tool_names():
                         script_content = _fix_encoding(script_content)
                     
                     unique_id = f"{shelf_stem}_{tool_name}"
+                    if is_builtin_dir:
+                        builtin_ids.add(unique_id)
                     names.append(unique_id)
                     registry[unique_id] = (shelf_stem, tool_name, label, icon, f)
                     scripts[unique_id] = script_content
@@ -121,7 +137,7 @@ def scan_tool_names():
                 _logger.warning("Failed to parse shelf XML: %s — %s", f, e)
             except Exception as e:
                 _logger.warning("Failed to scan shelf file: %s — %s", f, e)
-    return names, registry, scripts
+    return names, registry, scripts, builtin_ids
 
 
 def execute_tool(unique_id, extra_kwargs=None):
@@ -190,12 +206,12 @@ def refresh_tools():
     副作用：所有 MA/* 单例状态（如 ``_panel_window`` / ``_window``）会被重置，
     已打开的面板需重新打开。
     """
-    global _TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS
+    global _TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS, _BUILTIN_TOOL_IDS
 
     # 清除项目根目录下所有模块缓存，确保修改后的 .py 代码生效
     _clear_module_cache()
 
-    _TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS = scan_tool_names()
+    _TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS, _BUILTIN_TOOL_IDS = scan_tool_names()
 
 
 def _clear_module_cache():
@@ -222,4 +238,4 @@ def _clear_module_cache():
 
 
 # 模块加载时扫描工具名称
-_TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS = scan_tool_names()
+_TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS, _BUILTIN_TOOL_IDS = scan_tool_names()
