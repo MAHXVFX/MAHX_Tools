@@ -451,8 +451,9 @@ class AutomationWindow(QDialog):
         self._task_count_input.setObjectName("taskCountInput")
         self._task_count_input.setFixedWidth(50)
         self._task_count_input.setAlignment(Qt.AlignCenter)
-        self._task_count_input.setToolTip("输入任务数量后按 Enter 确认")
+        self._task_count_input.setToolTip("输入任务数量后按 Enter 或点击空白处确认")
         self._task_count_input.returnPressed.connect(self._on_task_count_changed)
+        self._task_count_input.editingFinished.connect(self._on_task_count_changed)
         # 让内部编辑器只有点击时才激活，防止自动聚焦导致误输入
         self._task_count_input.setFocusPolicy(Qt.ClickFocus)
 
@@ -955,7 +956,7 @@ class AutomationWindow(QDialog):
         return False
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 — Qt 命名约定
-        """点击 dialog 任意空白处 → 取消任务槽选中。
+        """点击 dialog 任意空白处 → 取消任务槽选中 + 取消输入框焦点。
 
         行为对齐 Houdini 主窗口风格:点空白取消选中,方便用 Delete
         键连删多个任务时,先 deselect 再选下一个。
@@ -968,13 +969,17 @@ class AutomationWindow(QDialog):
 
         只响应左键 + 有选中态;无选中 / 右键都 no-op。
         """
-        if (
-            event.button() == Qt.LeftButton
-            and self._selected_index is not None
-            and not self._is_widget_on_slot(QApplication.widgetAt(event.globalPos()))
-        ):
-            self._selected_index = None
-            self._update_selection_style()
+        if event.button() == Qt.LeftButton:
+            # 取消输入框焦点
+            self._config_combo.clearFocus()
+            self._task_count_input.clearFocus()
+            # 取消任务槽选中
+            if (
+                self._selected_index is not None
+                and not self._is_widget_on_slot(QApplication.widgetAt(event.globalPos()))
+            ):
+                self._selected_index = None
+                self._update_selection_style()
         super().mousePressEvent(event)
 
     # ── 数据持久化 ─────────────────────────────────────────
