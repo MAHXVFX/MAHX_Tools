@@ -1444,12 +1444,11 @@ class AutomationWindow(QDialog):
         minutes = int((total_elapsed % 3600) // 60)
         seconds = int(total_elapsed % 60)
         print(f"{timestamp} 执行完成 总耗时: {hours:02d}时{minutes:02d}分{seconds:02d}秒 — 成功 {success}, 失败 {failed}")
-        print("=" * 80)
+        print("=" * 80)  # 通过 tee 同时写入控制台和日志文件
         self._running = False
         self._start_btn.setText("Start")
         self._engine = None
         self._restore_stdout()
-        self._write_log("=" * 80)
 
     def _restore_stdout(self):
         """恢复被重定向的 stdout/stderr。"""
