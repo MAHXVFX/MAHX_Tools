@@ -651,14 +651,17 @@ class AutomationWindow(QDialog):
         current_count = len(self._slot_widgets)
         if new_count == current_count:
             return
-        if new_count > current_count:
-            # 增加槽
-            for _ in range(new_count - current_count):
-                self._add_slot()
-        else:
-            # 减少槽（从末尾删除）
-            for _ in range(current_count - new_count):
-                self._remove_slot()
+        # 批量操作时跳过 _add_slot/_remove_slot 中的单次更新，最后统一刷新
+        self._skip_count_update = True
+        try:
+            if new_count > current_count:
+                for _ in range(new_count - current_count):
+                    self._add_slot()
+            else:
+                for _ in range(current_count - new_count):
+                    self._remove_slot()
+        finally:
+            self._skip_count_update = False
         self._update_task_count_input()
 
     def _update_task_count_input(self):
@@ -675,7 +678,9 @@ class AutomationWindow(QDialog):
         # 插入到 stretch 之前
         self._slot_layout.insertWidget(self._slot_layout.count() - 1, slot)
         self._renumber_slots()
-        self._update_task_count_input()
+        # 批量操作时跳过，最后由调用方统一刷新
+        if not getattr(self, '_skip_count_update', False):
+            self._update_task_count_input()
 
     def _remove_slot(self, index: int | None = None) -> None:
         """移除指定索引的槽(默认末尾,兼容工具栏 - 按钮)。
@@ -716,7 +721,9 @@ class AutomationWindow(QDialog):
 
         self._renumber_slots()
         self._update_selection_style()
-        self._update_task_count_input()
+        # 批量操作时跳过，最后由调用方统一刷新
+        if not getattr(self, '_skip_count_update', False):
+            self._update_task_count_input()
 
     def _renumber_slots(self):
         """更新所有槽的序号(序号手柄的文字)。
