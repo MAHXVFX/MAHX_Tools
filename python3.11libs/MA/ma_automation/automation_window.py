@@ -178,6 +178,9 @@ def show_automation_window():
 
     _window = AutomationWindow(parent_window)
     _window.show()
+    # 将窗口初始位置往左移 200px
+    pos = _window.pos()
+    _window.move(pos.x() - 200, pos.y())
     return _window
 
 
@@ -371,9 +374,9 @@ class AutomationWindow(QDialog):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
 
-        # ── 工具栏 ──
-        toolbar = QHBoxLayout()
-        toolbar.setSpacing(4)
+        # ── 工具栏第一行：配置、Start、Auto Fill、Clear ──
+        toolbar1 = QHBoxLayout()
+        toolbar1.setSpacing(4)
 
         # 配置下拉(可编辑):放在 start 按钮**前方**,对齐用户"先选配置
         # 再点 Start"的工作流。下拉列出配置目录下所有现存 .json
@@ -425,6 +428,34 @@ class AutomationWindow(QDialog):
         clear_btn = QPushButton("Clear")
         clear_btn.clicked.connect(lambda: self._on_clear())
 
+        # 顺序:配置 → start → auto fill → clear   <stretch>
+        toolbar1.addWidget(self._config_label)
+        toolbar1.addWidget(self._config_combo)
+        toolbar1.addWidget(self._start_btn)
+        toolbar1.addWidget(auto_fill_btn)
+        toolbar1.addWidget(clear_btn)
+        toolbar1.addStretch()
+
+        layout.addLayout(toolbar1)
+
+        # ── 工具栏第二行：任务数量、+、- ──
+        toolbar2 = QHBoxLayout()
+        toolbar2.setSpacing(4)
+
+        # 任务数量输入框
+        self._task_count_label = QLabel("数量:")
+        self._task_count_label.setStyleSheet(
+            "color: #cccccc; background: transparent;"
+        )
+        self._task_count_input = QLineEdit()
+        self._task_count_input.setObjectName("taskCountInput")
+        self._task_count_input.setFixedWidth(50)
+        self._task_count_input.setAlignment(Qt.AlignCenter)
+        self._task_count_input.setToolTip("输入任务数量后按 Enter 确认")
+        self._task_count_input.returnPressed.connect(self._on_task_count_changed)
+        # 让内部编辑器只有点击时才激活，防止自动聚焦导致误输入
+        self._task_count_input.setFocusPolicy(Qt.ClickFocus)
+
         add_btn = QPushButton("+")
         add_btn.setObjectName("addBtn")
         add_btn.setFixedWidth(32)
@@ -435,17 +466,14 @@ class AutomationWindow(QDialog):
         remove_btn.setFixedWidth(32)
         remove_btn.clicked.connect(lambda: self._remove_slot())
 
-        # 顺序:配置 → start → auto fill → clear   <stretch>   + / -
-        toolbar.addWidget(self._config_label)
-        toolbar.addWidget(self._config_combo)
-        toolbar.addWidget(self._start_btn)
-        toolbar.addWidget(auto_fill_btn)
-        toolbar.addWidget(clear_btn)
-        toolbar.addStretch()
-        toolbar.addWidget(add_btn)
-        toolbar.addWidget(remove_btn)
+        # 顺序:数量标签 → 数量输入框 → + → -   <stretch>
+        toolbar2.addWidget(self._task_count_label)
+        toolbar2.addWidget(self._task_count_input)
+        toolbar2.addWidget(add_btn)
+        toolbar2.addWidget(remove_btn)
+        toolbar2.addStretch()
 
-        layout.addLayout(toolbar)
+        layout.addLayout(toolbar2)
 
         # ── 槽列表滚动区域 ──
         self._scroll_area = QScrollArea()
@@ -607,6 +635,36 @@ class AutomationWindow(QDialog):
 
     # ── 槽管理 ─────────────────────────────────────────────
 
+    def _on_task_count_changed(self):
+        """用户在数量输入框输入新数值后按 Enter，调整任务槽数量。"""
+        text = self._task_count_input.text().strip()
+        if not text:
+            return
+        try:
+            new_count = int(text)
+        except ValueError:
+            # 输入无效，恢复为当前数量
+            self._update_task_count_input()
+            return
+        if new_count < 0:
+            new_count = 0
+        current_count = len(self._slot_widgets)
+        if new_count == current_count:
+            return
+        if new_count > current_count:
+            # 增加槽
+            for _ in range(new_count - current_count):
+                self._add_slot()
+        else:
+            # 减少槽（从末尾删除）
+            for _ in range(current_count - new_count):
+                self._remove_slot()
+        self._update_task_count_input()
+
+    def _update_task_count_input(self):
+        """更新数量输入框显示当前任务槽数量。"""
+        self._task_count_input.setText(str(len(self._slot_widgets)))
+
     def _add_slot(self, data: dict | None = None):
         """追加一个新槽。"""
         index = len(self._slot_widgets)
@@ -617,6 +675,7 @@ class AutomationWindow(QDialog):
         # 插入到 stretch 之前
         self._slot_layout.insertWidget(self._slot_layout.count() - 1, slot)
         self._renumber_slots()
+        self._update_task_count_input()
 
     def _remove_slot(self, index: int | None = None) -> None:
         """移除指定索引的槽(默认末尾,兼容工具栏 - 按钮)。
@@ -657,6 +716,7 @@ class AutomationWindow(QDialog):
 
         self._renumber_slots()
         self._update_selection_style()
+        self._update_task_count_input()
 
     def _renumber_slots(self):
         """更新所有槽的序号(序号手柄的文字)。
