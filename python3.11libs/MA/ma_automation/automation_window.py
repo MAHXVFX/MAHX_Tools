@@ -1160,6 +1160,7 @@ class AutomationWindow(QDialog):
 
         lines.append("-" * 30)
         lines.append("")
+        lines.append("=" * 80)
         self._write_log("\n".join(lines))
 
     # ── 数据持久化 ─────────────────────────────────────────
