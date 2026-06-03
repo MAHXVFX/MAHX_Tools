@@ -1127,23 +1127,38 @@ class AutomationWindow(QDialog):
         if not self._log_to_disk_enabled:
             return
 
-        lines = [f"{self._current_config_name}:", ""]
+        lines = [f"{self._current_config_name} 执行日志", ""]
 
         # 收集当前任务列表信息
         tasks_data = self._collect_data()
         if tasks_data:
+            lines.append("任务列表:")
+            lines.append("-" * 30)
             for i, task in enumerate(tasks_data, 1):
                 task_type = task.get("type", "UNKNOWN")
-                enabled = task.get("enabled", True)
-                if not enabled:
-                    continue
+                enabled = "启用" if task.get("enabled", True) else "禁用"
                 params = task.get("params", {})
-                node_path = params.get("node_path", "")
-                parm_name = params.get("parm_name", "")
-                lines.append(f"任务 {i}: {task_type} [{node_path}/{parm_name}]")
+
+                lines.append(f"任务 {i}: {task_type} [{enabled}]")
+                if task_type == "BUTTON_CLICK":
+                    node_path = params.get("node_path", "")
+                    parm_name = params.get("parm_name", "")
+                    lines.append(f"  节点: {node_path}")
+                    lines.append(f"  参数: {parm_name}")
+                elif task_type == "FLIPBOOK":
+                    frame_range = params.get("frame_range", [1, 100])
+                    output_path = params.get("output_path", "")
+                    lines.append(f"  帧范围: {frame_range[0]}-{frame_range[1]}")
+                    lines.append(f"  输出路径: {output_path}")
+                elif task_type == "HOME_ASSISTANT":
+                    webhook_url = params.get("webhook_url", "")
+                    lines.append(f"  Webhook: {webhook_url}")
+                lines.append("")
         else:
             lines.append("任务列表: (空)")
+            lines.append("")
 
+        lines.append("-" * 30)
         lines.append("")
         self._write_log("\n".join(lines))
 
