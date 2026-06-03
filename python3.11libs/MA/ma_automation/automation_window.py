@@ -1124,7 +1124,7 @@ class AutomationWindow(QDialog):
     def _write_log_header(self):
         """写入日志头部（当前任务列表信息）。"""
         print("=" * 80)
-        print(f"{self._current_config_name} 执行日志")
+        print(f"📝 {self._current_config_name} 执行日志")
         if not self._log_to_disk_enabled:
             return
 
