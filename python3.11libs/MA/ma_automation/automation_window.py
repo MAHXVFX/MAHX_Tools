@@ -1133,7 +1133,6 @@ class AutomationWindow(QDialog):
         tasks_data = self._collect_data()
         if tasks_data:
             lines.append("任务列表:")
-            lines.append("-" * 30)
             for i, task in enumerate(tasks_data, 1):
                 task_type = task.get("type", "UNKNOWN")
                 enabled = "启用" if task.get("enabled", True) else "禁用"
@@ -1158,8 +1157,6 @@ class AutomationWindow(QDialog):
             lines.append("任务列表: (空)")
             lines.append("")
 
-        lines.append("-" * 30)
-        lines.append("")
         lines.append("=" * 80)
         self._write_log("\n".join(lines))
 
