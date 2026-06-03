@@ -1123,12 +1123,8 @@ class AutomationWindow(QDialog):
 
     def _write_log_header(self):
         """写入日志头部（当前任务列表信息）。"""
-        if not self._log_to_disk_enabled:
-            return
-
-        lines = ["=" * 80]
-        lines.append(f"{self._current_config_name}:")
-        lines.append("")
+        sep = "=" * 80
+        header_lines = [sep, f"{self._current_config_name}:", ""]
 
         # 收集当前任务列表信息
         tasks_data = self._collect_data()
@@ -1141,12 +1137,16 @@ class AutomationWindow(QDialog):
                 params = task.get("params", {})
                 node_path = params.get("node_path", "")
                 parm_name = params.get("parm_name", "")
-                lines.append(f"任务 {i}: {task_type} [{node_path}/{parm_name}]")
+                header_lines.append(f"任务 {i}: {task_type} [{node_path}/{parm_name}]")
         else:
-            lines.append("任务列表: (空)")
+            header_lines.append("任务列表: (空)")
 
-        lines.append("")
-        self._write_log("\n".join(lines))
+        header_lines.append("")
+        # 同时输出到控制台和日志文件
+        for line in header_lines:
+            print(line)
+        if self._log_to_disk_enabled:
+            self._write_log("\n".join(header_lines))
 
     # ── 数据持久化 ─────────────────────────────────────────
 
@@ -1444,6 +1444,7 @@ class AutomationWindow(QDialog):
         minutes = int((total_elapsed % 3600) // 60)
         seconds = int(total_elapsed % 60)
         print(f"{timestamp} 执行完成 总耗时: {hours:02d}时{minutes:02d}分{seconds:02d}秒 — 成功 {success}, 失败 {failed}")
+        print("=" * 80)
         self._running = False
         self._start_btn.setText("Start")
         self._engine = None
