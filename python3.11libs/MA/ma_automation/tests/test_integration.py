@@ -1415,7 +1415,7 @@ class TestConfigComboRefresh(unittest.TestCase):
     @patch("ma_automation.automation_window.MA_Automation_DataManager.list_configs",
            return_value=[])
     def test_refresh_empty_list_works(self, mock_list):
-        """MAJson 空 → ``addItems([])`` 不报错,``setCurrentIndex`` 不调。"""
+        """配置目录空 → ``addItems([])`` 不报错,``setCurrentIndex`` 不调。"""
         # 空 list 时 findText 应返回 -1(覆盖 setUp 默认的 0)
         self.aw._config_combo.findText.return_value = -1
         self.aw._refresh_config_dropdown()

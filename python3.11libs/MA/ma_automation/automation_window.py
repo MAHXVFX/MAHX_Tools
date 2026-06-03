@@ -376,7 +376,7 @@ class AutomationWindow(QDialog):
         toolbar.setSpacing(4)
 
         # 配置下拉(可编辑):放在 start 按钮**前方**,对齐用户"先选配置
-        # 再点 Start"的工作流。下拉列出 MAJson 目录下所有现存 .json
+        # 再点 Start"的工作流。下拉列出配置目录下所有现存 .json
         # basename(无后缀);键入新名不立即加载,而在 Start 时让
         # ``_save_data`` 写到该名 .json(不存在则创建)。
         #
@@ -401,6 +401,10 @@ class AutomationWindow(QDialog):
             "键入不存在的名 → 创建新文件"
         )
         self._config_combo.currentIndexChanged.connect(self._on_config_changed)
+        # 让内部编辑器只有点击时才激活，防止自动聚焦导致误输入
+        line_edit = self._config_combo.lineEdit()
+        if line_edit:
+            line_edit.setFocusPolicy(Qt.ClickFocus)
         # 注入 SVG 下拉图标(combo-level stylesheet 覆盖全局,
         # 路径用绝对 URL 避开 Houdini CWD 不可靠)
         self._config_combo.setStyleSheet(_CONFIG_COMBO_ICON_STYLE)
@@ -911,15 +915,14 @@ class AutomationWindow(QDialog):
     def _load_data(self):
         """从 DataManager 加载数据并重建 UI 槽。
 
-        尊重持久化的空状态：若 JSON 存的是空列表，重开后保持 0 槽。
-        用户可点 + 自行添加。
+        首次打开(无数据)时自动添加一个空任务槽,方便用户直接开始操作。
 
         流程:
-          1. ``_refresh_config_dropdown()`` — 列出 MAJson 下所有现存 .json
+          1. ``_refresh_config_dropdown()`` — 列出配置目录下所有现存 .json
              并恢复当前选中(``_current_config_name``)
           2. ``MA_Automation_DataManager.load(self._current_config_name)`` —
              加载该配置文件
-          3. 清空现有槽 + 重建
+          3. 清空现有槽 + 重建;若为空则添加1个空槽
         """
         # 1. 先刷新下拉(列表 + 恢复当前选中),让 UI 与状态同步
         self._refresh_config_dropdown()
@@ -937,18 +940,20 @@ class AutomationWindow(QDialog):
         for item_data in raw_list:
             self._add_slot(item_data)
 
+        # 首次打开(无数据)时添加1个空任务槽
+        if not raw_list:
+            self._add_slot()
+
     # ── 配置下拉(可编辑)helper ─────────────────────────────
 
     def _refresh_config_dropdown(self):
-        """刷新配置下拉,列出 MAJson 目录下所有 .json 文件 basename(无后缀)。
+        """刷新配置下拉,列出配置目录下所有 .json 文件 basename(无后缀)。
 
         关键:用 ``blockSignals(True)`` 防止 ``clear()`` / ``addItems()`` /
         ``setCurrentIndex()`` 触发 ``currentIndexChanged`` →
         ``_on_config_changed`` → ``_load_data`` 死循环。
 
-        保留当前选中(若有):若 ``_current_config_name`` 在新列表中,
-        选中它;否则 ``currentIndex`` 保持 ``-1``(显示空白,不强制切换,
-        避免覆盖用户已键入但未保存的新名)。
+        首次打开时显示默认配置名 ``MA_Automation``,即使该文件尚不存在。
         """
         configs = MA_Automation_DataManager.list_configs()
         self._config_combo.blockSignals(True)
@@ -960,7 +965,9 @@ class AutomationWindow(QDialog):
                 idx = self._config_combo.findText(self._current_config_name)
                 if idx >= 0:
                     self._config_combo.setCurrentIndex(idx)
-                # else: 不强制切换,currentIndex 保持 -1(显示空白)
+                else:
+                    # 不在列表中(如首次打开),直接设置文本显示默认配置名
+                    self._config_combo.setEditText(self._current_config_name)
         finally:
             self._config_combo.blockSignals(False)
 

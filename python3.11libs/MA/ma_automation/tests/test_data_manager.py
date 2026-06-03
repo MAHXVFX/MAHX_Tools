@@ -61,10 +61,10 @@ class TestGetDataPath(unittest.TestCase):
         self._mock_hou_mod.getenv.return_value = "/project/my_hip"
         path = DM.get_data_path()
         norm_path = path.replace("\\", "/")
-        # 以 MAJson/MA_Automation.json 结尾
+        # 以 MA Automation/json/MA_Automation.json 结尾
         self.assertTrue(
-            norm_path.endswith("MAJson/MA_Automation.json"),
-            f"路径应结尾为 MAJson/MA_Automation.json，实际: {norm_path}",
+            norm_path.endswith("MA Automation/json/MA_Automation.json"),
+            f"路径应结尾为 MA Automation/json/MA_Automation.json，实际: {norm_path}",
         )
         # 包含 $HIP 路径
         self.assertIn("/project/my_hip", norm_path)
@@ -213,7 +213,7 @@ class TestSaveLoadTasks(unittest.TestCase):
 
         # 创建临时目录作为数据存储区
         self._tmpdir = tempfile.mkdtemp()
-        self._json_path = os.path.join(self._tmpdir, "MAJson", "MA_Automation.json")
+        self._json_path = os.path.join(self._tmpdir, "MA Automation/json", "MA_Automation.json")
         # 确保目录存在（因为 get_data_path 被 mock，不会自动创建）
         os.makedirs(os.path.dirname(self._json_path), exist_ok=True)
 
@@ -352,7 +352,7 @@ class TestSaveDirect(unittest.TestCase):
         from ma_automation.data_manager import MA_Automation_DataManager as DM
         self.DM = DM
         self._tmpdir = tempfile.mkdtemp()
-        self._json_path = os.path.join(self._tmpdir, "MAJson", "MA_Automation.json")
+        self._json_path = os.path.join(self._tmpdir, "MA Automation/json", "MA_Automation.json")
         # 确保目录存在（因为 get_data_path 被 mock，不会自动创建）
         os.makedirs(os.path.dirname(self._json_path), exist_ok=True)
 
@@ -408,9 +408,9 @@ class TestSideEffects(unittest.TestCase):
     设计目标(配合"仅在 Start 时落盘"语义):
       - ``get_data_path()`` 纯计算路径,不创建目录
       - ``load()`` 纯只读,文件/目录不存在时返回 [],不创建任何东西
-      - ``save()`` 唯一允许创建 MAJson 目录的入口
+      - ``save()`` 唯一允许创建配置目录的入口
 
-    打开 MA Automation 面板 + 编辑 + 关闭 = 不应在 $HIP 下出现 MAJson 目录
+    打开 MA Automation 面板 + 编辑 + 关闭 = 不应在 $HIP 下出现配置目录
     或 MA_Automation.json 文件。只有点 Start 才会真正落盘。
     """
 
@@ -419,7 +419,7 @@ class TestSideEffects(unittest.TestCase):
         self.DM = DM
         # 不预创建任何目录,验证各方法的真实副作用
         self._tmpdir = tempfile.mkdtemp()
-        self._json_path = os.path.join(self._tmpdir, "MAJson", "MA_Automation.json")
+        self._json_path = os.path.join(self._tmpdir, "MA Automation/json", "MA_Automation.json")
 
     def tearDown(self):
         if os.path.exists(self._tmpdir):
@@ -447,13 +447,13 @@ class TestSideEffects(unittest.TestCase):
         )
 
     def test_save_is_the_only_creator_of_directory(self):
-        """save() 写入前应创建 MAJson 目录(若不存在),并写入 JSON 文件。
+        """save() 写入前应创建配置目录(若不存在),并写入 JSON 文件。
 
         不 patch os.makedirs:这里要验证"事后副作用",即目录和文件真实存在。
         配合 ``_ensure_hou_mock`` 让 ``get_data_path`` 返回 ``$HIP = self._tmpdir``,
-        实际写到 ``{tmpdir}/MAJson/MA_Automation.json``。
+        实际写到 ``{tmpdir}/MA Automation/json/MA_Automation.json``。
         """
-        # 关键:调用前 $HIP 下没有 MAJson 目录
+        # 关键:调用前 $HIP 下没有配置目录
         self.assertFalse(
             os.path.exists(os.path.dirname(self._json_path)),
             f"测试前不应存在 {os.path.dirname(self._json_path)}",
@@ -463,7 +463,7 @@ class TestSideEffects(unittest.TestCase):
         result = self.DM.save([{"name": "test", "type": "BUTTON_CLICK"}])
         self.assertTrue(result, "save() 应返回 True")
 
-        # 事后:MAJson 目录 + JSON 文件都应真实存在
+        # 事后:配置目录 + JSON 文件都应真实存在
         self.assertTrue(
             os.path.isdir(os.path.dirname(self._json_path)),
             f"save() 后应创建目录 {os.path.dirname(self._json_path)}",
@@ -498,7 +498,7 @@ class TestConfigFileSelection(unittest.TestCase):
     对应 UI 的"可编辑配置下拉"功能:
       - ``get_data_path(filename)`` / ``load(filename)`` / ``save(data, filename)``
         均接受可选文件名,None 时走默认 ``MA_Automation.json``
-      - ``list_configs()`` 返回 MAJson 目录所有 .json 文件 basename(无后缀)
+      - ``list_configs()`` 返回配置目录所有 .json 文件 basename(无后缀)
 
     setUp 用 ``side_effect=lambda filename=None:`` 模拟参数化 ``get_data_path``
     的真实行为,所有测试在临时目录下跑,tearDown 清空。
@@ -514,7 +514,7 @@ class TestConfigFileSelection(unittest.TestCase):
             DM,
             "get_data_path",
             side_effect=lambda filename=None: os.path.join(
-                self._tmpdir, "MAJson",
+                self._tmpdir, "MA Automation/json",
                 f"{filename}.json" if filename else "MA_Automation.json",
             ),
         )
@@ -529,12 +529,12 @@ class TestConfigFileSelection(unittest.TestCase):
     # ── get_data_path(filename) ─────────────────────────────
 
     def test_get_data_path_with_filename_uses_that_name(self):
-        """get_data_path('MAtest1') 返回以 MAJson/MAtest1.json 结尾的路径。"""
+        """get_data_path('MAtest1') 返回以 MA Automation/json/MAtest1.json 结尾的路径。"""
         path = self.DM.get_data_path("MAtest1")
         norm = path.replace("\\", "/")
         self.assertTrue(
-            norm.endswith("MAJson/MAtest1.json"),
-            f"应结尾为 MAJson/MAtest1.json,实际: {norm}",
+            norm.endswith("MA Automation/json/MAtest1.json"),
+            f"应结尾为 MA Automation/json/MAtest1.json,实际: {norm}",
         )
 
     def test_get_data_path_with_none_uses_default(self):
@@ -551,8 +551,8 @@ class TestConfigFileSelection(unittest.TestCase):
 
     def test_load_with_filename_loads_correct_file(self):
         """load('MAtest1') 加载 MAtest1.json 的内容(与默认文件隔离)。"""
-        os.makedirs(os.path.join(self._tmpdir, "MAJson"), exist_ok=True)
-        path = os.path.join(self._tmpdir, "MAJson", "MAtest1.json")
+        os.makedirs(os.path.join(self._tmpdir, "MA Automation/json"), exist_ok=True)
+        path = os.path.join(self._tmpdir, "MA Automation/json", "MAtest1.json")
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"tasks": [{"name": "from MAtest1"}]}, f)
         data = self.DM.load("MAtest1")
@@ -565,8 +565,8 @@ class TestConfigFileSelection(unittest.TestCase):
 
     def test_load_corrupt_file_with_filename_falls_back(self):
         """load(filename) 对损坏 JSON 也走容错返回 [](与默认 load 一致)。"""
-        os.makedirs(os.path.join(self._tmpdir, "MAJson"), exist_ok=True)
-        path = os.path.join(self._tmpdir, "MAJson", "corrupt.json")
+        os.makedirs(os.path.join(self._tmpdir, "MA Automation/json"), exist_ok=True)
+        path = os.path.join(self._tmpdir, "MA Automation/json", "corrupt.json")
         with open(path, "w", encoding="utf-8") as f:
             f.write("not valid json {")
         data = self.DM.load("corrupt")
@@ -574,12 +574,12 @@ class TestConfigFileSelection(unittest.TestCase):
 
     def test_load_with_filename_uses_correct_dir_not_default(self):
         """load('X') 不会误读默认文件 MA_Automation.json(隔离验证)。"""
-        os.makedirs(os.path.join(self._tmpdir, "MAJson"), exist_ok=True)
+        os.makedirs(os.path.join(self._tmpdir, "MA Automation/json"), exist_ok=True)
         # 默认文件内容
-        with open(os.path.join(self._tmpdir, "MAJson", "MA_Automation.json"), "w") as f:
+        with open(os.path.join(self._tmpdir, "MA Automation/json", "MA_Automation.json"), "w") as f:
             json.dump({"tasks": [{"name": "default_data"}]}, f)
         # MAtest1 文件内容
-        with open(os.path.join(self._tmpdir, "MAJson", "MAtest1.json"), "w") as f:
+        with open(os.path.join(self._tmpdir, "MA Automation/json", "MAtest1.json"), "w") as f:
             json.dump({"tasks": [{"name": "specific_data"}]}, f)
         # 加载 MAtest1 不应返回 default_data
         self.assertEqual(self.DM.load("MAtest1"), [{"name": "specific_data"}])
@@ -592,14 +592,14 @@ class TestConfigFileSelection(unittest.TestCase):
         result = self.DM.save([{"name": "x"}], "MAtest2")
         self.assertTrue(result)
         self.assertTrue(os.path.exists(
-            os.path.join(self._tmpdir, "MAJson", "MAtest2.json")
+            os.path.join(self._tmpdir, "MA Automation/json", "MAtest2.json")
         ))
 
     def test_save_with_filename_creates_directory(self):
-        """save(data, 'X') 自动创建 MAJson 目录(若不存在)——保留副作用契约。"""
-        self.assertFalse(os.path.exists(os.path.join(self._tmpdir, "MAJson")))
+        """save(data, 'X') 自动创建配置目录(若不存在)——保留副作用契约。"""
+        self.assertFalse(os.path.exists(os.path.join(self._tmpdir, "MA Automation/json")))
         self.DM.save([{"name": "x"}], "MAtest2")
-        self.assertTrue(os.path.isdir(os.path.join(self._tmpdir, "MAJson")))
+        self.assertTrue(os.path.isdir(os.path.join(self._tmpdir, "MA Automation/json")))
 
     def test_save_multiple_filenames_create_independent_files(self):
         """多次 save 不同 filename 互不覆盖,各创建独立文件,内容隔离。"""
@@ -608,7 +608,7 @@ class TestConfigFileSelection(unittest.TestCase):
         self.DM.save([{"name": "C"}], "MAtest_C")
         for name in ["MAtest_A.json", "MAtest_B.json", "MAtest_C.json"]:
             self.assertTrue(
-                os.path.exists(os.path.join(self._tmpdir, "MAJson", name)),
+                os.path.exists(os.path.join(self._tmpdir, "MA Automation/json", name)),
                 f"应存在 {name}",
             )
         # 内容互不混淆
@@ -618,8 +618,8 @@ class TestConfigFileSelection(unittest.TestCase):
 
     def test_save_overwrites_existing_file(self):
         """save(data, 'X') 对已存在 X.json 静默覆盖(用户显式重存)。"""
-        os.makedirs(os.path.join(self._tmpdir, "MAJson"), exist_ok=True)
-        path = os.path.join(self._tmpdir, "MAJson", "MAtest1.json")
+        os.makedirs(os.path.join(self._tmpdir, "MA Automation/json"), exist_ok=True)
+        path = os.path.join(self._tmpdir, "MA Automation/json", "MAtest1.json")
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"tasks": [{"name": "old"}]}, f)
         self.DM.save([{"name": "new"}], "MAtest1")
@@ -628,17 +628,17 @@ class TestConfigFileSelection(unittest.TestCase):
     # ── list_configs() ─────────────────────────────────────
 
     def test_list_configs_empty_dir_returns_empty_list(self):
-        """MAJson 目录不存在时 list_configs() 返回空列表(不创建)。"""
-        self.assertFalse(os.path.exists(os.path.join(self._tmpdir, "MAJson")))
+        """配置目录不存在时 list_configs() 返回空列表(不创建)。"""
+        self.assertFalse(os.path.exists(os.path.join(self._tmpdir, "MA Automation/json")))
         result = self.DM.list_configs()
         self.assertEqual(result, [])
 
     def test_list_configs_with_files_returns_sorted_basenames(self):
-        """列出 MAJson 下所有 .json basename(无后缀),按字典序排序(sorted 稳态)。"""
-        os.makedirs(os.path.join(self._tmpdir, "MAJson"), exist_ok=True)
+        """列出配置目录下所有 .json basename(无后缀),按字典序排序(sorted 稳态)。"""
+        os.makedirs(os.path.join(self._tmpdir, "MA Automation/json"), exist_ok=True)
         # 故意打乱顺序,验证 sorted
         for name in ["MAtest_C.json", "MAtest_A.json", "MAtest_B.json"]:
-            with open(os.path.join(self._tmpdir, "MAJson", name), "w") as f:
+            with open(os.path.join(self._tmpdir, "MA Automation/json", name), "w") as f:
                 f.write("{}")
         self.assertEqual(
             self.DM.list_configs(),
@@ -647,20 +647,20 @@ class TestConfigFileSelection(unittest.TestCase):
 
     def test_list_configs_excludes_non_json_files(self):
         """list_configs() 只列 .json 文件,排除 .txt / .bak 等其他后缀。"""
-        os.makedirs(os.path.join(self._tmpdir, "MAJson"), exist_ok=True)
+        os.makedirs(os.path.join(self._tmpdir, "MA Automation/json"), exist_ok=True)
         for name in ["MAtest.json", "readme.txt", "config.bak", "notes.md"]:
-            with open(os.path.join(self._tmpdir, "MAJson", name), "w") as f:
+            with open(os.path.join(self._tmpdir, "MA Automation/json", name), "w") as f:
                 f.write("")
         self.assertEqual(self.DM.list_configs(), ["MAtest"])
 
     def test_list_configs_excludes_subdirectories(self):
         """list_configs() 只列顶层文件,排除同名/任意子目录。"""
         os.makedirs(
-            os.path.join(self._tmpdir, "MAJson", "subdir"),
+            os.path.join(self._tmpdir, "MA Automation/json", "subdir"),
             exist_ok=True,
         )
         with open(
-            os.path.join(self._tmpdir, "MAJson", "MAtest.json"), "w"
+            os.path.join(self._tmpdir, "MA Automation/json", "MAtest.json"), "w"
         ) as f:
             f.write("{}")
         self.assertEqual(self.DM.list_configs(), ["MAtest"])
@@ -668,10 +668,10 @@ class TestConfigFileSelection(unittest.TestCase):
     def test_list_configs_includes_empty_and_corrupt_files(self):
         """list_configs() 不验证 JSON 有效性,空文件 / 损坏文件也列出
         (由 ``load()`` 容错处理返回 ``[]``,不影响文件被发现)。"""
-        os.makedirs(os.path.join(self._tmpdir, "MAJson"), exist_ok=True)
+        os.makedirs(os.path.join(self._tmpdir, "MA Automation/json"), exist_ok=True)
         for name in ["empty.json", "corrupt.json", "valid.json"]:
             with open(
-                os.path.join(self._tmpdir, "MAJson", name), "w"
+                os.path.join(self._tmpdir, "MA Automation/json", name), "w"
             ) as f:
                 f.write(
                     "not valid json {"
@@ -685,17 +685,17 @@ class TestConfigFileSelection(unittest.TestCase):
         )
 
     def test_list_configs_does_not_create_directory(self):
-        """list_configs() 不应创建 MAJson 目录(纯只读,与 load() 一致)。
+        """list_configs() 不应创建配置目录(纯只读,与 load() 一致)。
 
         这是 list_configs 的**副作用契约**:与 load() 一样,目录不存在时
-        返回 [] 不创建。UI 在 MAJson 还没创建(用户首次打开)时调用
+        返回 [] 不创建。UI 在配置目录还没创建(用户首次打开)时调用
         list_configs 也安全。
         """
-        self.assertFalse(os.path.exists(os.path.join(self._tmpdir, "MAJson")))
+        self.assertFalse(os.path.exists(os.path.join(self._tmpdir, "MA Automation/json")))
         self.DM.list_configs()
         self.assertFalse(
-            os.path.exists(os.path.join(self._tmpdir, "MAJson")),
-            "list_configs() 不应创建 MAJson 目录",
+            os.path.exists(os.path.join(self._tmpdir, "MA Automation/json")),
+            "list_configs() 不应创建配置目录",
         )
 
 

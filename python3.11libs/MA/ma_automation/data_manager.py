@@ -9,7 +9,7 @@ MA Automation — Data Manager 数据持久化模块
 
 **多文件支持**:三方法 ``get_data_path`` / ``load`` / ``save`` 均接受
 可选的 ``filename`` 参数(无 ``.json`` 后缀),用于支持 UI 中"可编辑
-配置下拉菜单"——用户可选择 MAJson 目录下任一现存配置,或键入新名
+配置下拉菜单"——用户可选择配置目录下任一现存配置,或键入新名
 让 ``save()`` 在 Start 时创建新文件。``filename=None`` 走默认
 ``MA_Automation.json``,保持向后兼容。
 """
@@ -36,7 +36,7 @@ class MA_Automation_DataManager:
     """MA Automation 数据持久化管理器。
 
     所有方法均为类方法，无需实例化即可使用。
-    数据以 JSON 格式存储在 ``{HIP}/MAJson/MA_Automation.json``，
+    数据以 JSON 格式存储在 ``{HIP}/MA Automation/json/MA_Automation.json``，
     $HIP 不可用时 fallback 到系统临时目录。
     """
 
@@ -56,7 +56,7 @@ class MA_Automation_DataManager:
 
         ``hou`` 只在函数内部 try/except 导入,避免 Houdini 外 ImportError。
 
-        **无副作用**:不创建任何文件/目录。MAJson 目录只在 ``save()`` 真正
+        **无副作用**:不创建任何文件/目录。配置目录只在 ``save()`` 真正
         写入时才创建(由调用方负责)。这保证"打开面板不会产生任何文件"
         的契约。
         """
@@ -71,7 +71,7 @@ class MA_Automation_DataManager:
             base = tempfile.gettempdir()
 
         name = filename if filename else "MA_Automation"
-        return os.path.join(base, "MAJson", f"{name}.json")
+        return os.path.join(base, "MA Automation", "json", f"{name}.json")
 
     # ── 核心 IO ──────────────────────────────────────────
 
@@ -110,9 +110,9 @@ class MA_Automation_DataManager:
         写入结构: ``{"tasks": tasks_data}``
         使用 ``ensure_ascii=False``(支持中文)和 ``indent=2``。
 
-        **副作用**:首次调用会创建 ``{HIP}/MAJson/`` 目录
+        **副作用**:首次调用会创建 ``{HIP}/MA Automation/json/`` 目录
         (``os.makedirs(exist_ok=True)``)。这是 DataManager 中**唯一**允许
-        创建 MAJson 目录的入口,与"仅在 Start 时落盘"的语义配合
+        创建配置目录的入口,与"仅在 Start 时落盘"的语义配合
         —— 打开面板不会产生任何文件。
 
         Returns:
@@ -120,7 +120,7 @@ class MA_Automation_DataManager:
         """
         try:
             path = cls.get_data_path(filename)
-            os.makedirs(os.path.dirname(path), exist_ok=True)  # 仅此处创建 MAJson
+            os.makedirs(os.path.dirname(path), exist_ok=True)  # 仅此处创建配置目录
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(
                     {"tasks": tasks_data},
@@ -134,10 +134,10 @@ class MA_Automation_DataManager:
 
     @classmethod
     def list_configs(cls) -> list[str]:
-        """返回 MAJson 目录中所有 ``.json`` 配置文件的 basename 列表(**无后缀**)。
+        """返回配置目录中所有 ``.json`` 配置文件的 basename 列表(**无后缀**)。
 
         行为约定:
-          - **不创建** MAJson 目录(若不存在返回空列表,与 ``load()`` 一致)
+          - **不创建** 配置目录(若不存在返回空列表,与 ``load()`` 一致)
           - 只看顶层文件,排除子目录
           - 自动去 ``.json`` 后缀,直接作为 ``load(filename)`` /
             ``save(data, filename)`` 的入参
