@@ -38,9 +38,9 @@ class ExecutionEngine(QThread):
     通过信号向 UI 层报告进度和结果。
     """
 
-    task_started = Signal(int, str)        # (task_index, task_type_value)
-    task_completed = Signal(int, bool, str)  # (task_index, success, message)
-    all_completed = Signal(int, int)        # (success_count, fail_count)
+    task_started = Signal(int, str, str)        # (task_index, task_type_value, timestamp_str)
+    task_completed = Signal(int, bool, str, float)  # (task_index, success, message, elapsed_seconds)
+    all_completed = Signal(int, int, str)        # (success_count, fail_count, timestamp_str)
 
     def __init__(self, tasks: list[TaskItem], parent=None):
         super().__init__(parent)
@@ -60,7 +60,8 @@ class ExecutionEngine(QThread):
             if not task.enabled:
                 continue
 
-            self.task_started.emit(idx, task.task_type.value)
+            start_time = datetime.now()
+            self.task_started.emit(idx, task.task_type.value, start_time.strftime("%H:%M:%S"))
 
             try:
                 if task.task_type == TaskType.BUTTON_CLICK:
@@ -72,15 +73,17 @@ class ExecutionEngine(QThread):
                 else:
                     raise ValueError(f"未知任务类型: {task.task_type}")
 
-                self.task_completed.emit(idx, True, "执行成功")
+                elapsed = (datetime.now() - start_time).total_seconds()
+                self.task_completed.emit(idx, True, "执行成功", elapsed)
                 success_count += 1
             except Exception as e:
-                self.task_completed.emit(idx, False, str(e))
+                self.task_completed.emit(idx, False, str(e), 0)
                 fail_count += 1
 
             self.msleep(100)
 
-        self.all_completed.emit(success_count, fail_count)
+        timestamp = datetime.now().strftime("%Y/%m/%d/%H:%M:%S")
+        self.all_completed.emit(success_count, fail_count, timestamp)
 
     # ── 取消 ──────────────────────────────────────────────
 

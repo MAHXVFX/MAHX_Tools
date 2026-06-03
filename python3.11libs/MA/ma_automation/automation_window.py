@@ -1127,7 +1127,7 @@ class AutomationWindow(QDialog):
             return
 
         lines = ["=" * 50]
-        lines.append(f"{self._current_config_name} 执行日志")
+        lines.append(f"{self._current_config_name}:")
         lines.append("=" * 50)
         lines.append("")
 
@@ -1440,18 +1440,23 @@ class AutomationWindow(QDialog):
         self._start_btn.setText("Start")
         self._restore_stdout()
 
-    def _on_task_started(self, idx: int, task_type: str):
+    def _on_task_started(self, idx: int, task_type: str, timestamp: str):
         """单个任务开始时的回调。"""
-        print(f"MA Automation: 开始任务 {idx + 1} ({task_type})")
+        print(f"任务 {idx + 1} ({task_type}) {timestamp}")
 
-    def _on_task_completed(self, idx: int, ok: bool, msg: str):
+    def _on_task_completed(self, idx: int, ok: bool, msg: str, elapsed: float):
         """单个任务完成时的回调。"""
-        status = "✓" if ok else "✗"
-        print(f"任务 {idx + 1}: {status} - {msg}")
+        if ok:
+            hours = int(elapsed // 3600)
+            minutes = int((elapsed % 3600) // 60)
+            seconds = int(elapsed % 60)
+            print(f"✓ - 执行成功 耗时: {hours:02d}时{minutes:02d}分{seconds:02d}秒")
+        else:
+            print(f"✗ - {msg}")
 
-    def _on_all_completed(self, success: int, failed: int):
+    def _on_all_completed(self, success: int, failed: int, timestamp: str):
         """全部任务执行完毕的回调。"""
-        print(f"MA Automation: 执行完成 — 成功 {success}, 失败 {failed}")
+        print(f"{timestamp} 执行完成 — 成功 {success}, 失败 {failed}")
         self._running = False
         self._start_btn.setText("Start")
         self._engine = None

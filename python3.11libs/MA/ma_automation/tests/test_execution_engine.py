@@ -138,7 +138,7 @@ class TestExecutionEngine(unittest.TestCase):
 
         completed_records = []
         engine.task_completed.connect(
-            lambda idx, ok, msg: completed_records.append((idx, ok, msg)),
+            lambda idx, ok, msg, elapsed: completed_records.append((idx, ok, msg, elapsed)),
         )
 
         engine.run()
@@ -147,15 +147,17 @@ class TestExecutionEngine(unittest.TestCase):
         self.assertEqual(len(completed_records), 2)
 
         # 第一个任务失败
-        idx0, ok0, msg0 = completed_records[0]
+        idx0, ok0, msg0, elapsed0 = completed_records[0]
         self.assertEqual(idx0, 0)
         self.assertFalse(ok0)
         self.assertIn("button failed", msg0)
+        self.assertEqual(elapsed0, 0)
 
         # 第二个任务成功
-        idx1, ok1, msg1 = completed_records[1]
+        idx1, ok1, msg1, elapsed1 = completed_records[1]
         self.assertEqual(idx1, 1)
         self.assertTrue(ok1)
+        self.assertGreaterEqual(elapsed1, 0)
 
         # 第二个执行器应被调用
         engine._execute_flipbook.assert_called_once()
@@ -179,15 +181,16 @@ class TestExecutionEngine(unittest.TestCase):
 
         summary = []
         engine.all_completed.connect(
-            lambda s, f: summary.append((s, f)),
+            lambda s, f, ts: summary.append((s, f, ts)),
         )
 
         engine.run()
 
         self.assertEqual(len(summary), 1)
-        success_count, fail_count = summary[0]
+        success_count, fail_count, timestamp = summary[0]
         self.assertEqual(success_count, 2)  # button + HA
         self.assertEqual(fail_count, 1)  # flipbook
+        self.assertRegex(timestamp, r"^\d{4}/\d{2}/\d{2}/\d{2}:\d{2}:\d{2}$")
 
     # ── Test 6: Signal emission ────────────────────────────────
 
@@ -202,10 +205,10 @@ class TestExecutionEngine(unittest.TestCase):
         started = []
         completed = []
         engine.task_started.connect(
-            lambda idx, typ: started.append((idx, typ)),
+            lambda idx, typ, ts: started.append((idx, typ, ts)),
         )
         engine.task_completed.connect(
-            lambda idx, ok, msg: completed.append((idx, ok, msg)),
+            lambda idx, ok, msg, elapsed: completed.append((idx, ok, msg, elapsed)),
         )
 
         engine.run()
@@ -217,13 +220,17 @@ class TestExecutionEngine(unittest.TestCase):
         # 索引顺序正确
         self.assertEqual(started[0][0], 0)
         self.assertEqual(started[0][1], TaskType.BUTTON_CLICK.value)
+        self.assertRegex(started[0][2], r"^\d{2}:\d{2}:\d{2}$")
         self.assertEqual(completed[0][0], 0)
         self.assertTrue(completed[0][1])
+        self.assertGreaterEqual(completed[0][3], 0)
 
         self.assertEqual(started[1][0], 1)
         self.assertEqual(started[1][1], TaskType.FLIPBOOK.value)
+        self.assertRegex(started[1][2], r"^\d{2}:\d{2}:\d{2}$")
         self.assertEqual(completed[1][0], 1)
         self.assertTrue(completed[1][1])
+        self.assertGreaterEqual(completed[1][3], 0)
 
     # ── Test 7: msleep ─────────────────────────────────────────
 
@@ -261,12 +268,13 @@ class TestExecutionEngineEdgeCases(unittest.TestCase):
         engine.msleep = MagicMock()
 
         summary = []
-        engine.all_completed.connect(lambda s, f: summary.append((s, f)))
+        engine.all_completed.connect(lambda s, f, ts: summary.append((s, f, ts)))
 
         engine.run()
 
         self.assertEqual(len(summary), 1)
-        self.assertEqual(summary[0], (0, 0))
+        self.assertEqual(summary[0][:2], (0, 0))
+        self.assertRegex(summary[0][2], r"^\d{4}/\d{2}/\d{2}/\d{2}:\d{2}:\d{2}$")
         engine.msleep.assert_not_called()
 
     def test_all_disabled(self):
@@ -276,11 +284,12 @@ class TestExecutionEngineEdgeCases(unittest.TestCase):
         engine.msleep = MagicMock()
 
         summary = []
-        engine.all_completed.connect(lambda s, f: summary.append((s, f)))
+        engine.all_completed.connect(lambda s, f, ts: summary.append((s, f, ts)))
 
         engine.run()
 
-        self.assertEqual(summary[0], (0, 0))
+        self.assertEqual(summary[0][:2], (0, 0))
+        self.assertRegex(summary[0][2], r"^\d{4}/\d{2}/\d{2}/\d{2}:\d{2}:\d{2}$")
         engine._execute_button_click.assert_not_called()
         engine.msleep.assert_not_called()
 
