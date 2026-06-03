@@ -59,6 +59,12 @@ Qt 面板 UI + JSON 持久化 + QThread 后台执行。
     2. **NUL 字节** `"\x00" in text` —— POSIX 文件名拒绝
     3. **纯点号** `text.replace(".", "") == ""` —— 避免 `....json` 怪文件
     另三类 KEEP 原样透传(让 save 端 / OS 处理):前导点 `.hidden`(Unix 隐藏但 list_configs 仍会列出)、超长名 250 字符、中段 `\n`/`\t`。`re.search(r'[\\/:*?"<>|\x00]', text)` 是更激进的策略,但项目选"OS 可能能救"原则(让 save 端报真实错误而非静默改名)
+- **设置面板 `_open_settings`**:工具栏 `startBtn` 右侧放 `settings_btn`（`objectName="settingsBtn"`），点击弹出 `QDialog`。
+  - **选项**:"将日志输出到磁盘" checkbox，勾选后执行日志保存到 `$HIP/MA Automation/logs/` 目录
+  - **日志路径**:`YYYYMMDDHHMM.log`（精确到分钟），避免同名覆盖
+  - **日志头部**:执行前写入任务列表摘要（类型、启用状态、参数详情）
+  - **设置持久化**:`MA_Automation_DataManager.load_settings()` / `save_settings()` 读写 JSON 中 `settings` 字段，与 `tasks` 并列存储
+  - **加载时机**:`__init__` 中 `_load_data()` 之后调 `_load_settings()`，确保 `_current_config_name` 已确定
 
 ## Anti-Patterns
 

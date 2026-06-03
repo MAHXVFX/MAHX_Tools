@@ -121,9 +121,72 @@ class MA_Automation_DataManager:
         try:
             path = cls.get_data_path(filename)
             os.makedirs(os.path.dirname(path), exist_ok=True)  # 仅此处创建配置目录
+            # 读取现有数据（保留 settings）
+            existing_data = {}
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        existing_data = json.load(f)
+                except Exception:
+                    pass
+            # 合并数据
+            existing_data["tasks"] = tasks_data
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(
-                    {"tasks": tasks_data},
+                    existing_data,
+                    f,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            return True
+        except Exception:
+            return False
+
+    @classmethod
+    def load_settings(cls, filename: Optional[str] = None) -> dict:
+        """从 JSON 文件读取设置数据。
+
+        Args:
+            filename: 配置文件 basename(**无** ``.json`` 后缀)。
+
+        返回 ``data["settings"]``,若文件不存在或 JSON 损坏则返回空 dict。
+        """
+        path = cls.get_data_path(filename)
+        try:
+            if not os.path.exists(path):
+                return {}
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data.get("settings", {})
+        except Exception:
+            return {}
+
+    @classmethod
+    def save_settings(cls, settings_data: dict, filename: Optional[str] = None) -> bool:
+        """将设置 dict 写入 JSON 文件。
+
+        Args:
+            settings_data: 设置数据
+            filename: 配置文件 basename(**无** ``.json`` 后缀)。
+
+        写入结构: ``{"tasks": [...], "settings": settings_data}``
+        """
+        try:
+            path = cls.get_data_path(filename)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            # 读取现有数据（保留 tasks）
+            existing_data = {}
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        existing_data = json.load(f)
+                except Exception:
+                    pass
+            # 合并数据
+            existing_data["settings"] = settings_data
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(
+                    existing_data,
                     f,
                     ensure_ascii=False,
                     indent=2,

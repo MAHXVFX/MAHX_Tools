@@ -6,7 +6,10 @@ Singleton QDialog，非模态独立窗口。
 """
 
 import logging
+import os
 import re
+import sys
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -54,6 +57,27 @@ _WINDOWS_RESERVED = frozenset({
     *(f"COM{i}" for i in range(1, 10)),
     *(f"LPT{i}" for i in range(1, 10)),
 })
+
+
+# ── 日志 Tee 流 ─────────────────────────────────────────────
+
+class _LogTee:
+    """同时写入原始 stdout/stderr 和日志文件的 tee 流。
+
+    用于执行期间捕获所有 print() 输出到日志文件。
+    """
+
+    def __init__(self, original, log_fn):
+        self._original = original
+        self._log_fn = log_fn
+
+    def write(self, text):
+        self._original.write(text)
+        if text.strip():
+            self._log_fn(text.rstrip("\n"))
+
+    def flush(self):
+        self._original.flush()
 
 
 # ── Parm Path 编解码 ──────────────────────────────────────────
@@ -363,8 +387,12 @@ class AutomationWindow(QDialog):
         # ``_save_data`` 更新(用当前 combo 文本)。
         self._current_config_name: str = "MA_Automation"
 
+        # 设置项:日志输出到磁盘
+        self._log_to_disk_enabled: bool = False
+
         self._build_ui()
         self._load_data()
+        self._load_settings()
 
     # ── UI 构建 ────────────────────────────────────────────
 
@@ -428,13 +456,18 @@ class AutomationWindow(QDialog):
         clear_btn = QPushButton("Clear")
         clear_btn.clicked.connect(lambda: self._on_clear())
 
-        # 顺序:配置 → start → auto fill → clear   <stretch>
+        settings_btn = QPushButton("设置")
+        settings_btn.setObjectName("settingsBtn")
+        settings_btn.clicked.connect(lambda: self._open_settings())
+
+        # 顺序:配置 → start → auto fill → clear   <stretch>   设置
         toolbar1.addWidget(self._config_label)
         toolbar1.addWidget(self._config_combo)
         toolbar1.addWidget(self._start_btn)
         toolbar1.addWidget(auto_fill_btn)
         toolbar1.addWidget(clear_btn)
         toolbar1.addStretch()
+        toolbar1.addWidget(settings_btn)
 
         layout.addLayout(toolbar1)
 
@@ -982,6 +1015,155 @@ class AutomationWindow(QDialog):
                 self._update_selection_style()
         super().mousePressEvent(event)
 
+    # ── 设置面板 ───────────────────────────────────────────
+
+    def _open_settings(self):
+        """打开设置面板。"""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("设置")
+        dialog.setMinimumWidth(300)
+        dialog.setStyleSheet(
+            "QDialog { background-color: #1D1D20; color: white; }"
+            "QCheckBox { color: white; spacing: 8px; }"
+            "QCheckBox::indicator { width: 16px; height: 16px; }"
+            "QPushButton { background-color: #2d2d2d; color: white; border: 1px solid #3d3d3d; "
+            "border-radius: 4px; padding: 8px 16px; min-width: 60px; }"
+            "QPushButton:hover { background-color: #3d3d3d; }"
+        )
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        # 日志输出到磁盘选项
+        self._log_to_disk_cb = QCheckBox("将日志输出到磁盘")
+        self._log_to_disk_cb.setChecked(self._log_to_disk_enabled)
+        self._log_to_disk_cb.setToolTip("勾选后，执行日志将保存到 $HIP/MA Automation/logs/")
+        layout.addWidget(self._log_to_disk_cb)
+
+        # 按钮
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        cancel_btn = QPushButton("取消")
+        ok_btn = QPushButton("确定")
+        cancel_btn.clicked.connect(dialog.reject)
+        ok_btn.clicked.connect(dialog.accept)
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(ok_btn)
+        layout.addLayout(btn_layout)
+
+        if dialog.exec() == QDialog.Accepted:
+            self._log_to_disk_enabled = self._log_to_disk_cb.isChecked()
+            self._save_settings()
+
+    def _load_settings(self):
+        """从配置文件加载设置。"""
+        settings = MA_Automation_DataManager.load_settings(self._current_config_name)
+        self._log_to_disk_enabled = settings.get("log_to_disk", False)
+
+    def _save_settings(self):
+        """保存设置到配置文件。"""
+        MA_Automation_DataManager.save_settings(
+            {"log_to_disk": self._log_to_disk_enabled},
+            self._current_config_name,
+        )
+
+    def _get_log_path(self) -> str:
+        """获取日志文件路径（基于当前时间，防覆盖）。
+
+        同一分钟内多次执行时自动加后缀 .2, .3, ... 防止覆盖已有日志。
+        """
+        try:
+            import hou
+            hip = hou.getenv("HIP")
+            if hip:
+                base = hip
+            else:
+                import tempfile
+                base = tempfile.gettempdir()
+        except ImportError:
+            import tempfile
+            base = tempfile.gettempdir()
+
+        log_dir = os.path.join(base, "MA Automation", "logs")
+        os.makedirs(log_dir, exist_ok=True)
+
+        base_name = datetime.now().strftime("%Y%m%d%H%M")
+        log_path = os.path.join(log_dir, base_name + ".log")
+        if not os.path.exists(log_path):
+            return log_path
+
+        # 同一分钟已有文件，从 .2 开始递增
+        counter = 2
+        while True:
+            log_path = os.path.join(log_dir, f"{base_name}.{counter}.log")
+            if not os.path.exists(log_path):
+                return log_path
+            counter += 1
+
+    def _write_log(self, message: str):
+        """写入日志（如果启用了日志输出到磁盘）。
+
+        使用缓存路径,同一次执行内所有输出写入同一文件。
+        """
+        if not self._log_to_disk_enabled:
+            return
+
+        # 首次调用时确定路径并缓存
+        if not hasattr(self, "_current_log_path") or self._current_log_path is None:
+            self._current_log_path = self._get_log_path()
+
+        try:
+            with open(self._current_log_path, "a", encoding="utf-8") as f:
+                f.write(message + "\n")
+        except Exception:
+            pass  # 日志写入失败不影响主流程
+
+    def _write_log_header(self):
+        """写入日志头部（当前任务列表信息）。"""
+        if not self._log_to_disk_enabled:
+            return
+
+        lines = ["=" * 50]
+        lines.append(f"{self._current_config_name} 执行日志")
+        lines.append("=" * 50)
+        lines.append("")
+
+        # 收集当前任务列表信息
+        tasks_data = self._collect_data()
+        if tasks_data:
+            lines.append("任务列表:")
+            lines.append("-" * 30)
+            for i, task in enumerate(tasks_data, 1):
+                task_type = task.get("type", "UNKNOWN")
+                enabled = "启用" if task.get("enabled", True) else "禁用"
+                params = task.get("params", {})
+
+                lines.append(f"任务 {i}: {task_type} [{enabled}]")
+                if task_type == "BUTTON_CLICK":
+                    node_path = params.get("node_path", "")
+                    parm_name = params.get("parm_name", "")
+                    lines.append(f"  节点: {node_path}")
+                    lines.append(f"  参数: {parm_name}")
+                elif task_type == "FLIPBOOK":
+                    frame_range = params.get("frame_range", [1, 100])
+                    output_path = params.get("output_path", "")
+                    lines.append(f"  帧范围: {frame_range[0]}-{frame_range[1]}")
+                    lines.append(f"  输出路径: {output_path}")
+                elif task_type == "HOME_ASSISTANT":
+                    webhook_url = params.get("webhook_url", "")
+                    lines.append(f"  Webhook: {webhook_url}")
+                lines.append("")
+        else:
+            lines.append("任务列表: (空)")
+            lines.append("")
+
+        lines.append("-" * 30)
+        lines.append("")
+        self._write_log("\n".join(lines))
+
     # ── 数据持久化 ─────────────────────────────────────────
 
     def _load_data(self):
@@ -1058,6 +1240,7 @@ class AutomationWindow(QDialog):
             return
         self._current_config_name = name
         self._load_data()  # 重新加载,内部会再 refresh 一次(无副作用)
+        self._load_settings()  # 同步加载新配置的设置项
 
     def _get_save_target_name(self) -> str | None:
         """从下拉当前文本提取保存文件名(已 sanitize)。
@@ -1226,6 +1409,19 @@ class AutomationWindow(QDialog):
         tasks_data = self._save_data()  # 收集 + 落盘(只此一处)
         task_items = [TaskItem.from_dict(d) for d in tasks_data]
 
+        # 清除上次日志路径缓存，本次执行重新计算
+        self._current_log_path = None
+
+        # 写入日志头部（任务列表信息）
+        self._write_log_header()
+
+        # 重定向 stdout/stderr 到日志文件
+        if self._log_to_disk_enabled:
+            self._orig_stdout = sys.stdout
+            self._orig_stderr = sys.stderr
+            sys.stdout = _LogTee(self._orig_stdout, self._write_log)
+            sys.stderr = _LogTee(self._orig_stderr, self._write_log)
+
         self._engine = ExecutionEngine(task_items)
         self._engine.task_started.connect(self._on_task_started)
         self._engine.task_completed.connect(self._on_task_completed)
@@ -1242,6 +1438,7 @@ class AutomationWindow(QDialog):
         print("MA Automation: 用户取消执行")
         self._running = False
         self._start_btn.setText("Start")
+        self._restore_stdout()
 
     def _on_task_started(self, idx: int, task_type: str):
         """单个任务开始时的回调。"""
@@ -1258,6 +1455,16 @@ class AutomationWindow(QDialog):
         self._running = False
         self._start_btn.setText("Start")
         self._engine = None
+        self._restore_stdout()
+
+    def _restore_stdout(self):
+        """恢复被重定向的 stdout/stderr。"""
+        if self._log_to_disk_enabled and hasattr(self, "_orig_stdout"):
+            sys.stdout = self._orig_stdout
+            sys.stderr = self._orig_stderr
+            del self._orig_stdout
+            del self._orig_stderr
+            self._current_log_path = None  # 清除日志路径缓存
 
     # ── 工具栏动作 ──────────────────────────────────────────
 
