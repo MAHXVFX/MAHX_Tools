@@ -126,7 +126,6 @@ class ThumbnailWidget(QtWidgets.QWidget):
                 "border: 1px solid #ffffff; "
                 "border-radius: 4px; "
                 "padding: 2px 8px; "
-                "font-weight: bold;"
             )
         elif self._bg_color and self._border_color:
             # 半透明背景 + 边框
@@ -136,10 +135,9 @@ class ThumbnailWidget(QtWidgets.QWidget):
                 f"border: 2px solid {self._border_color}; "
                 f"border-radius: 4px; "
                 f"padding: 2px 8px; "
-                f"font-weight: bold;"
             )
         else:
-            self.name_label.setStyleSheet(f"color: {TEXT_SECONDARY}; background-color: transparent; font-weight: bold;")
+            self.name_label.setStyleSheet(f"color: {TEXT_SECONDARY}; background-color: transparent;")
 
     def _on_toggle_favorite(self):
         """切换收藏状态并刷新面板。"""
@@ -211,14 +209,14 @@ class ThumbnailWidget(QtWidgets.QWidget):
         if size == self._size:
             return
         self._size = size
-        name_h = max(14, size // 6)
+        name_h = max(16, size // 6)
         radius = max(3, size // 8)
         self.setFixedSize(size, size + 4 + name_h + 8)
         # +2 缓冲防止右边缘圆角被裁剪
         self.image_container.setFixedSize(size + 2, size + 2)
         self.name_label.setFixedHeight(name_h)
         font = self.name_label.font()
-        font.setPointSize(max(7, size // 16))
+        font.setPointSize(max(7, size // 14))
         self.name_label.setFont(font)
 
         # 更新星标大小
@@ -231,7 +229,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
 
     def previewSize(self, size):
         """Cheap live resize while dragging; final render happens on release."""
-        name_h = max(14, size // 6)
+        name_h = max(16, size // 6)
         self.setFixedSize(size, size + 4 + name_h + 8)
         self.image_container.setFixedSize(size + 2, size + 2)
         self.image_label.setGeometry(0, 0, size + 2, size + 2)
@@ -239,10 +237,9 @@ class ThumbnailWidget(QtWidgets.QWidget):
         star_size = max(16, size // 5)
         self.favorite_star.setFixedSize(star_size, star_size)
         self.favorite_star.move(size + 2 - star_size - 2, 2)
-        self._update_favorite_icon(star_size)
         self.name_label.setFixedHeight(name_h)
         font = self.name_label.font()
-        font.setPointSize(max(7, size // 16))
+        font.setPointSize(max(7, size // 14))
         self.name_label.setFont(font)
 
         pixmap = self._rendered_pixmap
