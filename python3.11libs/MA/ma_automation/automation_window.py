@@ -1126,41 +1126,25 @@ class AutomationWindow(QDialog):
         if not self._log_to_disk_enabled:
             return
 
-        lines = ["=" * 50]
+        lines = ["=" * 80]
         lines.append(f"{self._current_config_name}:")
-        lines.append("=" * 50)
         lines.append("")
 
         # 收集当前任务列表信息
         tasks_data = self._collect_data()
         if tasks_data:
-            lines.append("任务列表:")
-            lines.append("-" * 30)
             for i, task in enumerate(tasks_data, 1):
                 task_type = task.get("type", "UNKNOWN")
-                enabled = "启用" if task.get("enabled", True) else "禁用"
+                enabled = task.get("enabled", True)
+                if not enabled:
+                    continue
                 params = task.get("params", {})
-
-                lines.append(f"任务 {i}: {task_type} [{enabled}]")
-                if task_type == "BUTTON_CLICK":
-                    node_path = params.get("node_path", "")
-                    parm_name = params.get("parm_name", "")
-                    lines.append(f"  节点: {node_path}")
-                    lines.append(f"  参数: {parm_name}")
-                elif task_type == "FLIPBOOK":
-                    frame_range = params.get("frame_range", [1, 100])
-                    output_path = params.get("output_path", "")
-                    lines.append(f"  帧范围: {frame_range[0]}-{frame_range[1]}")
-                    lines.append(f"  输出路径: {output_path}")
-                elif task_type == "HOME_ASSISTANT":
-                    webhook_url = params.get("webhook_url", "")
-                    lines.append(f"  Webhook: {webhook_url}")
-                lines.append("")
+                node_path = params.get("node_path", "")
+                parm_name = params.get("parm_name", "")
+                lines.append(f"任务 {i}: {task_type} [{node_path}/{parm_name}]")
         else:
             lines.append("任务列表: (空)")
-            lines.append("")
 
-        lines.append("-" * 30)
         lines.append("")
         self._write_log("\n".join(lines))
 
@@ -1454,13 +1438,17 @@ class AutomationWindow(QDialog):
         else:
             print(f"✗ - {msg}")
 
-    def _on_all_completed(self, success: int, failed: int, timestamp: str):
+    def _on_all_completed(self, success: int, failed: int, timestamp: str, total_elapsed: float):
         """全部任务执行完毕的回调。"""
-        print(f"{timestamp} 执行完成 — 成功 {success}, 失败 {failed}")
+        hours = int(total_elapsed // 3600)
+        minutes = int((total_elapsed % 3600) // 60)
+        seconds = int(total_elapsed % 60)
+        print(f"{timestamp} 执行完成 总耗时: {hours:02d}时{minutes:02d}分{seconds:02d}秒 — 成功 {success}, 失败 {failed}")
         self._running = False
         self._start_btn.setText("Start")
         self._engine = None
         self._restore_stdout()
+        self._write_log("=" * 80)
 
     def _restore_stdout(self):
         """恢复被重定向的 stdout/stderr。"""

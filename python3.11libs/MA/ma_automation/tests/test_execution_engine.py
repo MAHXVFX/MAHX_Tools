@@ -181,16 +181,17 @@ class TestExecutionEngine(unittest.TestCase):
 
         summary = []
         engine.all_completed.connect(
-            lambda s, f, ts: summary.append((s, f, ts)),
+            lambda s, f, ts, elapsed: summary.append((s, f, ts, elapsed)),
         )
 
         engine.run()
 
         self.assertEqual(len(summary), 1)
-        success_count, fail_count, timestamp = summary[0]
+        success_count, fail_count, timestamp, total_elapsed = summary[0]
         self.assertEqual(success_count, 2)  # button + HA
         self.assertEqual(fail_count, 1)  # flipbook
         self.assertRegex(timestamp, r"^\d{4}/\d{2}/\d{2}/\d{2}:\d{2}:\d{2}$")
+        self.assertGreaterEqual(total_elapsed, 0)
 
     # ── Test 6: Signal emission ────────────────────────────────
 
@@ -268,13 +269,14 @@ class TestExecutionEngineEdgeCases(unittest.TestCase):
         engine.msleep = MagicMock()
 
         summary = []
-        engine.all_completed.connect(lambda s, f, ts: summary.append((s, f, ts)))
+        engine.all_completed.connect(lambda s, f, ts, elapsed: summary.append((s, f, ts, elapsed)))
 
         engine.run()
 
         self.assertEqual(len(summary), 1)
         self.assertEqual(summary[0][:2], (0, 0))
         self.assertRegex(summary[0][2], r"^\d{4}/\d{2}/\d{2}/\d{2}:\d{2}:\d{2}$")
+        self.assertGreaterEqual(summary[0][3], 0)
         engine.msleep.assert_not_called()
 
     def test_all_disabled(self):
@@ -284,12 +286,13 @@ class TestExecutionEngineEdgeCases(unittest.TestCase):
         engine.msleep = MagicMock()
 
         summary = []
-        engine.all_completed.connect(lambda s, f, ts: summary.append((s, f, ts)))
+        engine.all_completed.connect(lambda s, f, ts, elapsed: summary.append((s, f, ts, elapsed)))
 
         engine.run()
 
         self.assertEqual(summary[0][:2], (0, 0))
         self.assertRegex(summary[0][2], r"^\d{4}/\d{2}/\d{2}/\d{2}:\d{2}:\d{2}$")
+        self.assertGreaterEqual(summary[0][3], 0)
         engine._execute_button_click.assert_not_called()
         engine.msleep.assert_not_called()
 

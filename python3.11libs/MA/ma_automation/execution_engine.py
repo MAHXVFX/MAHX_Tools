@@ -40,7 +40,7 @@ class ExecutionEngine(QThread):
 
     task_started = Signal(int, str, str)        # (task_index, task_type_value, timestamp_str)
     task_completed = Signal(int, bool, str, float)  # (task_index, success, message, elapsed_seconds)
-    all_completed = Signal(int, int, str)        # (success_count, fail_count, timestamp_str)
+    all_completed = Signal(int, int, str, float)    # (success_count, fail_count, timestamp_str, total_elapsed)
 
     def __init__(self, tasks: list[TaskItem], parent=None):
         super().__init__(parent)
@@ -53,6 +53,7 @@ class ExecutionEngine(QThread):
         """遍历所有任务，派发给对应的执行器。"""
         success_count = 0
         fail_count = 0
+        run_start_time = None
 
         for idx, task in enumerate(self._tasks):
             if self._cancelled:
@@ -61,6 +62,8 @@ class ExecutionEngine(QThread):
                 continue
 
             start_time = datetime.now()
+            if run_start_time is None:
+                run_start_time = start_time
             self.task_started.emit(idx, task.task_type.value, start_time.strftime("%H:%M:%S"))
 
             try:
@@ -83,7 +86,8 @@ class ExecutionEngine(QThread):
             self.msleep(100)
 
         timestamp = datetime.now().strftime("%Y/%m/%d/%H:%M:%S")
-        self.all_completed.emit(success_count, fail_count, timestamp)
+        total_elapsed = (datetime.now() - run_start_time).total_seconds() if run_start_time else 0
+        self.all_completed.emit(success_count, fail_count, timestamp, total_elapsed)
 
     # ── 取消 ──────────────────────────────────────────────
 
