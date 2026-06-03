@@ -1123,8 +1123,11 @@ class AutomationWindow(QDialog):
 
     def _write_log_header(self):
         """写入日志头部（当前任务列表信息）。"""
-        sep = "=" * 80
-        header_lines = [sep, f"{self._current_config_name}:", ""]
+        print("=" * 80)
+        if not self._log_to_disk_enabled:
+            return
+
+        lines = [f"{self._current_config_name}:", ""]
 
         # 收集当前任务列表信息
         tasks_data = self._collect_data()
@@ -1137,16 +1140,12 @@ class AutomationWindow(QDialog):
                 params = task.get("params", {})
                 node_path = params.get("node_path", "")
                 parm_name = params.get("parm_name", "")
-                header_lines.append(f"任务 {i}: {task_type} [{node_path}/{parm_name}]")
+                lines.append(f"任务 {i}: {task_type} [{node_path}/{parm_name}]")
         else:
-            header_lines.append("任务列表: (空)")
+            lines.append("任务列表: (空)")
 
-        header_lines.append("")
-        # 同时输出到控制台和日志文件
-        for line in header_lines:
-            print(line)
-        if self._log_to_disk_enabled:
-            self._write_log("\n".join(header_lines))
+        lines.append("")
+        self._write_log("\n".join(lines))
 
     # ── 数据持久化 ─────────────────────────────────────────
 
