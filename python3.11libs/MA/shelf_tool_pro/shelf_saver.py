@@ -402,7 +402,7 @@ except Exception as _hs_err:
         
         # 构建 toolshelf 包装（让原生工具架 UI 能正确分组显示）
         shelf_stem = os.path.splitext(os.path.basename(shelf_file_path))[0]
-        toolshelf_xml = f'\n  <toolshelf name="{shelf_stem}" label="{shelf_stem}">\n    <memberTool name="{tool_name}"/>\n  </toolshelf>\n'
+        toolshelf_xml = f'  <toolshelf name="{shelf_stem}" label="{shelf_stem}">\n    <memberTool name="{tool_name}"/>\n  </toolshelf>\n\n'
         
         tag_re = re.compile(
             r'(<tool\s+name="' + re.escape(tool_name) + r'"[^>]*?)>'
@@ -419,10 +419,19 @@ except Exception as _hs_err:
         
         # 注入 toolshelf 包装（在 </shelfDocument> 之前）
         if toolshelf_xml not in new_content:
-            new_content = new_content.replace(
-                '</shelfDocument>',
-                f'{toolshelf_xml}</shelfDocument>'
-            )
+            first_tool = re.search(r'\n  <tool\s+name="', new_content)
+            if first_tool:
+                insert_at = first_tool.start() + 1
+                new_content = (
+                    new_content[:insert_at]
+                    + toolshelf_xml
+                    + new_content[insert_at:]
+                )
+            else:
+                new_content = new_content.replace(
+                    '</shelfDocument>',
+                    f'\n{toolshelf_xml}</shelfDocument>'
+                )
         
         if new_content != content:
             _atomic_write(shelf_file_path, new_content)

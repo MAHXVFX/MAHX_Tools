@@ -300,6 +300,62 @@ def _canonicalize_params_for_hscript(params: dict) -> dict:
     return result
 
 
+def _values_match_default(current, default) -> bool:
+    """Return True when an asCode value represents the parm template default."""
+    if isinstance(default, tuple) and len(default) == 1:
+        default = default[0]
+
+    if isinstance(current, str):
+        current_cmp = current.strip()
+        if isinstance(default, str):
+            return current_cmp == default.strip()
+        return current_cmp == str(default).strip()
+
+    if isinstance(current, (int, float)) and isinstance(default, (int, float)):
+        return abs(float(current) - float(default)) < 1e-9
+
+    return current == default
+
+
+def _parm_value_matches_default(parm, template, value) -> bool:
+    """Compare a value extracted from node.asCode() with the parm default."""
+    try:
+        if hasattr(parm, "isAtDefault") and parm.isAtDefault():
+            return True
+    except Exception:
+        pass
+
+    try:
+        default = template.defaultValue()
+    except Exception:
+        return False
+
+    try:
+        ptype = template.type()
+        if ptype == hou.parmTemplateType.Ramp:
+            return False
+        if ptype in (
+            hou.parmTemplateType.String,
+            hou.parmTemplateType.Toggle,
+            hou.parmTemplateType.Int,
+            hou.parmTemplateType.Float,
+            hou.parmTemplateType.Menu,
+        ):
+            return _values_match_default(value, default)
+    except Exception:
+        pass
+
+    try:
+        current = parm.unexpandedString()
+        if len(default) == 1:
+            default_text = str(default[0])
+        else:
+            default_text = " ".join(str(d) for d in default)
+        return str(current).strip() == default_text.strip()
+    except Exception:
+        return False
+
+
 class HScriptBuilder:
     """将节点网络转换为 hscript 命令构建器。
 
@@ -398,6 +454,12 @@ class HScriptBuilder:
 
         return "\n".join(c for c in cmds if c)
 
+    def _quote_hscript_token(self, value: str) -> str:
+        """Quote an hscript token when needed."""
+        if re.match(r"^[A-Za-z0-9_./:-]+$", value):
+            return value
+        return "'" + value.replace("'", "'\\''") + "'"
+
     # ── 变量名生成 ────────────────────────────────────────────
 
     def _generate_var_name(self, node):
@@ -469,8 +531,13 @@ class HScriptBuilder:
         2. 失败时用 fallback 遍历所有 parm 检测非默认值
         3. 支持 ___Version___ 版本标记
         """
+        native_cmds = self._native_opparm_commands(node, var_name)
+        if native_cmds:
+            cmds.extend(native_cmds)
+            return
+
         params = self._get_modified_params_via_ascode(node)
-        if params:
+        if params is not None:
             params.update(self._get_critical_params_fallback(node, params))
         else:
             params = self._get_modified_params_fallback(node)
@@ -495,7 +562,45 @@ class HScriptBuilder:
             else:
                 cmds.append(f"opparm ${var_name}  {' '.join(parts)}")
 
-    def _get_modified_params_via_ascode(self, node) -> dict:
+    def _native_opparm_commands(self, node: hou.Node, var_name: str) -> list[str]:
+        """Return Houdini-native brief opparm lines for one node."""
+        try:
+            parent = node.parent()
+            if parent is None:
+                return []
+
+            output, err = hou.hscript(
+                f"opcf {self._quote_hscript_token(parent.path())}\n"
+                f"opscript -b -s {self._quote_hscript_token(node.name())}"
+            )
+            if err:
+                logger.debug("opscript parm stderr for %s: %s", node.path(), err)
+            if not output:
+                return []
+
+            node_name = re.escape(node.name())
+            target_re = re.compile(
+                r"^(opparm(?:\s+-V\s+\S+)?)\s+"
+                r"(?:" + node_name + r"|'"
+                + node_name + r"')(\s+.+)$"
+            )
+
+            result = []
+            for line in output.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+                stripped = line.strip()
+                if not stripped.startswith("opparm "):
+                    continue
+                match = target_re.match(stripped)
+                if not match:
+                    continue
+                result.append(f"{match.group(1)} ${var_name}{match.group(2)}")
+
+            return result
+        except Exception as e:
+            logger.debug("native opparm extraction failed for %s: %s", node.path(), e)
+            return []
+
+    def _get_modified_params_via_ascode(self, node):
         """通过 node.asCode() 提取修改参数。
 
         策略：
@@ -506,16 +611,70 @@ class HScriptBuilder:
         try:
             code_str = node.asCode()
             if not code_str or not code_str.strip():
-                return {}
+                return None
 
             params = _extract_setparms(code_str)
             if params:
-                return params
+                return self._filter_ascode_params(node, params)
 
-            return _extract_parm_sets(code_str)
+            params = _extract_parm_sets(code_str)
+            if params:
+                return self._filter_ascode_params(node, params)
+
+            return None
         except Exception as e:
             logger.debug("asCode failed for %s: %s", node.path(), e)
+            return None
+
+    def _filter_ascode_params(self, node, params: dict) -> dict:
+        """Keep only values that native shelf output would need to restore."""
+        if not params:
             return {}
+
+        result = {}
+        for name, value in params.items():
+            try:
+                parm = node.parm(name)
+                if parm is None:
+                    result[name] = value
+                    continue
+
+                template = parm.parmTemplate()
+                if template is None:
+                    result[name] = value
+                    continue
+
+                ptype = template.type()
+                if ptype in (
+                    hou.parmTemplateType.Separator,
+                    hou.parmTemplateType.Label,
+                ):
+                    continue
+
+                # VEX editor parms are often dynamic/hidden; keep non-empty text
+                # even when the template default comparison is unreliable.
+                if _VEX_EXPRESSION_PARAM_RE.search(name):
+                    text_value = self._parm_string_value(parm, template, ptype)
+                    if isinstance(text_value, str) and text_value:
+                        result[name] = text_value
+                    elif value:
+                        result[name] = value
+                    continue
+
+                if _parm_value_matches_default(parm, template, value):
+                    continue
+
+                result[name] = value
+            except Exception as e:
+                logger.debug(
+                    "asCode parm filter error for %s on %s: %s",
+                    name,
+                    node.path(),
+                    e,
+                )
+                result[name] = value
+
+        return result
 
     def _get_modified_params_fallback(self, node) -> dict:
         """备用方案：遍历所有 parm，检测非默认值。
@@ -604,7 +763,7 @@ class HScriptBuilder:
 
     def _parm_string_value(self, parm, template, ptype):
         """Return text parm contents, including multiline editor parms."""
-        for method_name in ("unexpandedString", "rawValue", "evalAsString", "eval"):
+        for method_name in ("rawValue", "unexpandedString", "evalAsString", "eval"):
             try:
                 method = getattr(parm, method_name, None)
                 if method is None:
