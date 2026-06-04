@@ -62,24 +62,9 @@ class TestFlipbookParams(unittest.TestCase):
     """Test FlipbookParams dataclass."""
 
     def test_create(self):
-        """Test 3: Create FlipbookParams with all fields."""
-        params = FlipbookParams(
-            frame_range=(1001, 1100),
-            output_path="$HIP/render/test.exr",
-            output_enabled=True,
-        )
-        self.assertEqual(params.frame_range, (1001, 1100))
-        self.assertEqual(params.output_path, "$HIP/render/test.exr")
-        self.assertTrue(params.output_enabled)
-
-    def test_output_enabled_false(self):
-        """Test output_enabled=False path."""
-        params = FlipbookParams(
-            frame_range=(1, 50),
-            output_path="$HIP/output.$F4.png",
-            output_enabled=False,
-        )
-        self.assertFalse(params.output_enabled)
+        """Test 3: Create FlipbookParams (empty, no fields)."""
+        params = FlipbookParams()
+        self.assertIsInstance(params, FlipbookParams)
 
 
 class TestHomeAssistantParams(unittest.TestCase):
@@ -107,11 +92,7 @@ class TestTaskItem(unittest.TestCase):
         )
         self.flipbook_item = TaskItem(
             task_type=TaskType.FLIPBOOK,
-            params=FlipbookParams(
-                frame_range=(1, 50),
-                output_path="$HIP/render.$F4.png",
-                output_enabled=True,
-            ),
+            params=FlipbookParams(),
             enabled=False,
         )
         self.ha_item = TaskItem(
@@ -149,11 +130,7 @@ class TestTaskItemSerialization(unittest.TestCase):
         )
         self.flipbook_item = TaskItem(
             task_type=TaskType.FLIPBOOK,
-            params=FlipbookParams(
-                frame_range=(1, 50),
-                output_path="$HIP/render.$F4.png",
-                output_enabled=True,
-            ),
+            params=FlipbookParams(),
             enabled=False,
         )
         self.ha_item = TaskItem(
@@ -171,12 +148,10 @@ class TestTaskItemSerialization(unittest.TestCase):
         self.assertTrue(d["enabled"])
 
     def test_to_dict_flipbook(self):
-        """Test 6b: to_dict() for Flipbook TaskItem (frame_range as list)."""
+        """Test 6b: to_dict() for Flipbook TaskItem (empty params)."""
         d = self.flipbook_item.to_dict()
         self.assertEqual(d["type"], "FLIPBOOK")
-        self.assertEqual(d["params"]["frame_range"], [1, 50])
-        self.assertEqual(d["params"]["output_path"], "$HIP/render.$F4.png")
-        self.assertTrue(d["params"]["output_enabled"])
+        self.assertEqual(d["params"], {})
         self.assertFalse(d["enabled"])
 
     def test_to_dict_home_assistant(self):
@@ -201,7 +176,19 @@ class TestTaskItemSerialization(unittest.TestCase):
         self.assertFalse(item.enabled)
 
     def test_from_dict_flipbook(self):
-        """Test 7b: from_dict() for Flipbook TaskItem (frame_range from list)."""
+        """Test 7b: from_dict() for Flipbook TaskItem (empty params, backward compat)."""
+        data = {
+            "type": "FLIPBOOK",
+            "params": {},
+            "enabled": True,
+        }
+        item = TaskItem.from_dict(data)
+        self.assertIs(item.task_type, TaskType.FLIPBOOK)
+        self.assertIsInstance(item.params, FlipbookParams)
+        self.assertTrue(item.enabled)
+
+    def test_from_dict_flipbook_backward_compat(self):
+        """Test 7b+: from_dict() for Flipbook with old format (fields ignored)."""
         data = {
             "type": "FLIPBOOK",
             "params": {
@@ -214,9 +201,6 @@ class TestTaskItemSerialization(unittest.TestCase):
         item = TaskItem.from_dict(data)
         self.assertIs(item.task_type, TaskType.FLIPBOOK)
         self.assertIsInstance(item.params, FlipbookParams)
-        self.assertEqual(item.params.frame_range, (100, 200))
-        self.assertEqual(item.params.output_path, "$HIP/test.exr")
-        self.assertFalse(item.params.output_enabled)
         self.assertTrue(item.enabled)
 
     def test_from_dict_home_assistant(self):
@@ -246,9 +230,7 @@ class TestTaskItemSerialization(unittest.TestCase):
         original = self.flipbook_item
         restored = TaskItem.from_dict(original.to_dict())
         self.assertIs(restored.task_type, original.task_type)
-        self.assertEqual(restored.params.frame_range, original.params.frame_range)
-        self.assertEqual(restored.params.output_path, original.params.output_path)
-        self.assertEqual(restored.params.output_enabled, original.params.output_enabled)
+        self.assertIsInstance(restored.params, FlipbookParams)
         self.assertEqual(restored.enabled, original.enabled)
 
     def test_round_trip_home_assistant(self):

@@ -171,25 +171,12 @@ class TestSerializeDeserializeParams(unittest.TestCase):
         self.assertEqual(restored.parm_name, "execute")
 
     def test_flipbook_round_trip(self):
-        """Test 4b: FlipbookParams 往返（frame_range tuple↔list）。"""
-        params = FlipbookParams(
-            frame_range=(1, 50),
-            output_path="$HIP/render.$F4.png",
-            output_enabled=True,
-        )
+        """Test 4b: FlipbookParams 往返（空 params）。"""
+        params = FlipbookParams()
         d = self.DM.serialize_params(params)
-        # frame_range 应为 list
-        self.assertEqual(d["frame_range"], [1, 50])
-        self.assertEqual(d["output_path"], "$HIP/render.$F4.png")
-        self.assertTrue(d["output_enabled"])
-        # 反序列化
+        self.assertEqual(d, {})
         restored = self.DM.deserialize_params(TaskType.FLIPBOOK.value, d)
         self.assertIsInstance(restored, FlipbookParams)
-        # frame_range 恢复为 tuple
-        self.assertIsInstance(restored.frame_range, tuple)
-        self.assertEqual(restored.frame_range, (1, 50))
-        self.assertEqual(restored.output_path, "$HIP/render.$F4.png")
-        self.assertTrue(restored.output_enabled)
 
     def test_home_assistant_round_trip(self):
         """Test 4c: HomeAssistantParams 往返。"""
@@ -244,11 +231,7 @@ class TestSaveLoadTasks(unittest.TestCase):
             ),
             self._make_task(
                 TaskType.FLIPBOOK,
-                FlipbookParams(
-                    frame_range=(1, 50),
-                    output_path="$HIP/test.exr",
-                    output_enabled=True,
-                ),
+                FlipbookParams(),
                 enabled=False,
             ),
             self._make_task(
@@ -284,9 +267,6 @@ class TestSaveLoadTasks(unittest.TestCase):
         # 验证第 2 个（Flipbook）
         self.assertIs(loaded[1].task_type, TaskType.FLIPBOOK)
         self.assertIsInstance(loaded[1].params, FlipbookParams)
-        self.assertEqual(loaded[1].params.frame_range, (1, 50))
-        self.assertEqual(loaded[1].params.output_path, "$HIP/test.exr")
-        self.assertTrue(loaded[1].params.output_enabled)
         self.assertFalse(loaded[1].enabled)
 
         # 验证第 3 个（HomeAssistant）

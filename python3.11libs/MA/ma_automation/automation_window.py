@@ -147,6 +147,28 @@ def _extract_parm_path(text: str) -> str:
         return m.group(1)
     return text
 
+
+def _read_houdini_flipbook_settings() -> tuple[str, str]:
+    """读取当前 Houdini Scene Viewer 的 flipbook 设置。
+
+    Returns:
+        ``(frame_range_str, output_path_str)``，如 ``("1-100", "$HIP/flip.$F4.jpg")``。
+        读取失败（无 Houdini / 无 Scene Viewer / 任何异常）返回 ``("--", "--")``。
+    """
+    try:
+        import hou
+        scene = hou.ui.paneTabOfType(hou.paneTabType.SceneViewer)
+        if scene is None:
+            return "--", "--"
+        settings = scene.flipbookSettings()
+        fr = settings.frameRange()
+        frame_str = f"{int(fr[0])}-{int(fr[1])}"
+        output = settings.output() or "--"
+        return frame_str, output
+    except Exception:
+        return "--", "--"
+
+
 # ── Singleton ────────────────────────────────────────────────
 
 _window = None
@@ -576,23 +598,19 @@ class AutomationWindow(QDialog):
         p0_layout.addWidget(parm_path_le)
         stacked.addWidget(page0)
 
-        # Page 1: Flipbook
+        # Page 1: Flipbook — 只读显示当前 Houdini 工程的 flipbook 设置
         page1 = QWidget()
         p1_layout = QHBoxLayout(page1)
         p1_layout.setContentsMargins(0, 0, 0, 0)
         p1_layout.setSpacing(4)
-        frame_range_le = QLineEdit()
-        frame_range_le.setObjectName("frameRange")
-        frame_range_le.setPlaceholderText("帧范围 (1-100)")
-        output_path_le = QLineEdit()
-        output_path_le.setObjectName("outputPath")
-        output_path_le.setPlaceholderText("输出路径")
-        output_enabled_cb = QCheckBox("输出")
-        output_enabled_cb.setObjectName("outputEnabled")
-        output_enabled_cb.setChecked(True)
-        p1_layout.addWidget(frame_range_le)
-        p1_layout.addWidget(output_path_le)
-        p1_layout.addWidget(output_enabled_cb)
+        frame_range_label = QLabel("帧范围: --")
+        frame_range_label.setObjectName("frameRangeLabel")
+        frame_range_label.setStyleSheet("color: #cccccc; background: transparent;")
+        output_path_label = QLabel("输出: --")
+        output_path_label.setObjectName("outputPathLabel")
+        output_path_label.setStyleSheet("color: #cccccc; background: transparent;")
+        p1_layout.addWidget(frame_range_label)
+        p1_layout.addWidget(output_path_label, 1)
         stacked.addWidget(page1)
 
         # Page 2: HomeAssistant Webhook
@@ -617,10 +635,15 @@ class AutomationWindow(QDialog):
         hbox.addWidget(stacked, 1)
         hbox.addWidget(enabled_cb)
 
-        # ── 信号：切换类型时切换参数页 ──
-        combo.currentIndexChanged.connect(
-            lambda idx, s=stacked: s.setCurrentIndex(idx)
-        )
+        # ── 信号：切换类型时切换参数页 + Flipbook 实时读取 Houdini 设置 ──
+        def _on_type_changed(idx):
+            stacked.setCurrentIndex(idx)
+            if idx == 1:  # Flipbook — 实时读取 Houdini 工程设置
+                fr_str, out_str = _read_houdini_flipbook_settings()
+                frame_range_label.setText(f"帧范围: {fr_str}")
+                output_path_label.setText(f"输出: {out_str}")
+
+        combo.currentIndexChanged.connect(_on_type_changed)
 
         # ── 填充数据（加载时）──
         if data is not None:
@@ -628,7 +651,7 @@ class AutomationWindow(QDialog):
                 slot, data,
                 combo, stacked,
                 parm_path_le,
-                frame_range_le, output_path_le, output_enabled_cb,
+                frame_range_label, output_path_label,
                 webhook_url_le,
                 enabled_cb,
             )
@@ -639,7 +662,7 @@ class AutomationWindow(QDialog):
     def _populate_slot_from_data(
         slot, data, combo, stacked,
         parm_path_le,
-        frame_range_le, output_path_le, output_enabled_cb,
+        frame_range_label, output_path_label,
         webhook_url_le, enabled_cb,
     ):
         """根据 dict 数据填充一个已创建的槽控件。"""
@@ -655,11 +678,10 @@ class AutomationWindow(QDialog):
             ))
         elif type_str == "FLIPBOOK":
             combo.setCurrentIndex(1)
-            fr = params.get("frame_range", [1, 100])
-            if isinstance(fr, (list, tuple)) and len(fr) == 2:
-                frame_range_le.setText(f"{fr[0]}-{fr[1]}")
-            output_path_le.setText(params.get("output_path", ""))
-            output_enabled_cb.setChecked(params.get("output_enabled", True))
+            # 从 Houdini 当前工程读取 flipbook 设置并展示
+            fr_str, out_str = _read_houdini_flipbook_settings()
+            frame_range_label.setText(f"帧范围: {fr_str}")
+            output_path_label.setText(f"输出: {out_str}")
         elif type_str == "HOME_ASSISTANT":
             combo.setCurrentIndex(2)
             webhook_url_le.setText(params.get("webhook_url", ""))
@@ -1146,10 +1168,9 @@ class AutomationWindow(QDialog):
                     lines.append(f"  节点: {node_path}")
                     lines.append(f"  参数: {parm_name}")
                 elif task_type == "FLIPBOOK":
-                    frame_range = params.get("frame_range", [1, 100])
-                    output_path = params.get("output_path", "")
-                    lines.append(f"  帧范围: {frame_range[0]}-{frame_range[1]}")
-                    lines.append(f"  输出路径: {output_path}")
+                    fr_str, out_str = _read_houdini_flipbook_settings()
+                    lines.append(f"  帧范围: {fr_str}")
+                    lines.append(f"  输出路径: {out_str}")
                 elif task_type == "HOME_ASSISTANT":
                     webhook_url = params.get("webhook_url", "")
                     lines.append(f"  Webhook: {webhook_url}")
@@ -1305,32 +1326,8 @@ class AutomationWindow(QDialog):
                 )
 
             elif type_idx == 1:  # Flipbook
-                frame_range = (1, 100)
-                output_path = ""
-                output_enabled = True
-                if current_page:
-                    fr_le = current_page.findChild(QLineEdit, "frameRange")
-                    op_le = current_page.findChild(QLineEdit, "outputPath")
-                    oe_cb = current_page.findChild(QCheckBox, "outputEnabled")
-                    if oe_cb is not None:
-                        output_enabled = oe_cb.isChecked()
-                    if fr_le is not None:
-                        text = fr_le.text().strip()
-                        if text:
-                            parts = text.replace(" ", "").split("-")
-                            try:
-                                fr_start = int(parts[0])
-                                fr_end = int(parts[1]) if len(parts) > 1 else 100
-                                frame_range = (fr_start, fr_end)
-                            except (ValueError, IndexError):
-                                pass
-                    if op_le is not None:
-                        output_path = op_le.text()
-                params = FlipbookParams(
-                    frame_range=frame_range,
-                    output_path=output_path,
-                    output_enabled=output_enabled,
-                )
+                # Flipbook 不再使用自定义参数，执行时直接读取 Houdini 工程设置
+                params = FlipbookParams()
                 item = TaskItem(
                     task_type=TaskType.FLIPBOOK,
                     params=params,

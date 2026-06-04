@@ -53,11 +53,7 @@ class TestExecutionEngine(unittest.TestCase):
         )
         self.flipbook_task = TaskItem(
             task_type=TaskType.FLIPBOOK,
-            params=FlipbookParams(
-                frame_range=(1, 50),
-                output_path="$HIP/render.$F4.png",
-                output_enabled=True,
-            ),
+            params=FlipbookParams(),
             enabled=True,
         )
         self.ha_task = TaskItem(
@@ -446,13 +442,9 @@ class TestExecutionEngineExecutors(unittest.TestCase):
     # ── Flipbook 执行器 ────────────────────────────────────
 
     def test_execute_flipbook_success(self):
-        """验证 flipbook 成功执行：scene.flipbook 被正确调用。"""
+        """验证 flipbook 成功执行：直接读取 scene.flipbookSettings() 并调用 scene.flipbook。"""
         engine = ExecutionEngine([])
-        params = FlipbookParams(
-            frame_range=(1, 50),
-            output_path="$HIP/render.$F4.png",
-            output_enabled=True,
-        )
+        params = FlipbookParams()
 
         mock_hou = MagicMock()
         mock_hou.paneTabType.SceneViewer = "SceneViewerType"
@@ -463,51 +455,19 @@ class TestExecutionEngineExecutors(unittest.TestCase):
 
         mock_hou.ui.paneTabOfType.return_value = mock_scene
         mock_scene.curViewport.return_value = mock_viewport
-        mock_hou.flipbookSettings.return_value = mock_settings
+        mock_scene.flipbookSettings.return_value = mock_settings
 
         with patch.dict("sys.modules", {"hou": mock_hou}):
             engine._execute_flipbook(params)
 
         mock_hou.ui.paneTabOfType.assert_called_once_with("SceneViewerType")
-        mock_settings.frameRange.assert_called_once_with((1, 50))
-        mock_settings.output.assert_called_once_with("$HIP/render.$F4.png")
+        mock_scene.flipbookSettings.assert_called_once()
         mock_scene.flipbook.assert_called_once_with(mock_viewport, mock_settings)
-
-    def test_execute_flipbook_output_disabled(self):
-        """output_enabled=False 时不应设置 output。"""
-        engine = ExecutionEngine([])
-        params = FlipbookParams(
-            frame_range=(10, 30),
-            output_path="$HIP/test.$F4.png",
-            output_enabled=False,
-        )
-
-        mock_hou = MagicMock()
-        mock_hou.paneTabType.SceneViewer = "SceneViewerType"
-
-        mock_scene = MagicMock()
-        mock_viewport = MagicMock()
-        mock_settings = MagicMock()
-
-        mock_hou.ui.paneTabOfType.return_value = mock_scene
-        mock_scene.curViewport.return_value = mock_viewport
-        mock_hou.flipbookSettings.return_value = mock_settings
-
-        with patch.dict("sys.modules", {"hou": mock_hou}):
-            engine._execute_flipbook(params)
-
-        mock_settings.frameRange.assert_called_once_with((10, 30))
-        mock_settings.output.assert_not_called()
-        mock_scene.flipbook.assert_called_once()
 
     def test_execute_flipbook_no_scene_viewer(self):
         """找不到 Scene Viewer 时抛出 RuntimeError。"""
         engine = ExecutionEngine([])
-        params = FlipbookParams(
-            frame_range=(1, 50),
-            output_path="",
-            output_enabled=False,
-        )
+        params = FlipbookParams()
 
         mock_hou = MagicMock()
         mock_hou.paneTabType.SceneViewer = "SceneViewerType"
@@ -518,34 +478,6 @@ class TestExecutionEngineExecutors(unittest.TestCase):
                 engine._execute_flipbook(params)
 
         self.assertIn("Scene Viewer", str(ctx.exception))
-
-    def test_execute_flipbook_date_time_substitution(self):
-        """验证 #date 和 #time 占位符被正确替换。"""
-        engine = ExecutionEngine([])
-        params = FlipbookParams(
-            frame_range=(1, 10),
-            output_path="$HIP/render.#date_#time.$F4.png",
-            output_enabled=True,
-        )
-
-        mock_hou = MagicMock()
-        mock_hou.paneTabType.SceneViewer = "SceneViewerType"
-
-        mock_scene = MagicMock()
-        mock_viewport = MagicMock()
-        mock_settings = MagicMock()
-
-        mock_hou.ui.paneTabOfType.return_value = mock_scene
-        mock_scene.curViewport.return_value = mock_viewport
-        mock_hou.flipbookSettings.return_value = mock_settings
-
-        with patch.dict("sys.modules", {"hou": mock_hou}):
-            engine._execute_flipbook(params)
-
-        # 验证 output 包含替换后的日期时间
-        call_output = mock_settings.output.call_args[0][0]
-        self.assertNotIn("#date", call_output)
-        self.assertNotIn("#time", call_output)
 
     # ── HomeAssistant 执行器 ───────────────────────────────
 

@@ -25,10 +25,12 @@ class ButtonClickParams:
 
 @dataclass
 class FlipbookParams:
-    """Flipbook 渲染参数：帧范围、输出路径、输出开关。"""
-    frame_range: tuple[int, int]
-    output_path: str
-    output_enabled: bool
+    """Flipbook 渲染参数（空）。
+
+    Flipbook 不再使用自定义参数，执行时直接读取 Houdini 工程的
+    ``SceneViewer.flipbookSettings()``。保留此类是为了维持
+    ``TaskType.FLIPBOOK`` 的类型标识和 JSON 序列化兼容性。
+    """
 
 
 @dataclass
@@ -62,11 +64,7 @@ class TaskItem:
             }
         elif self.task_type == TaskType.FLIPBOOK:
             assert isinstance(self.params, FlipbookParams)
-            base["params"] = {
-                "frame_range": [self.params.frame_range[0], self.params.frame_range[1]],
-                "output_path": self.params.output_path,
-                "output_enabled": self.params.output_enabled,
-            }
+            base["params"] = {}
         elif self.task_type == TaskType.HOME_ASSISTANT:
             assert isinstance(self.params, HomeAssistantParams)
             base["params"] = {
@@ -90,12 +88,7 @@ class TaskItem:
             )
         elif type_str == "FLIPBOOK":
             task_type = TaskType.FLIPBOOK
-            fr = data["params"]["frame_range"]
-            params = FlipbookParams(
-                frame_range=(fr[0], fr[1]),
-                output_path=data["params"]["output_path"],
-                output_enabled=data["params"]["output_enabled"],
-            )
+            params = FlipbookParams()
         elif type_str == "HOME_ASSISTANT":
             task_type = TaskType.HOME_ASSISTANT
             params = HomeAssistantParams(

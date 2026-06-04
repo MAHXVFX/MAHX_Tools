@@ -239,15 +239,8 @@ class MA_Automation_DataManager:
 
     @classmethod
     def serialize_params(cls, params) -> dict:
-        """Params dataclass → dict。
-
-        特殊处理:
-          - ``FlipbookParams.frame_range``: tuple → list
-        """
-        d = asdict(params)
-        if isinstance(params, FlipbookParams):
-            d["frame_range"] = list(d["frame_range"])
-        return d
+        """Params dataclass → dict。"""
+        return asdict(params)
 
     @classmethod
     def deserialize_params(
@@ -258,21 +251,17 @@ class MA_Automation_DataManager:
         """dict → Params dataclass。
 
         根据 ``type_str``（匹配 ``TaskType`` 的 value）决定返回的参数类型。
-        特殊处理:
-          - ``flipbook`` 的 ``frame_range``: list → tuple
+        ``FlipbookParams`` 为空 dataclass，忽略 ``params_dict`` 中的所有字段
+        （向后兼容旧 JSON 文件中的 frame_range 等字段）。
         """
         task_type = TaskType(type_str)
-        p = dict(params_dict)
-
-        if task_type == TaskType.FLIPBOOK and "frame_range" in p:
-            p["frame_range"] = tuple(p["frame_range"])
 
         if task_type == TaskType.BUTTON_CLICK:
-            return ButtonClickParams(**p)
+            return ButtonClickParams(**params_dict)
         elif task_type == TaskType.FLIPBOOK:
-            return FlipbookParams(**p)
+            return FlipbookParams()
         elif task_type == TaskType.HOME_ASSISTANT:
-            return HomeAssistantParams(**p)
+            return HomeAssistantParams(**params_dict)
         else:
             raise ValueError(f"未知参数类型: {type_str}")
 
