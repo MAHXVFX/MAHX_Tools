@@ -28,7 +28,7 @@
 ### HomeAssistant Webhook
 - 输入 Webhook URL
 
-> [!tip]
+### 提示
 > - 任务按顺序执行，失败的任务会跳过并继续
 > - 支持自动填充功能：选中节点后点击 自动填充 自动填充 execute 按钮
 > - 任务列表自动保存到当前工程目录（$HIP/MA Automation/json/MA_Automation.json）
