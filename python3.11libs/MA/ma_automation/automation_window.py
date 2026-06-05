@@ -442,7 +442,7 @@ class AutomationWindow(QDialog):
         # 路径用绝对 URL 避开 Houdini CWD 不可靠)
         self._config_combo.setStyleSheet(_CONFIG_COMBO_ICON_STYLE)
 
-        self._start_btn = QPushButton("Start")
+        self._start_btn = QPushButton("执行")
         self._start_btn.setObjectName("startBtn")
         # 关闭 autoDefault / default:在 QDialog 里按 Enter 会触发 default
         # 按钮,用户在可编辑 _config_combo 里键入新名按 Enter 提交文字时
@@ -452,10 +452,10 @@ class AutomationWindow(QDialog):
         # 用 lambda 包装避免 Qt clicked(bool) 信号把 False 当作 data 参数传入
         self._start_btn.clicked.connect(lambda: self._on_start())
 
-        auto_fill_btn = QPushButton("Auto Fill")
+        auto_fill_btn = QPushButton("自动填充")
         auto_fill_btn.clicked.connect(lambda: self._on_auto_fill())
 
-        clear_btn = QPushButton("Clear")
+        clear_btn = QPushButton("清空")
         clear_btn.clicked.connect(lambda: self._on_clear())
 
         settings_btn = QPushButton("设置")
@@ -1507,7 +1507,7 @@ class AutomationWindow(QDialog):
             self._engine.cancel()
         print("MA Automation: 用户取消执行")
         self._running = False
-        self._start_btn.setText("Start")
+        self._start_btn.setText("执行")
         self._restore_stdout()
 
     def _on_task_started(self, idx: int, task_type: str, timestamp: str):
@@ -1532,7 +1532,7 @@ class AutomationWindow(QDialog):
         print(f"{timestamp} 执行完成 总耗时: {hours:02d}时{minutes:02d}分{seconds:02d}秒 — 成功 {success}, 失败 {failed}")
         print("=" * 80)  # 通过 tee 同时写入控制台和日志文件
         self._running = False
-        self._start_btn.setText("Start")
+        self._start_btn.setText("执行")
         self._engine = None
         self._restore_stdout()
 
