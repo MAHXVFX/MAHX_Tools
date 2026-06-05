@@ -158,9 +158,8 @@ class ExecutionEngine(QThread):
     def _execute_flipbook(self, params: FlipbookParams):
         """执行 Flipbook 拍屏。
 
-        直接读取当前 Houdini 工程的 flipbook 设置（通过
-        ``SceneViewer.flipbookSettings()``），不使用任何自定义参数。
-        帧范围、输出路径等全部以 Houdini 工程设置为准。
+        使用用户提供的帧范围和输出路径，写入 Houdini 的 flipbook settings，
+        保留其他默认设置（分辨率、质量等）。
 
         Raises:
             RuntimeError: 找不到 Scene Viewer
@@ -171,8 +170,25 @@ class ExecutionEngine(QThread):
             if scene is None:
                 raise RuntimeError("未找到 Scene Viewer")
 
-            # 直接读取当前 Scene Viewer 的 flipbook 设置，不做任何修改
+            # 读取当前 flipbook 设置
             settings = scene.flipbookSettings()
+
+            # 解析帧范围表达式
+            try:
+                start_str = hou.text.expandString(params.start_frame)
+                end_str = hou.text.expandString(params.end_frame)
+                start = int(float(start_str))
+                end = int(float(end_str))
+                settings.frameRange((start, end))
+            except Exception:
+                pass  # 保持 Houdini 原始帧范围
+
+            # 设置输出路径（不展开 $F4 等表达式，让 Houdini 逐帧展开）
+            if params.save_to_disk:
+                settings.output(params.output_path)
+            else:
+                settings.output("")
+
             scene.flipbook(scene.curViewport(), settings)
 
         self._run_deferred(impl)

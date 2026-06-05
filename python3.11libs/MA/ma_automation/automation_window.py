@@ -15,10 +15,10 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox,
     QLineEdit, QStackedWidget, QCheckBox, QWidget, QScrollArea, QSizePolicy,
-    QGraphicsDropShadowEffect, QApplication,
+    QGraphicsDropShadowEffect, QApplication, QMessageBox,
 )
-from PySide6.QtCore import Qt, Signal, QPoint
-from PySide6.QtGui import QColor
+from PySide6.QtCore import Qt, Signal, QPoint, QSize
+from PySide6.QtGui import QColor, QIcon
 
 from MA.ma_automation.data_manager import MA_Automation_DataManager
 from MA.ma_automation.task_types import (
@@ -146,27 +146,6 @@ def _extract_parm_path(text: str) -> str:
     if m:
         return m.group(1)
     return text
-
-
-def _read_houdini_flipbook_settings() -> tuple[str, str]:
-    """读取当前 Houdini Scene Viewer 的 flipbook 设置。
-
-    Returns:
-        ``(frame_range_str, output_path_str)``，如 ``("1-100", "$HIP/flip.$F4.jpg")``。
-        读取失败（无 Houdini / 无 Scene Viewer / 任何异常）返回 ``("--", "--")``。
-    """
-    try:
-        import hou
-        scene = hou.ui.paneTabOfType(hou.paneTabType.SceneViewer)
-        if scene is None:
-            return "--", "--"
-        settings = scene.flipbookSettings()
-        fr = settings.frameRange()
-        frame_str = f"{int(fr[0])}-{int(fr[1])}"
-        output = settings.output() or "--"
-        return frame_str, output
-    except Exception:
-        return "--", "--"
 
 
 # ── Singleton ────────────────────────────────────────────────
@@ -598,19 +577,62 @@ class AutomationWindow(QDialog):
         p0_layout.addWidget(parm_path_le)
         stacked.addWidget(page0)
 
-        # Page 1: Flipbook — 只读显示当前 Houdini 工程的 flipbook 设置
+        # Page 1: Flipbook — 用户输入帧范围、输出路径
         page1 = QWidget()
-        p1_layout = QHBoxLayout(page1)
-        p1_layout.setContentsMargins(0, 0, 0, 0)
-        p1_layout.setSpacing(4)
-        frame_range_label = QLabel("帧范围: --")
-        frame_range_label.setObjectName("frameRangeLabel")
-        frame_range_label.setStyleSheet("color: #cccccc; background: transparent;")
-        output_path_label = QLabel("输出: --")
-        output_path_label.setObjectName("outputPathLabel")
-        output_path_label.setStyleSheet("color: #cccccc; background: transparent;")
-        p1_layout.addWidget(frame_range_label)
-        p1_layout.addWidget(output_path_label, 1)
+        p1_main_layout = QVBoxLayout(page1)
+        p1_main_layout.setContentsMargins(0, 0, 0, 0)
+        p1_main_layout.setSpacing(2)
+
+        # 第一行：帧范围
+        fr_row = QHBoxLayout()
+        fr_row.setSpacing(4)
+        fr_label = QLabel("帧:")
+        fr_label.setStyleSheet("color: #cccccc; background: transparent;")
+        start_frame_le = QLineEdit("$RFSTART")
+        start_frame_le.setObjectName("flipbookStartFrame")
+        start_frame_le.setPlaceholderText("起始帧")
+        start_frame_le.setFixedWidth(80)
+        tilde_label = QLabel("~")
+        tilde_label.setStyleSheet("color: #cccccc; background: transparent;")
+        end_frame_le = QLineEdit("$RFEND")
+        end_frame_le.setObjectName("flipbookEndFrame")
+        end_frame_le.setPlaceholderText("结束帧")
+        end_frame_le.setFixedWidth(80)
+        save_to_disk_cb = QCheckBox("保存到磁盘")
+        save_to_disk_cb.setObjectName("flipbookSaveToDisk")
+        save_to_disk_cb.setChecked(True)
+        fr_row.addWidget(fr_label)
+        fr_row.addWidget(start_frame_le)
+        fr_row.addWidget(tilde_label)
+        fr_row.addWidget(end_frame_le)
+        fr_row.addWidget(save_to_disk_cb)
+        fr_row.addStretch()
+
+        # 第二行：输出路径
+        out_row = QHBoxLayout()
+        out_row.setSpacing(4)
+        out_label = QLabel("输出:")
+        out_label.setStyleSheet("color: #cccccc; background: transparent;")
+        output_path_le = QLineEdit("$HIP/FlipBook/$HIPNAME/$HIPNAME.$F4.jpg")
+        output_path_le.setObjectName("flipbookOutputPath")
+        output_path_le.setPlaceholderText("输出路径")
+        open_folder_btn = QPushButton()
+        open_folder_btn.setObjectName("flipbookOpenFolder")
+        open_folder_btn.setFixedSize(22, 22)
+        open_folder_btn.setToolTip("打开输出路径文件夹")
+        _folder_icon = str(Path(__file__).resolve().parent.parent / "icons" / "folder.svg")
+        open_folder_btn.setIcon(QIcon(_folder_icon))
+        open_folder_btn.setIconSize(QSize(18, 18))
+        open_folder_btn.setStyleSheet(
+            "QPushButton { border: none; padding: 0px; background: transparent; }"
+            "QPushButton:hover { background: rgba(255,255,255,0.15); border-radius: 3px; }"
+        )
+        out_row.addWidget(out_label)
+        out_row.addWidget(output_path_le, 1)
+        out_row.addWidget(open_folder_btn)
+
+        p1_main_layout.addLayout(fr_row)
+        p1_main_layout.addLayout(out_row)
         stacked.addWidget(page1)
 
         # Page 2: HomeAssistant Webhook
@@ -635,15 +657,45 @@ class AutomationWindow(QDialog):
         hbox.addWidget(stacked, 1)
         hbox.addWidget(enabled_cb)
 
-        # ── 信号：切换类型时切换参数页 + Flipbook 实时读取 Houdini 设置 ──
+        # ── 信号：切换类型时切换参数页 ──
         def _on_type_changed(idx):
             stacked.setCurrentIndex(idx)
-            if idx == 1:  # Flipbook — 实时读取 Houdini 工程设置
-                fr_str, out_str = _read_houdini_flipbook_settings()
-                frame_range_label.setText(f"帧范围: {fr_str}")
-                output_path_label.setText(f"输出: {out_str}")
+            # Flipbook 页面需要更宽的卡片，其他类型恢复窄卡片
+            if idx == 1:
+                stacked.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            else:
+                stacked.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
         combo.currentIndexChanged.connect(_on_type_changed)
+
+        # ── 信号：打开输出路径文件夹 ──
+        def _on_open_folder():
+            raw_path = output_path_le.text().strip()
+            if not raw_path:
+                return
+            # 展开 $HIP 等表达式
+            resolved = raw_path
+            try:
+                import hou
+                resolved = hou.text.expandString(raw_path)
+            except Exception:
+                pass
+            # 取父目录（文件路径 → 所在文件夹）
+            import os
+            if os.path.splitext(resolved)[1]:
+                folder = os.path.dirname(resolved)
+            else:
+                folder = resolved
+            if not folder or not os.path.isdir(folder):
+                QMessageBox.warning(
+                    slot, "路径不存在",
+                    f"输出路径的文件夹不存在：\n{folder}"
+                )
+                return
+            import subprocess
+            subprocess.Popen(["explorer", os.path.normpath(folder)])
+
+        open_folder_btn.clicked.connect(lambda: _on_open_folder())
 
         # ── 填充数据（加载时）──
         if data is not None:
@@ -651,7 +703,7 @@ class AutomationWindow(QDialog):
                 slot, data,
                 combo, stacked,
                 parm_path_le,
-                frame_range_label, output_path_label,
+                start_frame_le, end_frame_le, output_path_le, save_to_disk_cb,
                 webhook_url_le,
                 enabled_cb,
             )
@@ -662,7 +714,7 @@ class AutomationWindow(QDialog):
     def _populate_slot_from_data(
         slot, data, combo, stacked,
         parm_path_le,
-        frame_range_label, output_path_label,
+        start_frame_le, end_frame_le, output_path_le, save_to_disk_cb,
         webhook_url_le, enabled_cb,
     ):
         """根据 dict 数据填充一个已创建的槽控件。"""
@@ -678,10 +730,10 @@ class AutomationWindow(QDialog):
             ))
         elif type_str == "FLIPBOOK":
             combo.setCurrentIndex(1)
-            # 从 Houdini 当前工程读取 flipbook 设置并展示
-            fr_str, out_str = _read_houdini_flipbook_settings()
-            frame_range_label.setText(f"帧范围: {fr_str}")
-            output_path_label.setText(f"输出: {out_str}")
+            start_frame_le.setText(params.get("start_frame", "$RFSTART"))
+            end_frame_le.setText(params.get("end_frame", "$RFEND"))
+            output_path_le.setText(params.get("output_path", "$HIP/FlipBook/$HIPNAME/$HIPNAME.$F4.jpg"))
+            save_to_disk_cb.setChecked(params.get("save_to_disk", True))
         elif type_str == "HOME_ASSISTANT":
             combo.setCurrentIndex(2)
             webhook_url_le.setText(params.get("webhook_url", ""))
@@ -1168,9 +1220,13 @@ class AutomationWindow(QDialog):
                     lines.append(f"  节点: {node_path}")
                     lines.append(f"  参数: {parm_name}")
                 elif task_type == "FLIPBOOK":
-                    fr_str, out_str = _read_houdini_flipbook_settings()
-                    lines.append(f"  帧范围: {fr_str}")
-                    lines.append(f"  输出路径: {out_str}")
+                    sf = params.get("start_frame", "$RFSTART")
+                    ef = params.get("end_frame", "$RFEND")
+                    op = params.get("output_path", "")
+                    sd = params.get("save_to_disk", True)
+                    lines.append(f"  帧范围: {sf} ~ {ef}")
+                    lines.append(f"  输出路径: {op}")
+                    lines.append(f"  保存到磁盘: {'是' if sd else '否'}")
                 elif task_type == "HOME_ASSISTANT":
                     webhook_url = params.get("webhook_url", "")
                     lines.append(f"  Webhook: {webhook_url}")
@@ -1326,8 +1382,29 @@ class AutomationWindow(QDialog):
                 )
 
             elif type_idx == 1:  # Flipbook
-                # Flipbook 不再使用自定义参数，执行时直接读取 Houdini 工程设置
-                params = FlipbookParams()
+                start_frame = "$RFSTART"
+                end_frame = "$RFEND"
+                output_path = "$HIP/FlipBook/$HIPNAME/$HIPNAME.$F4.jpg"
+                save_to_disk = True
+                if current_page:
+                    sf_le = current_page.findChild(QLineEdit, "flipbookStartFrame")
+                    ef_le = current_page.findChild(QLineEdit, "flipbookEndFrame")
+                    op_le = current_page.findChild(QLineEdit, "flipbookOutputPath")
+                    sd_cb = current_page.findChild(QCheckBox, "flipbookSaveToDisk")
+                    if sf_le is not None:
+                        start_frame = sf_le.text()
+                    if ef_le is not None:
+                        end_frame = ef_le.text()
+                    if op_le is not None:
+                        output_path = op_le.text()
+                    if sd_cb is not None:
+                        save_to_disk = sd_cb.isChecked()
+                params = FlipbookParams(
+                    start_frame=start_frame,
+                    end_frame=end_frame,
+                    output_path=output_path,
+                    save_to_disk=save_to_disk,
+                )
                 item = TaskItem(
                     task_type=TaskType.FLIPBOOK,
                     params=params,

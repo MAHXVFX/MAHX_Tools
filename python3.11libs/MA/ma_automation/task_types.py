@@ -25,12 +25,15 @@ class ButtonClickParams:
 
 @dataclass
 class FlipbookParams:
-    """Flipbook 渲染参数（空）。
-
-    Flipbook 不再使用自定义参数，执行时直接读取 Houdini 工程的
-    ``SceneViewer.flipbookSettings()``。保留此类是为了维持
-    ``TaskType.FLIPBOOK`` 的类型标识和 JSON 序列化兼容性。
-    """
+    """Flipbook 渲染参数：帧范围、输出路径、是否保存到磁盘。"""
+    start_frame: str = "$RFSTART"
+    end_frame: str = "$RFEND"
+    output_path: str = "$HIP/FlipBook/$HIPNAME/$HIPNAME.$F4.jpg"
+    save_to_disk: bool = True
+    start_frame: str = "$RFSTART"
+    end_frame: str = "$RFEND"
+    output_path: str = "$HIP/FlipBook/$HIPNAME/$HIPNAME.$F4.jpg"
+    save_to_disk: bool = True
 
 
 @dataclass
@@ -64,7 +67,12 @@ class TaskItem:
             }
         elif self.task_type == TaskType.FLIPBOOK:
             assert isinstance(self.params, FlipbookParams)
-            base["params"] = {}
+            base["params"] = {
+                "start_frame": self.params.start_frame,
+                "end_frame": self.params.end_frame,
+                "output_path": self.params.output_path,
+                "save_to_disk": self.params.save_to_disk,
+            }
         elif self.task_type == TaskType.HOME_ASSISTANT:
             assert isinstance(self.params, HomeAssistantParams)
             base["params"] = {
@@ -88,7 +96,13 @@ class TaskItem:
             )
         elif type_str == "FLIPBOOK":
             task_type = TaskType.FLIPBOOK
-            params = FlipbookParams()
+            params_data = data["params"]
+            params = FlipbookParams(
+                start_frame=params_data.get("start_frame", "$RFSTART"),
+                end_frame=params_data.get("end_frame", "$RFEND"),
+                output_path=params_data.get("output_path", "$HIP/FlipBook/$HIPNAME/$HIPNAME.$F4.jpg"),
+                save_to_disk=params_data.get("save_to_disk", True),
+            )
         elif type_str == "HOME_ASSISTANT":
             task_type = TaskType.HOME_ASSISTANT
             params = HomeAssistantParams(

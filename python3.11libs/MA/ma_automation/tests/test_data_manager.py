@@ -171,12 +171,22 @@ class TestSerializeDeserializeParams(unittest.TestCase):
         self.assertEqual(restored.parm_name, "execute")
 
     def test_flipbook_round_trip(self):
-        """Test 4b: FlipbookParams 往返（空 params）。"""
-        params = FlipbookParams()
+        """Test 4b: FlipbookParams 往返。"""
+        params = FlipbookParams(
+            start_frame="$RFSTART",
+            end_frame="$RFEND",
+            output_path="$HIP/FlipBook/$HIPNAME/$HIPNAME.$F4.jpg",
+            save_to_disk=True,
+        )
         d = self.DM.serialize_params(params)
-        self.assertEqual(d, {})
+        self.assertEqual(d["start_frame"], "$RFSTART")
+        self.assertEqual(d["end_frame"], "$RFEND")
+        self.assertEqual(d["output_path"], "$HIP/FlipBook/$HIPNAME/$HIPNAME.$F4.jpg")
+        self.assertTrue(d["save_to_disk"])
         restored = self.DM.deserialize_params(TaskType.FLIPBOOK.value, d)
         self.assertIsInstance(restored, FlipbookParams)
+        self.assertEqual(restored.start_frame, "$RFSTART")
+        self.assertEqual(restored.end_frame, "$RFEND")
 
     def test_home_assistant_round_trip(self):
         """Test 4c: HomeAssistantParams 往返。"""

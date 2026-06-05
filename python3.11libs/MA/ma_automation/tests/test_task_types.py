@@ -148,10 +148,13 @@ class TestTaskItemSerialization(unittest.TestCase):
         self.assertTrue(d["enabled"])
 
     def test_to_dict_flipbook(self):
-        """Test 6b: to_dict() for Flipbook TaskItem (empty params)."""
+        """Test 6b: to_dict() for Flipbook TaskItem."""
         d = self.flipbook_item.to_dict()
         self.assertEqual(d["type"], "FLIPBOOK")
-        self.assertEqual(d["params"], {})
+        self.assertEqual(d["params"]["start_frame"], "$RFSTART")
+        self.assertEqual(d["params"]["end_frame"], "$RFEND")
+        self.assertEqual(d["params"]["output_path"], "$HIP/FlipBook/$HIPNAME/$HIPNAME.$F4.jpg")
+        self.assertTrue(d["params"]["save_to_disk"])
         self.assertFalse(d["enabled"])
 
     def test_to_dict_home_assistant(self):
