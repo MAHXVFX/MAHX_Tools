@@ -721,32 +721,24 @@ class AutomationWindow(QDialog):
         params = data.get("params", {})
         enabled = data.get("enabled", True)
 
+        # setCurrentIndex 会触发 _on_type_changed 信号，自动处理 show/hide
         if type_str == "BUTTON_CLICK":
             combo.setCurrentIndex(0)
-            flipbook_widget.hide()
-            stacked.show()
-            stacked.setCurrentIndex(0)
             parm_path_le.setText(_combine_parm_path(
                 params.get("node_path", ""),
                 params.get("parm_name", ""),
             ))
         elif type_str == "FLIPBOOK":
             combo.setCurrentIndex(1)
-            stacked.hide()
-            flipbook_widget.show()
             start_frame_le.setText(params.get("start_frame", "$RFSTART"))
             end_frame_le.setText(params.get("end_frame", "$RFEND"))
             output_path_le.setText(params.get("output_path", "$HIP/FlipBook/$HIPNAME/$HIPNAME.$F4.jpg"))
             save_to_disk_cb.setChecked(params.get("save_to_disk", True))
         elif type_str == "HOME_ASSISTANT":
             combo.setCurrentIndex(2)
-            flipbook_widget.hide()
-            stacked.show()
-            stacked.setCurrentIndex(1)
             webhook_url_le.setText(params.get("webhook_url", ""))
 
         enabled_cb.setChecked(enabled)
-        stacked.setCurrentIndex(combo.currentIndex())
 
     # ── 槽管理 ─────────────────────────────────────────────
 
