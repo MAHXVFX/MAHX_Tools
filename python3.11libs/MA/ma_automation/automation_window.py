@@ -566,8 +566,6 @@ class AutomationWindow(QDialog):
         stacked.setObjectName("paramsStacked")
 
         # Page 0: 按钮点击
-        # 单字段 parmPath(完整参数路径如 /obj/foo/aa/execute),
-        # 数据模型仍是 node_path+parm_name(向后兼容 JSON),UI 层合并显示
         page0 = QWidget()
         p0_layout = QHBoxLayout(page0)
         p0_layout.setContentsMargins(0, 0, 0, 0)
@@ -578,9 +576,20 @@ class AutomationWindow(QDialog):
         p0_layout.addWidget(parm_path_le)
         stacked.addWidget(page0)
 
-        # Page 1: Flipbook — 用户输入帧范围、输出路径
-        page1 = QWidget()
-        p1_main_layout = QVBoxLayout(page1)
+        # Page 2: HomeAssistant Webhook（放入 stacked，与按钮点击宽度相近）
+        page2 = QWidget()
+        p2_layout = QHBoxLayout(page2)
+        p2_layout.setContentsMargins(0, 0, 0, 0)
+        p2_layout.setSpacing(4)
+        webhook_url_le = QLineEdit()
+        webhook_url_le.setObjectName("webhookUrl")
+        webhook_url_le.setPlaceholderText("Webhook URL")
+        p2_layout.addWidget(webhook_url_le)
+        stacked.addWidget(page2)
+
+        # Flipbook — 独立 widget，不放入 stacked（避免宽度被拉大）
+        flipbook_widget = QWidget()
+        p1_main_layout = QVBoxLayout(flipbook_widget)
         p1_main_layout.setContentsMargins(0, 0, 0, 0)
         p1_main_layout.setSpacing(2)
 
@@ -634,18 +643,7 @@ class AutomationWindow(QDialog):
 
         p1_main_layout.addLayout(fr_row)
         p1_main_layout.addLayout(out_row)
-        stacked.addWidget(page1)
-
-        # Page 2: HomeAssistant Webhook
-        page2 = QWidget()
-        p2_layout = QHBoxLayout(page2)
-        p2_layout.setContentsMargins(0, 0, 0, 0)
-        p2_layout.setSpacing(4)
-        webhook_url_le = QLineEdit()
-        webhook_url_le.setObjectName("webhookUrl")
-        webhook_url_le.setPlaceholderText("Webhook URL")
-        p2_layout.addWidget(webhook_url_le)
-        stacked.addWidget(page2)
+        flipbook_widget.hide()  # 默认隐藏
 
         # ── 启用勾选框 ──
         enabled_cb = QCheckBox("启用")
@@ -655,17 +653,19 @@ class AutomationWindow(QDialog):
         # ── 组装 ──
         hbox.addWidget(idx_label)
         hbox.addWidget(combo)
-        hbox.addWidget(stacked, 1)
+        hbox.addWidget(stacked)
+        hbox.addWidget(flipbook_widget)
         hbox.addWidget(enabled_cb)
 
-        # ── 信号：切换类型时切换参数页 ──
+        # ── 信号：切换类型时 show/hide ──
         def _on_type_changed(idx):
-            stacked.setCurrentIndex(idx)
-            # Flipbook 页面需要更宽的卡片，其他类型恢复窄卡片
-            if idx == 1:
-                stacked.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            else:
-                stacked.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            if idx == 1:  # Flipbook
+                stacked.hide()
+                flipbook_widget.show()
+            else:  # 按钮点击 / HomeAssistant
+                flipbook_widget.hide()
+                stacked.show()
+                stacked.setCurrentIndex(idx)
 
         combo.currentIndexChanged.connect(_on_type_changed)
 
@@ -700,7 +700,7 @@ class AutomationWindow(QDialog):
         if data is not None:
             self._populate_slot_from_data(
                 slot, data,
-                combo, stacked,
+                combo, stacked, flipbook_widget,
                 parm_path_le,
                 start_frame_le, end_frame_le, output_path_le, save_to_disk_cb,
                 webhook_url_le,
@@ -711,7 +711,7 @@ class AutomationWindow(QDialog):
 
     @staticmethod
     def _populate_slot_from_data(
-        slot, data, combo, stacked,
+        slot, data, combo, stacked, flipbook_widget,
         parm_path_le,
         start_frame_le, end_frame_le, output_path_le, save_to_disk_cb,
         webhook_url_le, enabled_cb,
@@ -723,18 +723,26 @@ class AutomationWindow(QDialog):
 
         if type_str == "BUTTON_CLICK":
             combo.setCurrentIndex(0)
+            flipbook_widget.hide()
+            stacked.show()
+            stacked.setCurrentIndex(0)
             parm_path_le.setText(_combine_parm_path(
                 params.get("node_path", ""),
                 params.get("parm_name", ""),
             ))
         elif type_str == "FLIPBOOK":
             combo.setCurrentIndex(1)
+            stacked.hide()
+            flipbook_widget.show()
             start_frame_le.setText(params.get("start_frame", "$RFSTART"))
             end_frame_le.setText(params.get("end_frame", "$RFEND"))
             output_path_le.setText(params.get("output_path", "$HIP/FlipBook/$HIPNAME/$HIPNAME.$F4.jpg"))
             save_to_disk_cb.setChecked(params.get("save_to_disk", True))
         elif type_str == "HOME_ASSISTANT":
             combo.setCurrentIndex(2)
+            flipbook_widget.hide()
+            stacked.show()
+            stacked.setCurrentIndex(1)
             webhook_url_le.setText(params.get("webhook_url", ""))
 
         enabled_cb.setChecked(enabled)
