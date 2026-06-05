@@ -153,27 +153,21 @@ class _AboutDialog(QtWidgets.QDialog):
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # 创建 WebRenderer，但不立即渲染
+        # 创建 WebRenderer
         self._renderer = WebRenderer()
-        layout.addWidget(self._renderer.get_widget())
-        self._rendered = False
+        self._view = self._renderer.get_widget()
+        layout.addWidget(self._view)
+        # 渲染前隐藏，避免首次显示模糊
+        self._view.hide()
 
     def showEvent(self, event):
-        """窗口显示后渲染内容，确保布局已完成。"""
+        """窗口显示后渲染内容。"""
         super().showEvent(event)
-        if not self._rendered:
-            self._rendered = True
-            # 窗口显示后延迟一帧渲染，确保布局已完成
-            QtCore.QTimer.singleShot(0, self._render_content)
-
-    def _render_content(self):
-        """渲染 Markdown 内容。"""
         self._renderer.render(ABOUT_MARKDOWN, callback=self._on_render_done)
 
     def _on_render_done(self, _=None):
-        """渲染完成后触发 QWebEngineView 刷新，解决首次显示模糊问题。"""
-        view = self._renderer.get_widget()
-        view.setZoomFactor(1.0)
+        """渲染完成后显示 QWebEngineView。"""
+        self._view.show()
 
     def closeEvent(self, event):
         """窗口关闭时清理资源。"""
