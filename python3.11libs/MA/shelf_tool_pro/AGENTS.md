@@ -1,4 +1,4 @@
-# MA/shelf_tool_pro — 工具架缩略图面板
+# MA/shelf_tool_pro — 加强版工具架
 
 Houdini shelf tools 可视化面板，支持点击/拖拽放置、GIF 动画、Markdown 备注渲染。
 

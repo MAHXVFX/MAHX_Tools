@@ -27,6 +27,13 @@ from MA.hdr_library import HDRLibraryPanel, Panel
 # HDRLibraryPanel - HDR 面板主类
 # Panel           - 打开 HDR 面板的入口函数
 
+# ============================================================
+# about - 关于面板
+# ============================================================
+from MA.about import Panel as AboutPanel
+
+# AboutPanel - 打开关于面板的入口函数
+
 __all__ = [
     'HDR_EXTENSIONS',
     'HDR_PARAMETER_NAMES',
@@ -37,4 +44,5 @@ __all__ = [
     'FilterManager',
     'HDRLibraryPanel',
     'Panel',
+    'AboutPanel',
 ]

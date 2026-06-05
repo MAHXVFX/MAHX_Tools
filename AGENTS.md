@@ -9,19 +9,34 @@ root/
 ├── python3.11libs/MA/          # Python 包（核心代码）
 │   ├── common/                 # 共享模块：设置/缓存/过滤器/样式/动画
 │   ├── icons/                  # 项目级图标资源
+│   │   ├── AlimamaFangYuanTiVF-Thin.ttf # 中文字体
+│   │   ├── drop down button.svg # 下拉按钮图标
+│   │   ├── folder.svg          # 文件夹图标
+│   │   ├── MA favorite.svg     # 收藏图标
+│   │   ├── MA refresh.svg      # 刷新图标
+│   │   └── MAShelfToolsPro Automation Tool.jpg # 自动化工具图标
+│   ├── about/                  # 关于面板
+│   │   ├── __init__.py         # 公共 API 导出
+│   │   └── about_panel.py      # 关于面板 UI（复用 WebRenderer）
 │   ├── hdr_library/            # HDR 环境光库面板
-│   └── shelf_tool_pro/         # 工具架缩略图面板
-│       ├── panel.py            # 主面板 UI
-│       ├── thumbnail_widget.py # 缩略图控件
-│       ├── shelf_loader.py     # Shelf 加载执行
-│       ├── shelf_saver.py      # Shelf 保存（节点→.shelf）
-│       ├── create_tool_dialog.py # 创建工具对话框
-│       ├── save_tool_dialog.py # 工具设置对话框（创建/编辑）
-│       ├── python_code_editor.py # Python 代码编辑器
-│       ├── web_renderer.py     # Markdown 渲染器
-│       ├── markdown_text_edit.py # 智能编辑器
+│   ├── shelf_tool_pro/         # 加强版工具架
+│   │   ├── panel.py            # 主面板 UI
+│   │   ├── thumbnail_widget.py # 缩略图控件
+│   │   ├── shelf_loader.py     # Shelf 加载执行
+│   │   ├── shelf_saver.py      # Shelf 保存（节点→.shelf）
+│   │   ├── save_tool_dialog.py # 工具设置对话框（创建/编辑）
+│   │   ├── python_code_editor.py # Python 代码编辑器
+│   │   ├── web_renderer.py     # Markdown 渲染器
+│   │   ├── markdown_text_edit.py # 智能编辑器
+│   │   ├── styles.py           # 样式常量
+│   │   └── vendor/             # Vendored 前端库
+│   └── ma_automation/          # 自动化批处理工具
+│       ├── automation_window.py # 主窗口 UI
+│       ├── data_manager.py     # JSON 持久化
+│       ├── execution_engine.py # QThread 后台执行器
+│       ├── task_types.py       # 任务类型定义
 │       ├── styles.py           # 样式常量
-│       └── vendor/             # Vendored 前端库
+│       └── tests/              # 单元测试
 ├── builtin_tools/              # 内置工具（只读，随项目提交）
 │   ├── builtin_tools.json      # 内置工具配置（图标/标签/元数据）
 │   ├── MA_*.shelf              # 工具注册入口
@@ -29,7 +44,10 @@ root/
 │   └── notes/                  # 备注文件（.md），按 unique_id 命名
 ├── python_panels/              # Pane Tab 定义（XML 入口）
 ├── MAtoolbar/                  # 用户工具目录（.shelf 文件）
-└── MA_ShelfTools_Pro_Notes/   # 工具备注（.md 用户数据）
+├── toolbar/                    # 工具架定义
+├── custom_shelf_thumbnails/    # 用户自定义缩略图
+├── MA_ShelfTools_Pro_Notes/   # 工具备注（.md 用户数据）
+└── assets/                     # 文档图片资源
 ```
 
 ## Where to Look
@@ -46,9 +64,10 @@ root/
 | Markdown 渲染 | `MA/shelf_tool_pro/web_renderer.py` | QWebEngineView + marked.js |
 | Shelf 加载/执行 | `MA/shelf_tool_pro/shelf_loader.py` | 扫描 `MAtoolbar/` + `builtin_tools/` |
 | Shelf 保存 | `MA/shelf_tool_pro/shelf_saver.py` | 节点→.shelf 文件保存 |
-| 创建工具对话框 | `MA/shelf_tool_pro/create_tool_dialog.py` | 从 Python 代码创建 shelf 工具 |
 | 工具设置对话框 | `MA/shelf_tool_pro/save_tool_dialog.py` | 创建/编辑工具属性 |
 | Python 代码编辑器 | `MA/shelf_tool_pro/python_code_editor.py` | 语法高亮编辑器 |
+| 关于面板 | `MA/about/about_panel.py` | 显示插件信息、功能特性、技术栈 |
+| 自动化工具 | `MA/ma_automation/automation_window.py` | 批处理任务：按钮点击/Flipbook/Webhook |
 | Panel 入口 | `python_panels/*.pypanel` | XML 中 `onCreateInterface` |
 
 ## Conventions
@@ -82,8 +101,10 @@ root/
 | Module | AGENTS.md Location | Content |
 |--------|-------------------|---------|
 | `MA/common/` | `python3.11libs/MA/common/AGENTS.md` | 共享模块：设置/缓存/过滤器/样式/动画 |
+| `MA/about/` | `python3.11libs/MA/about/AGENTS.md` | 关于面板：单例模式、WebRenderer 复用 |
 | `MA/hdr_library/` | `python3.11libs/MA/hdr_library/AGENTS.md` | HDR 环境光库面板详细文档 |
-| `MA/shelf_tool_pro/` | `python3.11libs/MA/shelf_tool_pro/AGENTS.md` | 工具架缩略图面板详细文档 |
+| `MA/shelf_tool_pro/` | `python3.11libs/MA/shelf_tool_pro/AGENTS.md` | 加强版工具架详细文档 |
+| `MA/ma_automation/` | `python3.11libs/MA/ma_automation/AGENTS.md` | 自动化批处理工具详细文档 |
 
 **使用场景**：
 - 需要深入了解特定模块的实现细节时

@@ -7,7 +7,7 @@
 ![Python](https://img.shields.io/badge/Python-3.11-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)
 
-**一套为 Houdini 21.0 打造的 PySide6 图形化工具集，提供 HDR 环境光库管理与工具架缩略图面板两大核心功能。**
+**一套为 Houdini 21.0 打造的 PySide6 图形化工具集，提供 HDR 环境光库管理与加强版工具架两大核心功能。**
 
 ### 技术栈
 

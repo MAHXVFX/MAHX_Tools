@@ -36,6 +36,17 @@ print("Null")
           ]]></scriptCode>
         </scriptItem>
       </subMenu>
+
+      <!-- ✅ 分隔线 -->
+      <separatorItem/>
+
+      <scriptItem id="my_tools.about">
+        <label>About MATools</label>
+        <scriptCode><![CDATA[
+from MA.about import Panel
+Panel()
+        ]]></scriptCode>
+      </scriptItem>
     </subMenu>
   </menuBar>
 </mainMenu>
