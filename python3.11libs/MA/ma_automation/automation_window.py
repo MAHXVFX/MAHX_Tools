@@ -8,6 +8,7 @@ Singleton QDialog，非模态独立窗口。
 import logging
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -681,7 +682,6 @@ class AutomationWindow(QDialog):
             except Exception:
                 pass
             # 取父目录（文件路径 → 所在文件夹）
-            import os
             if os.path.splitext(resolved)[1]:
                 folder = os.path.dirname(resolved)
             else:
@@ -692,7 +692,6 @@ class AutomationWindow(QDialog):
                     f"输出路径的文件夹不存在：\n{folder}"
                 )
                 return
-            import subprocess
             subprocess.Popen(["explorer", os.path.normpath(folder)])
 
         open_folder_btn.clicked.connect(lambda: _on_open_folder())

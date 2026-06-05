@@ -30,10 +30,6 @@ class FlipbookParams:
     end_frame: str = "$RFEND"
     output_path: str = "$HIP/FlipBook/$HIPNAME/$HIPNAME.$F4.jpg"
     save_to_disk: bool = True
-    start_frame: str = "$RFSTART"
-    end_frame: str = "$RFEND"
-    output_path: str = "$HIP/FlipBook/$HIPNAME/$HIPNAME.$F4.jpg"
-    save_to_disk: bool = True
 
 
 @dataclass
