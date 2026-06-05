@@ -153,16 +153,27 @@ class _AboutDialog(QtWidgets.QDialog):
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # 创建 WebRenderer 并渲染 Markdown
+        # 创建 WebRenderer，但不立即渲染
         self._renderer = WebRenderer()
         layout.addWidget(self._renderer.get_widget())
+        self._rendered = False
 
-        # 延迟渲染，等待页面加载完成
-        QtCore.QTimer.singleShot(100, self._render_content)
+    def showEvent(self, event):
+        """窗口显示后渲染内容，确保布局已完成。"""
+        super().showEvent(event)
+        if not self._rendered:
+            self._rendered = True
+            # 窗口显示后延迟一帧渲染，确保布局已完成
+            QtCore.QTimer.singleShot(0, self._render_content)
 
     def _render_content(self):
         """渲染 Markdown 内容。"""
-        self._renderer.render(ABOUT_MARKDOWN)
+        self._renderer.render(ABOUT_MARKDOWN, callback=self._on_render_done)
+
+    def _on_render_done(self, _=None):
+        """渲染完成后触发 QWebEngineView 刷新，解决首次显示模糊问题。"""
+        view = self._renderer.get_widget()
+        view.setZoomFactor(1.0)
 
     def closeEvent(self, event):
         """窗口关闭时清理资源。"""
@@ -184,8 +195,8 @@ def _apply_window_flags(window):
         style |= WS_EX_APPWINDOW
         SetWindowLong(hwnd, GWL_EXSTYLE, style)
         windll.shell32.SetCurrentProcessExplicitAppUserModelID('MA.MATools.About.1')
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to apply window flags: %s", e)
 
 
 def Panel():
