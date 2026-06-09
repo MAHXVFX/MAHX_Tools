@@ -616,9 +616,10 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         groups_row = QtWidgets.QHBoxLayout()
         groups_row.setSpacing(12)
 
-        # 左侧：Shelf 路径管理
+        # 左侧：Shelf 路径管理（自适应宽度）
         shelf_group = QtWidgets.QGroupBox("Shelf 路径管理")
         shelf_group.setStyleSheet(_GROUP_STYLE)
+        shelf_group.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Fixed)
         shelf_row = QtWidgets.QHBoxLayout(shelf_group)
         shelf_row.setContentsMargins(8, 4, 8, 4)
 
@@ -632,13 +633,13 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         )
         self.add_shelf_path_btn.clicked.connect(self._on_add_shelf_path)
         shelf_row.addWidget(self.add_shelf_path_btn)
-        shelf_row.addStretch(1)
 
         groups_row.addWidget(shelf_group)
 
-        # 右侧：备注悬停延迟
+        # 右侧：备注悬停延迟（自适应宽度）
         delay_group = QtWidgets.QGroupBox("备注悬停延迟")
         delay_group.setStyleSheet(_GROUP_STYLE)
+        delay_group.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Fixed)
         delay_row = QtWidgets.QHBoxLayout(delay_group)
         delay_row.setContentsMargins(8, 4, 8, 4)
 
@@ -669,9 +670,9 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         )
         self.modify_delay_btn.clicked.connect(self._on_modify_delay)
         delay_row.addWidget(self.modify_delay_btn)
-        delay_row.addStretch(1)
 
         groups_row.addWidget(delay_group)
+        groups_row.addStretch(1)
         settings_layout.addLayout(groups_row)
         return self.settings_widget
 
