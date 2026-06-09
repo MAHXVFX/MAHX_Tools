@@ -353,8 +353,8 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                 icon = ""
                 shelf_stem = rest.split("_", 1)[0] if "_" in rest else "default"
 
-            # 同名工具消歧：来自不同目录时追加来源标识
-            if len(_label_stem_prefixes.get((label, shelf_stem), set())) > 1:
+            # 同名工具消歧：仅非默认路径追加来源标识（默认目录保持原名）
+            if prefix != "deflt" and len(_label_stem_prefixes.get((label, shelf_stem), set())) > 1:
                 display_name = f"{display_name} ({_get_prefix_label(prefix)})"
 
             # 获取该 shelf 对应的颜色（复合键查找）
