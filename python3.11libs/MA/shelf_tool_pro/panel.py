@@ -1226,6 +1226,10 @@ class _ShelfPathsDialog(QtWidgets.QDialog):
         self.setStyleSheet(f"QDialog {{ background-color: {BG_PRIMARY}; }}")
         self.setMinimumWidth(520)
 
+        # 加载锁图标（用于内置/默认路径标识）
+        lock_icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "icons", "MA lock.svg")
+        self._lock_icon = QtGui.QIcon(lock_icon_path) if os.path.isfile(lock_icon_path) else QtGui.QIcon()
+
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(16, 18, 16, 18)
         layout.setSpacing(12)
@@ -1280,7 +1284,6 @@ class _ShelfPathsDialog(QtWidgets.QDialog):
         self.remove_btn = QtWidgets.QPushButton("删除选中")
         self.remove_btn.setCursor(QtCore.Qt.PointingHandCursor)
         self.remove_btn.setMinimumHeight(32)
-        self.remove_btn.setStyleSheet(CANCEL_BUTTON_STYLE)
         self.remove_btn.clicked.connect(self._on_remove_path)
         button_row.addWidget(self.remove_btn)
 
@@ -1310,39 +1313,75 @@ class _ShelfPathsDialog(QtWidgets.QDialog):
         from MA.shelf_tool_pro.shelf_loader import project_root
         return os.path.normpath(os.path.join(project_root(), "MAtoolbar"))
 
+    def _get_builtin_path(self) -> str:
+        """获取内置工具 builtin_tools 路径。"""
+        from MA.shelf_tool_pro.shelf_loader import project_root
+        return os.path.normpath(os.path.join(project_root(), "builtin_tools"))
+
     def _populate_list(self):
-        """填充路径列表：默认路径（不可删除）+ 额外路径。"""
+        """填充路径列表：内置路径 + 默认路径（均不可删除）+ 额外路径。"""
         self._list_widget.clear()
 
+        builtin_path = self._get_builtin_path()
         default_path = self._get_default_path()
 
-        # 默认路径（标记为内置，不可删除）
+        # 受保护项的样式：灰色文字
+        protected_fg = QtGui.QColor(TEXT_SECONDARY)
+
+        # 内置工具路径（不可删除）
+        builtin_item = QtWidgets.QListWidgetItem(f"[内置] {builtin_path}")
+        builtin_item.setData(QtCore.Qt.ItemDataRole.UserRole, {"path": builtin_path, "is_default": True})
+        builtin_item.setToolTip("内置工具路径，不可删除")
+        builtin_item.setForeground(protected_fg)
+        if not self._lock_icon.isNull():
+            builtin_item.setIcon(self._lock_icon)
+        self._list_widget.addItem(builtin_item)
+
+        # 默认路径（不可删除）
         default_item = QtWidgets.QListWidgetItem(f"[默认] {default_path}")
         default_item.setData(QtCore.Qt.ItemDataRole.UserRole, {"path": default_path, "is_default": True})
         default_item.setToolTip("默认路径，不可删除")
+        default_item.setForeground(protected_fg)
+        if not self._lock_icon.isNull():
+            default_item.setIcon(self._lock_icon)
         self._list_widget.addItem(default_item)
 
-        # 额外路径
+        # 额外路径（可删除）
+        user_fg = QtGui.QColor(TEXT_PRIMARY)
         extra_paths = ShelfToolsSettingsManager.get_extra_shelf_paths()
         for p in extra_paths:
             item = QtWidgets.QListWidgetItem(p)
             item.setData(QtCore.Qt.ItemDataRole.UserRole, {"path": p, "is_default": False})
             item.setToolTip(p)
+            item.setForeground(user_fg)
             self._list_widget.addItem(item)
 
         # 默认选中第一项
         if self._list_widget.count() > 0:
             self._list_widget.setCurrentRow(0)
 
+    # 删除按钮样式：可删除（常规亮度）vs 不可删除（更暗）
+    _REMOVE_BTN_ENABLED = CANCEL_BUTTON_STYLE
+    _REMOVE_BTN_DISABLED = (
+        f"QPushButton {{ background-color: #1a1a1a; color: #3a3a3a; "
+        f"border: 1px solid #252525; border-radius: 6px; "
+        f"padding: 8px 20px; }}"
+        f"QPushButton:hover {{ background-color: #1a1a1a; color: #3a3a3a; }}"
+    )
+
     def _update_remove_btn(self, row: int):
-        """根据选中行更新删除按钮状态：默认路径不可删除。"""
+        """根据选中行更新删除按钮状态与样式：受保护路径暗色不可用，用户路径亮色可删除。"""
         if row < 0 or row >= self._list_widget.count():
             self.remove_btn.setEnabled(False)
+            self.remove_btn.setStyleSheet(self._REMOVE_BTN_DISABLED)
             return
         item = self._list_widget.item(row)
         data = item.data(QtCore.Qt.ItemDataRole.UserRole)
         is_default = data.get("is_default", False) if data else False
         self.remove_btn.setEnabled(not is_default)
+        self.remove_btn.setStyleSheet(
+            self._REMOVE_BTN_DISABLED if is_default else self._REMOVE_BTN_ENABLED
+        )
 
     def _on_add_path(self):
         """打开文件夹选择对话框，添加新的 shelf 路径。"""
@@ -1353,6 +1392,13 @@ class _ShelfPathsDialog(QtWidgets.QDialog):
             return
 
         norm = os.path.normpath(dir_path)
+
+        # 检查是否与内置路径重复
+        if norm == self._get_builtin_path():
+            QtWidgets.QMessageBox.information(
+                self, "提示", "该路径已是内置工具路径，无需重复添加。"
+            )
+            return
 
         # 检查是否与默认路径重复
         if norm == self._get_default_path():
@@ -1373,6 +1419,7 @@ class _ShelfPathsDialog(QtWidgets.QDialog):
         item = QtWidgets.QListWidgetItem(norm)
         item.setData(QtCore.Qt.ItemDataRole.UserRole, {"path": norm, "is_default": False})
         item.setToolTip(norm)
+        item.setForeground(QtGui.QColor(TEXT_PRIMARY))
         self._list_widget.addItem(item)
         self._list_widget.setCurrentRow(self._list_widget.count() - 1)
 

@@ -215,7 +215,8 @@ def refresh_tools():
     MA/* 子包等），确保修改后的 .py 代码在下次 import 时重新加载。
     不再需要重启 Houdini 即可看到工具代码变更。
 
-    副作用：所有 MA/* 单例状态（如 ``_panel_window`` / ``_window``）会被重置，
+    注意：MA.shelf_tool_pro 及其子模块不会被清除（由本函数主动更新数据），
+    其余 MA/* 单例状态（如 ``_panel_window`` / ``_window``）会被重置，
     已打开的面板需重新打开。
     """
     global _TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS, _BUILTIN_TOOL_IDS
@@ -231,6 +232,12 @@ def _clear_module_cache():
 
     扫描范围：MA/、builtin_tools/、MAtoolbar/ 等所有项目子目录。
     保证刷新按钮能完整热重载项目内任意 .py 文件。
+
+    排除 MA.shelf_tool_pro 及其子模块：
+    保留 shelf_loader / panel / thumbnail_widget 等模块的引用链，
+    防止 re-import 创建新模块对象导致 execute_tool 等全局引用断裂。
+    shelf_tool_pro 的工具数据由 refresh_tools() → scan_tool_names() 主动更新，
+    不需要依赖模块重载。
     """
     import sys
     root = os.path.abspath(project_root())
@@ -241,6 +248,9 @@ def _clear_module_cache():
         key for key, mod in list(sys.modules.items())
         if hasattr(mod, '__file__') and mod.__file__
         and os.path.abspath(mod.__file__).startswith(root)
+        # 保留 shelf_tool_pro 包及其所有子模块（panel, shelf_loader, thumbnail_widget 等）
+        # 这些模块通过 refresh_tools() 主动更新全局数据，无需模块重载
+        and not (key == "MA.shelf_tool_pro" or key.startswith("MA.shelf_tool_pro."))
     ]
     for mod_name in modules_to_remove:
         del sys.modules[mod_name]
