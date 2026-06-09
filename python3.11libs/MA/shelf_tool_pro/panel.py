@@ -910,11 +910,14 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                 # 唯一来源，无需消歧
                 self.filter_combo.addItem(stem, userData=keys[0])
             else:
-                # 同名 shelf 来自多个目录，追加来源标识
+                # 同名 shelf 来自多个目录，追加来源标识（默认目录保持原名）
                 for ck in sorted(keys):
                     prefix = ck.split("_", 1)[0]
-                    self.filter_combo.addItem(
-                        f"{stem} ({_get_prefix_label(prefix)})", userData=ck)
+                    if prefix == "deflt":
+                        self.filter_combo.addItem(stem, userData=ck)
+                    else:
+                        self.filter_combo.addItem(
+                            f"{stem} ({_get_prefix_label(prefix)})", userData=ck)
 
             # 设置颜色（取该 stem 下第一个 key 的颜色）
             bg_color, border_color = shelf_color_map[keys[0]]
