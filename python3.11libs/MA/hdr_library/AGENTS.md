@@ -6,7 +6,7 @@ ffmpeg 驱动的 HDR/EXR 缩略图生成 + 网格浏览 + 一键加载到 Houdin
 
 | File | Purpose |
 |------|---------|
-| `library_panel.py` | 主 UI (614 行): 工具栏、设置面板、滚动网格、状态栏 |
+| `library_panel.py` | 主 UI: 工具栏、设置面板、滚动网格、状态栏 |
 | `thumbnail_manager.py` | 网格管理: QGridLayout 填充、可见范围优化、延迟加载 |
 | `thumbnail_worker.py` | QThread 后台: ffmpeg 缩略图生成、进度信号 |
 | `thumbnail_widget.py` | 单个缩略图控件: 圆角绘制、收藏星标、右键菜单 |

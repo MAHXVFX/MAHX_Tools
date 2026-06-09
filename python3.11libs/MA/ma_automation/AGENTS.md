@@ -68,6 +68,9 @@ Qt 面板 UI + JSON 持久化 + QThread 后台执行。
   - **日志头部**:执行前写入任务列表摘要（类型、启用状态、参数详情）
   - **设置持久化**:`MA_Automation_DataManager.load_settings()` / `save_settings()` 读写 JSON 中 `settings` 字段，与 `tasks` 并列存储
   - **加载时机**:`__init__` 中 `_load_data()` 之后调 `_load_settings()`，确保 `_current_config_name` 已确定
+- **Parm Path 编解码**:`_split_parm_path()` 把 UI 里的参数路径(如 `/obj/foo/aa/execute`)拆成 `(node_path, parm_name)`；`_combine_parm_path()` 逆运算拼回。数据模型仍是两个字段(向后兼容 JSON),UI 层合并显示为单个 parmPath 输入框
+- **Houdini 拖入表达式提取**:`_extract_parm_path()` 从拖入的 `hou.parm('/obj/foo/parm')` 表达式里提取纯路径,支持单/双引号、前后空白容错
+- **日志 Tee 流 `_LogTee`**:执行期间用 `_LogTee` 包装 `sys.stdout` / `sys.stderr`,同时写入原始流和日志文件,确保用户 print() 输出被捕获到磁盘日志
 
 ## Anti-Patterns
 

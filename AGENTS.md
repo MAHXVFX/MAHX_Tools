@@ -55,7 +55,7 @@ root/
 | Task | Location | Notes |
 |------|----------|-------|
 | 全局路径/常量 | `MA/common/constants.py` | `_MA_TOOLS_DIR` 自动计算根目录 |
-| 设置/缓存读写 | `MA/common/settings.py` | `BaseJsonManager` 类级缓存 |
+| 设置/缓存读写 | `MA/common/settings.py` | `BaseJsonManager` 类级缓存，`ShelfToolsSettingsManager`（收藏/筛选/额外shelf路径/备注延迟），`ShelfToolsCacheManager`（图标/备注/标签） |
 | 内置工具配置 | `MA/common/settings.py` | `BuiltinToolsCacheManager` 读取 `builtin_tools.json` |
 | 收藏/筛选逻辑 | `MA/common/filter_manager.py` | property setter 自动重建索引 |
 | HDR 面板 | `MA/hdr_library/library_panel.py` | ~614 行主 UI |
