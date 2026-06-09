@@ -151,7 +151,7 @@ class _AboutDialog(QtWidgets.QDialog):
         super().__init__(parent)
         self.setWindowTitle("About MATools")
         self.setMinimumSize(500, 400)
-        self.resize(744, 500)
+        self.resize(828, 500)
         self.setWindowFlags(
             Qt.Window | Qt.WindowMinimizeButtonHint |
             Qt.WindowMaximizeButtonHint | Qt.WindowCloseButtonHint
