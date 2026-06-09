@@ -35,8 +35,8 @@ QGroupBox {
     background-color: #1D1D20;
     border: 1px solid #3d3d3d;
     border-radius: 8px;
-    margin-top: 12px;
-    padding: 14px 8px 8px 8px;
+    margin-top: 6px;
+    padding: 8px 8px 6px 8px;
     font-weight: normal;
     font-size: 12px;
 }
@@ -44,7 +44,6 @@ QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
     left: 12px;
-    top: -6px;
     padding: 0 6px;
     color: #cccccc;
     text-decoration: none;
@@ -659,7 +658,7 @@ class _VideoToSequenceWindow(QDialog):
         group = QGroupBox("视频源")
         group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         layout = QVBoxLayout(group)
-        layout.setContentsMargins(8, 14, 8, 8)
+        layout.setContentsMargins(8, 10, 8, 6)
         layout.setSpacing(6)
 
         file_row = QHBoxLayout()
@@ -679,7 +678,7 @@ class _VideoToSequenceWindow(QDialog):
         group = QGroupBox("视频信息")
         group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         form = QFormLayout(group)
-        form.setContentsMargins(8, 14, 8, 8)
+        form.setContentsMargins(8, 10, 8, 6)
         form.setSpacing(4)
         form.setLabelAlignment(Qt.AlignRight)
 
@@ -710,7 +709,7 @@ class _VideoToSequenceWindow(QDialog):
         group = QGroupBox("相机")
         group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         layout = QHBoxLayout(group)
-        layout.setContentsMargins(8, 14, 8, 8)
+        layout.setContentsMargins(8, 10, 8, 6)
         layout.setSpacing(6)
 
         cam_lbl = QLabel("选择相机:")
@@ -732,7 +731,7 @@ class _VideoToSequenceWindow(QDialog):
         group = QGroupBox("输出设置")
         group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         layout = QVBoxLayout(group)
-        layout.setContentsMargins(8, 14, 8, 8)
+        layout.setContentsMargins(8, 10, 8, 6)
         layout.setSpacing(6)
 
         # 质量
