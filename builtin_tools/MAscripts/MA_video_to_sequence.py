@@ -668,8 +668,8 @@ class _VideoToSequenceWindow(QDialog):
         self._path_edit = QLineEdit()
         self._path_edit.setReadOnly(True)
         self._path_edit.setPlaceholderText("请选择视频文件...")
-        file_row.addWidget(self._browse_btn)
         file_row.addWidget(self._path_edit, 1)
+        file_row.addWidget(self._browse_btn)
         layout.addLayout(file_row)
 
         parent_layout.addWidget(group)
