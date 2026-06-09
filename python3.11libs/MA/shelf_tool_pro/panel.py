@@ -601,6 +601,19 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             f"border-radius: 10px; padding: 6px 16px; font-size: 11px;")
         self.browse_btn.clicked.connect(self._browse_thumbnail_directory)
         dir_row.addWidget(self.browse_btn)
+        dir_row.addSpacing(12)
+
+        # 添加shelf路径按钮（与路径管理同行，逻辑归属一致）
+        self.add_shelf_path_btn = QtWidgets.QPushButton("添加shelf路径")
+        self.add_shelf_path_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self.add_shelf_path_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {BORDER_COLOR}; color: white; border: none; "
+            f"border-radius: 10px; padding: 5px 14px; font-size: 11px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background-color: {BG_HOVER}; }}"
+            f"QPushButton:pressed {{ background-color: {ACCENT_BLUE}; }}"
+        )
+        self.add_shelf_path_btn.clicked.connect(self._on_add_shelf_path)
+        dir_row.addWidget(self.add_shelf_path_btn)
 
         settings_layout.addLayout(dir_row)
 
@@ -638,19 +651,6 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         )
         self.modify_delay_btn.clicked.connect(self._on_modify_delay)
         delay_row.addWidget(self.modify_delay_btn)
-        delay_row.addSpacing(12)
-
-        # 添加shelf路径按钮（与备注悬停延迟同行，节约纵向空间）
-        self.add_shelf_path_btn = QtWidgets.QPushButton("添加shelf路径")
-        self.add_shelf_path_btn.setCursor(QtCore.Qt.PointingHandCursor)
-        self.add_shelf_path_btn.setStyleSheet(
-            f"QPushButton {{ background-color: {BORDER_COLOR}; color: white; border: none; "
-            f"border-radius: 10px; padding: 5px 14px; font-size: 11px; font-weight: bold; }}"
-            f"QPushButton:hover {{ background-color: {BG_HOVER}; }}"
-            f"QPushButton:pressed {{ background-color: {ACCENT_BLUE}; }}"
-        )
-        self.add_shelf_path_btn.clicked.connect(self._on_add_shelf_path)
-        delay_row.addWidget(self.add_shelf_path_btn)
         delay_row.addStretch(1)
 
         settings_layout.addLayout(delay_row)
