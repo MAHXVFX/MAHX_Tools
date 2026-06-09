@@ -44,6 +44,7 @@ QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
     left: 12px;
+    top: -9px;
     padding: 0 6px;
     color: #cccccc;
     text-decoration: none;
@@ -151,7 +152,7 @@ _GROUPBOX_INLINE_STYLE = (
     "  background-color: #1D1D20;"
     "  border: 1px solid #3d3d3d;"
     "  border-radius: 8px;"
-    "  margin-top: 14px;"
+    "  margin-top: 18px;"
     "  padding: 2px 8px 6px 8px;"
     "  font-weight: normal;"
     "  font-size: 12px;"
@@ -160,6 +161,7 @@ _GROUPBOX_INLINE_STYLE = (
     "  subcontrol-origin: margin;"
     "  subcontrol-position: top left;"
     "  left: 12px;"
+    "  top: -9px;"
     "  padding: 0 6px;"
     "  color: #cccccc;"
     "  text-decoration: none;"
