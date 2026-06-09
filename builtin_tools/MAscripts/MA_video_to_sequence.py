@@ -147,8 +147,23 @@ QSlider#qualitySlider::handle:horizontal:hover {
 
 # QGroupBox 内联样式，确保覆盖 Houdini 全局样式，消除标题下划线
 _GROUPBOX_INLINE_STYLE = (
-    "QGroupBox { font-weight: normal; }"
-    "QGroupBox::title { text-decoration: none; color: #cccccc; }"
+    "QGroupBox {"
+    "  background-color: #1D1D20;"
+    "  border: 1px solid #3d3d3d;"
+    "  border-radius: 8px;"
+    "  margin-top: 14px;"
+    "  padding: 2px 8px 6px 8px;"
+    "  font-weight: normal;"
+    "  font-size: 12px;"
+    "}"
+    "QGroupBox::title {"
+    "  subcontrol-origin: margin;"
+    "  subcontrol-position: top left;"
+    "  left: 12px;"
+    "  padding: 0 6px;"
+    "  color: #cccccc;"
+    "  text-decoration: none;"
+    "}"
 )
 
 
