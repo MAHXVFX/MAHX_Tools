@@ -604,7 +604,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
         settings_layout.addLayout(dir_row)
 
-        # ── Shelf 路径管理（方框分组） ────────────────────
+        # ── Shelf 路径管理 + 备注悬停延迟（同行双方框） ────────
         _GROUP_STYLE = (
             f"QGroupBox {{ color: {TEXT_SECONDARY}; font-size: 11px; font-weight: bold; "
             f"border: 1px solid {BORDER_COLOR}; border-radius: 6px; "
@@ -613,6 +613,10 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             f"left: 10px; padding: 0 6px; background-color: {BG_SECONDARY}; }}"
         )
 
+        groups_row = QtWidgets.QHBoxLayout()
+        groups_row.setSpacing(12)
+
+        # 左侧：Shelf 路径管理
         shelf_group = QtWidgets.QGroupBox("Shelf 路径管理")
         shelf_group.setStyleSheet(_GROUP_STYLE)
         shelf_row = QtWidgets.QHBoxLayout(shelf_group)
@@ -630,9 +634,9 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         shelf_row.addWidget(self.add_shelf_path_btn)
         shelf_row.addStretch(1)
 
-        settings_layout.addWidget(shelf_group)
+        groups_row.addWidget(shelf_group)
 
-        # ── 备注悬停延迟（方框分组） ────────────────────────
+        # 右侧：备注悬停延迟
         delay_group = QtWidgets.QGroupBox("备注悬停延迟")
         delay_group.setStyleSheet(_GROUP_STYLE)
         delay_row = QtWidgets.QHBoxLayout(delay_group)
@@ -667,7 +671,8 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         delay_row.addWidget(self.modify_delay_btn)
         delay_row.addStretch(1)
 
-        settings_layout.addWidget(delay_group)
+        groups_row.addWidget(delay_group)
+        settings_layout.addLayout(groups_row)
         return self.settings_widget
 
     def _on_modify_delay(self):
