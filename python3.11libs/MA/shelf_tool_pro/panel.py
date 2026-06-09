@@ -638,12 +638,9 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         )
         self.modify_delay_btn.clicked.connect(self._on_modify_delay)
         delay_row.addWidget(self.modify_delay_btn)
-        delay_row.addStretch(1)
+        delay_row.addSpacing(12)
 
-        settings_layout.addLayout(delay_row)
-
-        # ── 添加shelf路径按钮 ────────────────────────
-        path_row = QtWidgets.QHBoxLayout()
+        # 添加shelf路径按钮（与备注悬停延迟同行，节约纵向空间）
         self.add_shelf_path_btn = QtWidgets.QPushButton("添加shelf路径")
         self.add_shelf_path_btn.setCursor(QtCore.Qt.PointingHandCursor)
         self.add_shelf_path_btn.setStyleSheet(
@@ -653,10 +650,10 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             f"QPushButton:pressed {{ background-color: {ACCENT_BLUE}; }}"
         )
         self.add_shelf_path_btn.clicked.connect(self._on_add_shelf_path)
-        path_row.addWidget(self.add_shelf_path_btn)
-        path_row.addStretch(1)
+        delay_row.addWidget(self.add_shelf_path_btn)
+        delay_row.addStretch(1)
 
-        settings_layout.addLayout(path_row)
+        settings_layout.addLayout(delay_row)
         return self.settings_widget
 
     def _on_modify_delay(self):
