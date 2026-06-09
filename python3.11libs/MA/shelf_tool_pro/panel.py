@@ -601,6 +601,22 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         delay_row.addStretch(1)
 
         settings_layout.addLayout(delay_row)
+
+        # ── 添加shelf路径按钮 ────────────────────────
+        path_row = QtWidgets.QHBoxLayout()
+        self.add_shelf_path_btn = QtWidgets.QPushButton("添加shelf路径")
+        self.add_shelf_path_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self.add_shelf_path_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {BORDER_COLOR}; color: white; border: none; "
+            f"border-radius: 10px; padding: 5px 14px; font-size: 11px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background-color: {BG_HOVER}; }}"
+            f"QPushButton:pressed {{ background-color: {ACCENT_BLUE}; }}"
+        )
+        self.add_shelf_path_btn.clicked.connect(self._on_add_shelf_path)
+        path_row.addWidget(self.add_shelf_path_btn)
+        path_row.addStretch(1)
+
+        settings_layout.addLayout(path_row)
         return self.settings_widget
 
     def _on_modify_delay(self):
@@ -628,6 +644,18 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                 f"延迟已更新：{new_value} ms",
                 hou.severityType.ImportantMessage
             )
+
+    def _on_add_shelf_path(self):
+        """打开 shelf 路径管理弹窗，关闭后如有变更则刷新面板。"""
+        dialog = _ShelfPathsDialog(parent=self)
+        dialog.exec()
+        if dialog.paths_changed:
+            self._refresh_tools()
+            if hou is not None:
+                hou.ui.setStatusMessage(
+                    "shelf 路径已更新",
+                    hou.severityType.ImportantMessage
+                )
 
     def _create_scroll_area(self, init_size):
         """创建带滚动区域的工具区，参考 HDR 面板架构。"""
@@ -1175,3 +1203,192 @@ class _UnderlinedNumber(QtWidgets.QWidget):
         painter.setPen(QtCore.Qt.NoPen)
         painter.setBrush(QtGui.QColor(ACCENT_PURPLE))
         painter.drawRect(0, self.height() - 2, self.width(), 2)
+
+
+class _ShelfPathsDialog(QtWidgets.QDialog):
+    """shelf 路径管理弹窗。
+
+    展示当前所有 shelf 扫描路径（默认 MAtoolbar + 用户手动添加的额外路径），
+    支持添加新文件夹路径和删除已添加的路径。
+    关闭弹窗后通过 paths_changed 属性通知主面板是否需要刷新。
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.paths_changed = False
+        self.setWindowTitle("Shelf 路径管理")
+        self.setModal(True)
+        self.setWindowFlags(
+            QtCore.Qt.WindowType.Dialog
+            | QtCore.Qt.WindowType.WindowCloseButtonHint
+        )
+        self.setSizeGripEnabled(False)
+        self.setStyleSheet(f"QDialog {{ background-color: {BG_PRIMARY}; }}")
+        self.setMinimumWidth(520)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(16, 18, 16, 18)
+        layout.setSpacing(12)
+
+        # 标题
+        title = QtWidgets.QLabel("Shelf 路径管理")
+        title.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet(
+            f"color: {TEXT_PRIMARY}; font-size: 15px; font-weight: bold; "
+            f"background-color: transparent;"
+        )
+        layout.addWidget(title)
+
+        # 说明文字
+        hint = QtWidgets.QLabel("以下路径中的 .shelf 文件将被加载到面板中")
+        hint.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        hint.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: 12px; "
+            f"background-color: transparent;"
+        )
+        layout.addWidget(hint)
+
+        # ── 路径列表区域 ────────────────────────
+        self._list_widget = QtWidgets.QListWidget()
+        self._list_widget.setSelectionMode(
+            QtWidgets.QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self._list_widget.setStyleSheet(
+            f"QListWidget {{ background-color: {BG_INPUT}; color: {TEXT_PRIMARY}; "
+            f"border: 1px solid {BORDER_COLOR}; border-radius: 4px; "
+            f"padding: 4px; font-size: 12px; }}"
+            f"QListWidget::item {{ padding: 6px 8px; border-radius: 3px; }}"
+            f"QListWidget::item:selected {{ background-color: {ACCENT_BLUE}; }}"
+            f"QListWidget::item:hover:!selected {{ background-color: {BG_HOVER}; }}"
+        )
+        self._populate_list()
+        layout.addWidget(self._list_widget, 1)
+
+        # ── 按钮行 ────────────────────────────────
+        button_row = QtWidgets.QHBoxLayout()
+        button_row.setSpacing(8)
+
+        # 添加路径按钮
+        self.add_btn = QtWidgets.QPushButton("添加路径")
+        self.add_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self.add_btn.setMinimumHeight(32)
+        self.add_btn.setStyleSheet(SAVE_BUTTON_STYLE)
+        self.add_btn.clicked.connect(self._on_add_path)
+        button_row.addWidget(self.add_btn)
+
+        # 删除路径按钮
+        self.remove_btn = QtWidgets.QPushButton("删除选中")
+        self.remove_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self.remove_btn.setMinimumHeight(32)
+        self.remove_btn.setStyleSheet(CANCEL_BUTTON_STYLE)
+        self.remove_btn.clicked.connect(self._on_remove_path)
+        button_row.addWidget(self.remove_btn)
+
+        button_row.addStretch(1)
+
+        # 关闭按钮
+        close_btn = QtWidgets.QPushButton("关闭")
+        close_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        close_btn.setMinimumHeight(32)
+        close_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {BG_INPUT}; color: {TEXT_SECONDARY}; "
+            f"border: 1px solid {BORDER_COLOR}; border-radius: 6px; "
+            f"padding: 8px 20px; }}"
+            f"QPushButton:hover {{ background-color: {BG_HOVER}; color: {TEXT_PRIMARY}; }}"
+        )
+        close_btn.clicked.connect(self.accept)
+        button_row.addWidget(close_btn)
+
+        layout.addLayout(button_row)
+
+        # 更新删除按钮可用状态
+        self._list_widget.currentRowChanged.connect(self._update_remove_btn)
+        self._update_remove_btn(self._list_widget.currentRow())
+
+    def _get_default_path(self) -> str:
+        """获取默认的 MAtoolbar 路径。"""
+        from MA.shelf_tool_pro.shelf_loader import project_root
+        return os.path.normpath(os.path.join(project_root(), "MAtoolbar"))
+
+    def _populate_list(self):
+        """填充路径列表：默认路径（不可删除）+ 额外路径。"""
+        self._list_widget.clear()
+
+        default_path = self._get_default_path()
+
+        # 默认路径（标记为内置，不可删除）
+        default_item = QtWidgets.QListWidgetItem(f"[默认] {default_path}")
+        default_item.setData(QtCore.Qt.ItemDataRole.UserRole, {"path": default_path, "is_default": True})
+        default_item.setToolTip("默认路径，不可删除")
+        self._list_widget.addItem(default_item)
+
+        # 额外路径
+        extra_paths = ShelfToolsSettingsManager.get_extra_shelf_paths()
+        for p in extra_paths:
+            item = QtWidgets.QListWidgetItem(p)
+            item.setData(QtCore.Qt.ItemDataRole.UserRole, {"path": p, "is_default": False})
+            item.setToolTip(p)
+            self._list_widget.addItem(item)
+
+        # 默认选中第一项
+        if self._list_widget.count() > 0:
+            self._list_widget.setCurrentRow(0)
+
+    def _update_remove_btn(self, row: int):
+        """根据选中行更新删除按钮状态：默认路径不可删除。"""
+        if row < 0 or row >= self._list_widget.count():
+            self.remove_btn.setEnabled(False)
+            return
+        item = self._list_widget.item(row)
+        data = item.data(QtCore.Qt.ItemDataRole.UserRole)
+        is_default = data.get("is_default", False) if data else False
+        self.remove_btn.setEnabled(not is_default)
+
+    def _on_add_path(self):
+        """打开文件夹选择对话框，添加新的 shelf 路径。"""
+        dir_path = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "选择 shelf 文件夹", ""
+        )
+        if not dir_path:
+            return
+
+        norm = os.path.normpath(dir_path)
+
+        # 检查是否与默认路径重复
+        if norm == self._get_default_path():
+            QtWidgets.QMessageBox.information(
+                self, "提示", "该路径已是默认路径，无需重复添加。"
+            )
+            return
+
+        # 检查是否与已有额外路径重复
+        added = ShelfToolsSettingsManager.add_extra_shelf_path(dir_path)
+        if not added:
+            QtWidgets.QMessageBox.information(
+                self, "提示", "该路径已存在。"
+            )
+            return
+
+        # 添加到列表
+        item = QtWidgets.QListWidgetItem(norm)
+        item.setData(QtCore.Qt.ItemDataRole.UserRole, {"path": norm, "is_default": False})
+        item.setToolTip(norm)
+        self._list_widget.addItem(item)
+        self._list_widget.setCurrentRow(self._list_widget.count() - 1)
+
+        self.paths_changed = True
+
+    def _on_remove_path(self):
+        """删除当前选中的额外路径。"""
+        row = self._list_widget.currentRow()
+        if row < 0:
+            return
+        item = self._list_widget.item(row)
+        data = item.data(QtCore.Qt.ItemDataRole.UserRole)
+        if data.get("is_default", False):
+            return  # 默认路径不可删除
+
+        path = data["path"]
+        ShelfToolsSettingsManager.remove_extra_shelf_path(path)
+        self._list_widget.takeItem(row)
+        self.paths_changed = True

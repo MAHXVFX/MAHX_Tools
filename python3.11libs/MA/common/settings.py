@@ -129,6 +129,43 @@ class ShelfToolsSettingsManager(BaseJsonManager):
         """保存当前筛选项。"""
         cls.update(cls._FILTER_KEY, filter_value)
 
+    # ── 额外 shelf 路径管理 ────────────────────────
+    _EXTRA_SHELF_PATHS_KEY = "extra_shelf_paths"
+
+    @classmethod
+    def get_extra_shelf_paths(cls) -> list:
+        """获取用户额外添加的 shelf 文件夹路径列表（按添加顺序）。"""
+        return cls.load().get(cls._EXTRA_SHELF_PATHS_KEY, [])
+
+    @classmethod
+    def set_extra_shelf_paths(cls, paths: list):
+        """设置额外 shelf 路径列表（整体替换）。"""
+        cls.update(cls._EXTRA_SHELF_PATHS_KEY, paths)
+
+    @classmethod
+    def add_extra_shelf_path(cls, path: str) -> bool:
+        """添加一个额外 shelf 路径。返回 True=已添加, False=已存在。"""
+        paths = list(cls.get_extra_shelf_paths())
+        norm = os.path.normpath(path)
+        # 去重（忽略大小写 / 尾部斜杠差异）
+        for existing in paths:
+            if os.path.normpath(existing) == norm:
+                return False
+        paths.append(norm)
+        cls.set_extra_shelf_paths(paths)
+        return True
+
+    @classmethod
+    def remove_extra_shelf_path(cls, path: str) -> bool:
+        """移除一个额外 shelf 路径。返回 True=已移除, False=不存在。"""
+        paths = list(cls.get_extra_shelf_paths())
+        norm = os.path.normpath(path)
+        new_paths = [p for p in paths if os.path.normpath(p) != norm]
+        if len(new_paths) == len(paths):
+            return False
+        cls.set_extra_shelf_paths(new_paths)
+        return True
+
     # ── 备注悬停延迟 ───────────────────────────
     # 鼠标进入缩略图后到备注面板出现的延迟（ms）。
     _NOTES_SHOW_DELAY_KEY = "notes_show_delay"

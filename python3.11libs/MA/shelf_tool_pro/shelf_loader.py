@@ -99,6 +99,18 @@ def scan_tool_names():
         os.path.join(project_root(), "MAtoolbar"),
         os.path.join(project_root(), "builtin_tools"),
     ]
+
+    # 追加用户手动添加的额外 shelf 路径（来自设置面板）
+    try:
+        from MA.common.settings import ShelfToolsSettingsManager
+        extra_paths = ShelfToolsSettingsManager.get_extra_shelf_paths()
+        for ep in extra_paths:
+            norm_ep = os.path.normpath(ep)
+            # 去重：避免与默认目录重复扫描
+            if norm_ep not in [os.path.normpath(d) for d in shelf_dirs]:
+                shelf_dirs.append(norm_ep)
+    except Exception as e:
+        _logger.debug("Failed to load extra shelf paths: %s", e)
     
     for shelf_dir in shelf_dirs:
         if not os.path.isdir(shelf_dir):
