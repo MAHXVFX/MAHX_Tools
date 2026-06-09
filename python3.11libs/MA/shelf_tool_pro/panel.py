@@ -350,19 +350,25 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                 parts = unique_id.split("_", 1)
                 rest = parts[-1] if len(parts) > 1 else unique_id
                 display_name = rest
+                label = display_name
                 icon = ""
                 shelf_stem = rest.split("_", 1)[0] if "_" in rest else "default"
 
             # 同名工具消歧：来自不同目录时追加来源标识
-            if len(_label_stem_prefixes.get((label, shelf_stem), set())) > 1:
-                display_name = f"{display_name} ({_get_prefix_label(prefix)})"
+            _collision = len(_label_stem_prefixes.get((label, shelf_stem), set())) > 1
+            if _collision:
+                _badge_text = _get_prefix_label(prefix)
+                display_name = f"{display_name} ({_badge_text})"
+            else:
+                _badge_text = ""
 
             # 获取该 shelf 对应的颜色（复合键查找）
             color_key = f"{prefix}_{shelf_stem}"
             bg_color, border_color = shelf_color_map.get(color_key, _SHELF_COLORS[0])
 
             tw = ThumbnailWidget(unique_id, display_name, size, icon_path=icon, 
-                                 bg_color=bg_color, border_color=border_color)
+                                 bg_color=bg_color, border_color=border_color,
+                                 source_badge=_badge_text)
             # 从设置注入当前备注悬停延迟（覆盖默认值 800ms）
             tw.set_notes_show_delay(ShelfToolsSettingsManager.get_notes_show_delay())
             self._thumb_widgets.append(tw)
