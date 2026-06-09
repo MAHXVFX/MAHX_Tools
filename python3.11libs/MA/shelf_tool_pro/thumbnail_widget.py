@@ -8,7 +8,7 @@ from PySide6 import QtWidgets, QtGui, QtCore
 
 from MA.common import ShelfToolsCacheManager, ShelfToolsSettingsManager
 from MA.common.constants import SHELFTOOLS_NOTES_DIR
-from MA.shelf_tool_pro.shelf_loader import execute_tool, drop_at_cursor
+from MA.shelf_tool_pro.shelf_loader import execute_tool, drop_at_cursor, make_unique_id
 from MA.shelf_tool_pro.styles import TEXT_SECONDARY, CONTEXT_MENU_STYLE
 from MA.shelf_tool_pro.web_renderer import WebRenderer, WebRendererPool
 from MA.shelf_tool_pro.markdown_text_edit import MarkdownTextEdit
@@ -658,7 +658,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
             
             # 如果名称改变了，需要迁移缓存数据
             if name_changed:
-                self._migrate_cache_data(self._unique_id, f"{shelf_stem}_{new_tool_name}")
+                self._migrate_cache_data(self._unique_id, make_unique_id(shelf_stem, new_tool_name))
 
         # 更新脚本代码（如果有变更）
         new_code = result.get("code")

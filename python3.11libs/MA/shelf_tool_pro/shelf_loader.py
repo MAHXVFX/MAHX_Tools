@@ -8,6 +8,7 @@ import os
 import sys
 import glob
 import html
+import hashlib
 import logging
 import xml.etree.ElementTree as ET
 
@@ -39,14 +40,18 @@ def _fix_encoding(text: str) -> str:
 
     return text
 
-_TOOL_NAMES = []      # 唯一标识列表：["shelfA_cam", "shelfB_cam"]
+_TOOL_NAMES = []      # 唯一标识列表：["{prefix}_{shelfStem}_{toolName}", ...]
 _TOOL_REGISTRY = {}   # 唯一标识 -> (shelf_stem, tool_name, label, icon, shelf_path)
 _TOOL_SCRIPTS = {}    # 唯一标识 -> script content (直接从 XML 解析)
 _BUILTIN_TOOL_IDS = set()  # 内置工具 unique_id 集合（来自 builtin_tools/ 目录下的 .shelf）
+_STEM_PATH_MAP = {}   # shelf_stem -> prefix（用于迁移和外部构造 unique_id）
 
 
 # 内置工具目录名（与 shelf_loader.scan_tool_names() 中判断 shelf 是否属于内置的逻辑对应）
 _BUILTIN_SHELF_DIR_NAME = "builtin_tools"
+
+# 默认用户工具目录名
+_DEFAULT_SHELF_DIR_NAME = "MAtoolbar"
 
 
 def is_builtin_tool(unique_id: str) -> bool:
@@ -57,6 +62,35 @@ def is_builtin_tool(unique_id: str) -> bool:
 def project_root():
     """返回项目根目录（MAHX_Tools/）。"""
     return os.path.dirname(os.path.dirname(os.path.dirname(MA.__file__)))
+
+
+def _path_hash(shelf_dir: str) -> str:
+    """生成目录路径的标识符，用于区分不同路径下的同名 shelf 文件。
+
+    内置工具目录（builtin_tools/）和默认用户目录（MAtoolbar/）使用固定标识符，
+    确保跨机器可移植（不依赖绝对路径）。
+    额外路径使用 MD5 前 6 位 hex 哈希。
+    """
+    norm = os.path.normpath(shelf_dir)
+    basename = os.path.basename(norm)
+    if basename == _BUILTIN_SHELF_DIR_NAME:
+        return "built"
+    if basename == _DEFAULT_SHELF_DIR_NAME:
+        return "deflt"
+    normalized = norm.replace("\\", "/")
+    return hashlib.md5(normalized.encode("utf-8")).hexdigest()[:6]
+
+
+def make_unique_id(shelf_stem: str, tool_name: str) -> str:
+    """根据 shelf_stem 和 tool_name 构造完整 unique_id（含路径前缀）。
+
+    前缀规则：builtin_tools/ → ``built``，MAtoolbar/ → ``deflt``，
+    额外路径 → 6 位 hex 哈希。
+    依赖 _STEM_PATH_MAP（由 scan_tool_names() 构建）。
+    若 stem 未在映射中（极端情况），回退到 "000000" 前缀。
+    """
+    path_hash = _STEM_PATH_MAP.get(shelf_stem, "000000")
+    return f"{path_hash}_{shelf_stem}_{tool_name}"
 
 
 def _find_network_editor(prefer_current=True):
@@ -80,19 +114,27 @@ def _find_network_editor(prefer_current=True):
 
 
 def scan_tool_names():
-    """解析 MAtoolbar/*.shelf 和 builtin_tools/*.shelf 文件，提取所有 tool 信息。
-    
+    """解析所有 shelf 目录中的 .shelf 文件，提取工具信息。
+
+    扫描目录（按优先级）：
+    1. MAtoolbar/（默认用户工具）
+    2. builtin_tools/（内置工具）
+    3. 设置面板中用户手动添加的额外路径
+
+    unique_id 格式：``{prefix}_{shelfStem}_{toolName}``
+    prefix 规则：builtin_tools/ → ``built``，MAtoolbar/ → ``deflt``，
+    额外路径 → 目录路径的 6 位 MD5 前缀 hex（确保不同路径下同名 shelf 不冲突）。
+
     Returns:
         tuple: (names, registry, scripts, builtin_ids) 四元组
-            - names: list of str, 唯一标识列表
-            - registry: dict, 唯一标识 -> (shelf_stem, tool_name, label, icon, shelf_path)
-            - scripts: dict, 唯一标识 -> script content
-            - builtin_ids: set of str, 内置工具的 unique_id 集合
     """
+    global _STEM_PATH_MAP
+
     names = []
     registry = {}
     scripts = {}
     builtin_ids = set()
+    stem_path_map = {}  # shelf_stem -> path_hash
     
     # 扫描两个目录：MAtoolbar（用户工具）和 builtin_tools（内置工具）
     shelf_dirs = [
@@ -115,10 +157,12 @@ def scan_tool_names():
     for shelf_dir in shelf_dirs:
         if not os.path.isdir(shelf_dir):
             continue
+        path_hash = _path_hash(shelf_dir)
         # 整个目录都是内置工具：扫描时一次性标记，目录内所有工具都属 builtin
         is_builtin_dir = _BUILTIN_SHELF_DIR_NAME in shelf_dir
         for f in sorted(glob.glob(os.path.join(shelf_dir, "*.shelf"))):
             shelf_stem = os.path.splitext(os.path.basename(f))[0]
+            stem_path_map[shelf_stem] = path_hash
             try:
                 with open(f, "r", encoding="utf-8") as fp:
                     content = fp.read()
@@ -139,7 +183,7 @@ def scan_tool_names():
                         # 修复可能的中文乱码
                         script_content = _fix_encoding(script_content)
                     
-                    unique_id = f"{shelf_stem}_{tool_name}"
+                    unique_id = f"{path_hash}_{shelf_stem}_{tool_name}"
                     if is_builtin_dir:
                         builtin_ids.add(unique_id)
                     names.append(unique_id)
@@ -149,6 +193,8 @@ def scan_tool_names():
                 _logger.warning("Failed to parse shelf XML: %s — %s", f, e)
             except Exception as e:
                 _logger.warning("Failed to scan shelf file: %s — %s", f, e)
+
+    _STEM_PATH_MAP = stem_path_map
     return names, registry, scripts, builtin_ids
 
 
@@ -156,14 +202,16 @@ def execute_tool(unique_id, extra_kwargs=None):
     """执行指定 tool 的脚本。
 
     Args:
-        unique_id: 工具唯一标识，格式 "{shelf_stem}_{tool_name}"
+        unique_id: 工具唯一标识，格式 "{prefix}_{shelfStem}_{toolName}"
         extra_kwargs: 额外的 kwargs 传递给脚本上下文
     """
     # 解析唯一标识，获取实际 tool_name
     if unique_id in _TOOL_REGISTRY:
         _, tool_name, _, _, _ = _TOOL_REGISTRY[unique_id]
     else:
-        tool_name = unique_id.split("_", 1)[-1] if "_" in unique_id else unique_id
+        # fallback: 跳过 prefix 前缀，提取 shelfStem_toolName 再提取 toolName
+        parts = unique_id.split("_", 1)
+        tool_name = parts[-1].split("_", 1)[-1] if len(parts) > 1 and "_" in parts[-1] else parts[-1]
     
     # 直接从缓存的 XML 解析结果获取脚本，不依赖 hou.shelves.tool()
     script_content = _TOOL_SCRIPTS.get(unique_id)
@@ -259,5 +307,204 @@ def _clear_module_cache():
         _logger.debug("Cleared module cache: %s", modules_to_remove)
 
 
+def _migrate_unique_ids():
+    """迁移 unique_id 到新格式。
+
+    处理两种迁移：
+    1. 旧格式 ``{shelfStem}_{toolName}`` → ``{prefix}_{shelfStem}_{toolName}``
+    2. 前缀变更（如 hex 哈希 → 稳定标识符 built/deflt）
+
+    迁移范围：Settings JSON（收藏）、Cache JSON（标签/图标/缩略图路径）、
+    builtin_tools.json、Notes 文件、缩略图文件。
+    仅在需要时执行（旧格式 ID 不再存在时自动跳过）。
+    """
+    if not _STEM_PATH_MAP:
+        return
+
+    from MA.common.constants import (
+        SHELFTOOLS_SETTINGS_FILE, SHELFTOOLS_CACHE_FILE, SHELFTOOLS_NOTES_DIR
+    )
+    import json
+
+    def _convert_any(old_id):
+        """将任意格式的 ID 转为当前正确格式。
+
+        处理：无哈希前缀 → 添加前缀，旧前缀（如 hex）→ 更新为当前前缀。
+        已是正确格式时返回 None。
+        """
+        for stem, new_prefix in _STEM_PATH_MAP.items():
+            prefix = f"{stem}_"
+            if old_id.startswith(prefix):
+                new_id = f"{new_prefix}_{old_id}"
+                return new_id if new_id != old_id else None
+
+            if old_id.startswith(f"{new_prefix}_{prefix}"):
+                return None  # 已是正确格式
+
+            # 检查是否有旧前缀：{old_prefix}_{stem}_{...}
+            if f"_{prefix}" in old_id:
+                idx = old_id.index(f"_{prefix}")
+                candidate_prefix = old_id[:idx]
+                is_hex = len(candidate_prefix) == 6 and all(c in "0123456789abcdef" for c in candidate_prefix)
+                is_alpha = candidate_prefix.isalpha() and candidate_prefix != new_prefix
+                if is_hex or is_alpha:
+                    new_id = f"{new_prefix}_{old_id[idx + 1:]}"
+                    return new_id if new_id != old_id else None
+        return None
+
+    # ── 1. Settings JSON: favorites ──
+    try:
+        if os.path.exists(SHELFTOOLS_SETTINGS_FILE):
+            with open(SHELFTOOLS_SETTINGS_FILE, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+            changed = False
+            if "favorite_tools" in settings:
+                new_favs = []
+                for fid in settings["favorite_tools"]:
+                    new_id = _convert_any(fid)
+                    if new_id:
+                        new_favs.append(new_id)
+                        changed = True
+                    else:
+                        new_favs.append(fid)
+                settings["favorite_tools"] = new_favs
+            if changed:
+                with open(SHELFTOOLS_SETTINGS_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(settings, f, indent=4, ensure_ascii=False)
+                _logger.info("Migrated favorites in settings")
+    except Exception as e:
+        _logger.warning("Failed to migrate settings: %s", e)
+
+    # ── 2. Cache JSON: tags + icons ──
+    try:
+        if os.path.exists(SHELFTOOLS_CACHE_FILE):
+            with open(SHELFTOOLS_CACHE_FILE, 'r', encoding='utf-8') as f:
+                cache = json.load(f)
+            changed = False
+            new_cache = {}
+            for key, value in cache.items():
+                new_key = key
+                for prefix in ("icon_", "tags_"):
+                    if key.startswith(prefix):
+                        old_id = key[len(prefix):]
+                        new_id = _convert_any(old_id)
+                        if new_id:
+                            new_key = f"{prefix}{new_id}"
+                            changed = True
+                        break
+                new_cache[new_key] = value
+            if changed:
+                with open(SHELFTOOLS_CACHE_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(new_cache, f, indent=4, ensure_ascii=False)
+                _logger.info("Migrated cache keys (tags/icons)")
+    except Exception as e:
+        _logger.warning("Failed to migrate cache: %s", e)
+
+    # ── 3. Notes 文件重命名 ──
+    try:
+        if os.path.isdir(SHELFTOOLS_NOTES_DIR):
+            for fname in os.listdir(SHELFTOOLS_NOTES_DIR):
+                if not fname.endswith(".md"):
+                    continue
+                old_id = fname[:-3]
+                new_id = _convert_any(old_id)
+                if new_id:
+                    old_path = os.path.join(SHELFTOOLS_NOTES_DIR, fname)
+                    new_path = os.path.join(SHELFTOOLS_NOTES_DIR, f"{new_id}.md")
+                    if not os.path.exists(new_path):
+                        os.rename(old_path, new_path)
+                        _logger.info("Renamed note: %s -> %s", fname, f"{new_id}.md")
+    except Exception as e:
+        _logger.warning("Failed to migrate notes: %s", e)
+
+    # ── 4. builtin_tools.json ──
+    try:
+        bt_json = os.path.join(project_root(), "builtin_tools", "builtin_tools.json")
+        if os.path.exists(bt_json):
+            with open(bt_json, 'r', encoding='utf-8') as f:
+                bt_data = json.load(f)
+            changed = False
+            if "tools" in bt_data:
+                new_tools = {}
+                for old_key, value in bt_data["tools"].items():
+                    new_key = _convert_any(old_key)
+                    if new_key:
+                        new_tools[new_key] = value
+                        changed = True
+                    else:
+                        new_tools[old_key] = value
+                bt_data["tools"] = new_tools
+            if changed:
+                with open(bt_json, 'w', encoding='utf-8') as f:
+                    json.dump(bt_data, f, indent=4, ensure_ascii=False)
+                _logger.info("Migrated builtin_tools.json keys")
+    except Exception as e:
+        _logger.warning("Failed to migrate builtin_tools.json: %s", e)
+
+    # ── 5. builtin_tools/notes/ 文件重命名 ──
+    try:
+        bt_notes = os.path.join(project_root(), "builtin_tools", "notes")
+        if os.path.isdir(bt_notes):
+            for fname in os.listdir(bt_notes):
+                if not fname.endswith(".md"):
+                    continue
+                old_id = fname[:-3]
+                new_id = _convert_any(old_id)
+                if new_id:
+                    old_path = os.path.join(bt_notes, fname)
+                    new_path = os.path.join(bt_notes, f"{new_id}.md")
+                    if not os.path.exists(new_path):
+                        os.rename(old_path, new_path)
+                        _logger.info("Renamed builtin note: %s -> %s", fname, f"{new_id}.md")
+    except Exception as e:
+        _logger.warning("Failed to migrate builtin notes: %s", e)
+
+    # ── 6. 缩略图文件重命名 + Cache JSON 路径更新 ──
+    try:
+        if os.path.exists(SHELFTOOLS_CACHE_FILE):
+            with open(SHELFTOOLS_CACHE_FILE, 'r', encoding='utf-8') as f:
+                cache = json.load(f)
+            thumb_changed = False
+            new_cache = {}
+
+            for key, value in cache.items():
+                if key.startswith("icon_") and isinstance(value, str) and value:
+                    old_uid = key[len("icon_"):]
+                    new_uid = _convert_any(old_uid)
+                    if new_uid:
+                        # 获取缩略图目录
+                        thumb_dir = os.path.dirname(
+                            os.path.join(project_root(), value)
+                        ) if not os.path.isabs(value) else os.path.dirname(value)
+
+                        old_filename = os.path.basename(value)
+                        _, ext = os.path.splitext(old_filename)
+                        new_filename = f"{new_uid}{ext}"
+                        new_value = os.path.join(os.path.dirname(value), new_filename)
+
+                        # 重命名磁盘上的文件
+                        old_abs = os.path.join(project_root(), value) if not os.path.isabs(value) else value
+                        new_abs = os.path.join(project_root(), new_value) if not os.path.isabs(new_value) else new_value
+
+                        if os.path.isfile(old_abs) and not os.path.isfile(new_abs):
+                            os.rename(old_abs, new_abs)
+                            _logger.info("Renamed thumbnail: %s -> %s", old_filename, new_filename)
+
+                        new_cache[f"icon_{new_uid}"] = new_value
+                        thumb_changed = True
+                        continue
+                new_cache[key] = value
+
+            if thumb_changed:
+                with open(SHELFTOOLS_CACHE_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(new_cache, f, indent=4, ensure_ascii=False)
+                _logger.info("Migrated thumbnail paths in cache")
+    except Exception as e:
+        _logger.warning("Failed to migrate thumbnails: %s", e)
+
+
 # 模块加载时扫描工具名称
 _TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS, _BUILTIN_TOOL_IDS = scan_tool_names()
+
+# 首次加载时迁移旧格式 unique_id
+_migrate_unique_ids()
