@@ -30,7 +30,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
     _NOTES_HIDE_DELAY = 100  # 鼠标离开备注面板后的延迟隐藏时间（ms）
     _DEFAULT_NOTES_SHOW_DELAY = 800  # 备注悬停延迟默认值（ms），可由设置面板覆盖
 
-    def __init__(self, unique_id, display_name, size, parent=None, icon_path="", bg_color="", border_color="", source_badge=""):
+    def __init__(self, unique_id, display_name, size, parent=None, icon_path="", bg_color="", border_color=""):
         super().__init__(parent)
         self._unique_id = unique_id
         self._display_name = display_name
@@ -77,24 +77,6 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self.favorite_star.hide()  # 默认隐藏
         self.favorite_star.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
         self.favorite_star.raise_()  # 确保在最上层
-
-        # 来源徽章（叠加在缩略图左下角，同名工具来自不同目录时显示）
-        self.source_badge = QtWidgets.QLabel(self.image_container)
-        self.source_badge.setAlignment(QtCore.Qt.AlignCenter)
-        self.source_badge.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
-        if source_badge:
-            badge_h = max(14, size // 6)
-            self.source_badge.setFixedHeight(badge_h)
-            self.source_badge.setText(f" {source_badge} ")
-            self.source_badge.setStyleSheet(
-                "background-color: rgba(0,0,0,180); color: #ffffff; "
-                "border-radius: 3px; padding: 1px 4px; font-size: 9px; font-weight: bold;"
-            )
-            self.source_badge.adjustSize()
-            self.source_badge.move(2, size + 2 - badge_h - 2)
-            self.source_badge.raise_()
-        else:
-            self.source_badge.hide()
         
         layout.addWidget(self.image_container)
 
@@ -242,16 +224,6 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self.favorite_star.setFixedSize(star_size, star_size)
         self._update_favorite_icon(star_size)
 
-        # 更新来源徽章位置和大小
-        if self.source_badge.isVisible():
-            badge_h = max(14, size // 6)
-            self.source_badge.setFixedHeight(badge_h)
-            font = self.source_badge.font()
-            font.setPointSize(max(6, size // 16))
-            self.source_badge.setFont(font)
-            self.source_badge.adjustSize()
-            self.source_badge.move(2, size + 2 - badge_h - 2)
-
         self._render_thumbnail(size)
         self._update_favorite_star()
 
@@ -265,11 +237,6 @@ class ThumbnailWidget(QtWidgets.QWidget):
         star_size = max(16, size // 5)
         self.favorite_star.setFixedSize(star_size, star_size)
         self.favorite_star.move(size + 2 - star_size - 2, 2)
-        # 更新来源徽章位置
-        if self.source_badge.isVisible():
-            badge_h = max(14, size // 6)
-            self.source_badge.setFixedHeight(badge_h)
-            self.source_badge.move(2, size + 2 - badge_h - 2)
         self.name_label.setFixedHeight(name_h)
         font = self.name_label.font()
         font.setPointSize(max(7, size // 14))
