@@ -54,27 +54,48 @@ def load_thumb_size():
 def _get_shelf_color_map():
     """获取统一的 shelf 颜色映射（确保所有地方使用相同的映射）。
 
-    内置工具的 shelf 统一使用白色，与缩略图标签的"白底黑字"风格保持一致；
-    用户 shelf 沿用彩虹色。builtin 判定委托给 shelf_loader.is_builtin_tool。
+    使用复合键 ``{prefix}_{shelfStem}`` 区分来自不同目录的同名 shelf 文件。
+    内置工具统一使用白色；用户 shelf 使用彩虹色。
+    builtin 判定委托给 shelf_loader.is_builtin_tool。
     """
     from MA.shelf_tool_pro.shelf_loader import is_builtin_tool
 
-    builtin_names = set()
-    user_names = set()
+    builtin_keys = set()
+    user_keys = set()
     for uid, info in _TOOL_REGISTRY.items():
         shelf_stem = info[0]
+        prefix = uid.split("_", 1)[0]
+        key = f"{prefix}_{shelf_stem}"
         if is_builtin_tool(uid):
-            builtin_names.add(shelf_stem)
+            builtin_keys.add(key)
         else:
-            user_names.add(shelf_stem)
+            user_keys.add(key)
 
     color_map = {}
-    for name in builtin_names:
-        color_map[name] = ("#ffffff", "#ffffff")
-    for i, name in enumerate(sorted(user_names)):
-        color_map[name] = _SHELF_COLORS[i % len(_SHELF_COLORS)]
+    for key in builtin_keys:
+        color_map[key] = ("#ffffff", "#ffffff")
+    for i, key in enumerate(sorted(user_keys)):
+        color_map[key] = _SHELF_COLORS[i % len(_SHELF_COLORS)]
 
     return color_map
+
+
+def _get_prefix_label(prefix):
+    """将 unique_id 前缀映射为可读的来源标识（用于同名工具消歧）。"""
+    if prefix == "deflt":
+        return "默认"
+    if prefix == "built":
+        return "内置"
+    # 额外路径：尝试从设置中获取对应的目录名
+    try:
+        from MA.common.settings import ShelfToolsSettingsManager
+        for p in ShelfToolsSettingsManager.get_extra_shelf_paths():
+            from MA.shelf_tool_pro.shelf_loader import path_prefix
+            if path_prefix(p) == prefix:
+                return os.path.basename(os.path.normpath(p))
+    except Exception:
+        pass
+    return prefix
 
 
 def save_thumb_size(value):
@@ -307,10 +328,20 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         cols = self._calc_grid_cols(avail, size)
         self._thumb_widgets = []
 
-        # 获取统一的 shelf 颜色映射
+        # 获取统一的 shelf 颜色映射（复合键：{prefix}_{shelfStem}）
         shelf_color_map = _get_shelf_color_map()
 
+        # 预计算：检测同名工具（相同 label + 相同 shelf_stem，来自不同目录）
+        _label_stem_prefixes = {}  # (label, shelf_stem) -> set of prefixes
+        for _uid in tool_names:
+            if _uid in tool_registry:
+                _stem, _, _label, _, _ = tool_registry[_uid]
+                _pfx = _uid.split("_", 1)[0]
+                _label_stem_prefixes.setdefault((_label, _stem), set()).add(_pfx)
+
         for idx, unique_id in enumerate(tool_names):
+            prefix = unique_id.split("_", 1)[0]
+
             if unique_id in tool_registry:
                 shelf_stem, _, label, icon, _ = tool_registry[unique_id]
                 display_name = label
@@ -322,8 +353,13 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                 icon = ""
                 shelf_stem = rest.split("_", 1)[0] if "_" in rest else "default"
 
-            # 获取该 shelf 对应的颜色（背景色, 边框色）
-            bg_color, border_color = shelf_color_map.get(shelf_stem, _SHELF_COLORS[0])
+            # 同名工具消歧：来自不同目录时追加来源标识
+            if len(_label_stem_prefixes.get((label, shelf_stem), set())) > 1:
+                display_name = f"{display_name} ({_get_prefix_label(prefix)})"
+
+            # 获取该 shelf 对应的颜色（复合键查找）
+            color_key = f"{prefix}_{shelf_stem}"
+            bg_color, border_color = shelf_color_map.get(color_key, _SHELF_COLORS[0])
 
             tw = ThumbnailWidget(unique_id, display_name, size, icon_path=icon, 
                                  bg_color=bg_color, border_color=border_color)
@@ -841,6 +877,9 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
     def _populate_filter_combo(self, restore_filter=False):
         """填充筛选下拉菜单：全部、各 shelf 名称。
         
+        使用复合键 ``{prefix}_{shelfStem}`` 区分来自不同目录的同名 shelf。
+        显示标签仅展示 shelf 名称，同名时追加来源标识。
+        
         Args:
             restore_filter: 是否恢复上次关闭时的筛选状态。
         """
@@ -852,19 +891,45 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self.filter_combo.blockSignals(True)
         self.filter_combo.clear()
 
-        # ItemData values: 'all' or shelf_stem string
+        # ItemData values: 'all' or composite key "{prefix}_{shelfStem}"
         self.filter_combo.addItem("全部", userData="all")
 
-        # 获取统一的 shelf 颜色映射
+        # 获取统一的 shelf 颜色映射（复合键）
         shelf_color_map = _get_shelf_color_map()
 
-        for name in sorted(shelf_color_map.keys()):
-            self.filter_combo.addItem(name, userData=name)
-            # 设置背景色和文字颜色（文字色统一，不因背景切换）
-            bg_color, border_color = shelf_color_map[name]
+        # 分组：shelf_stem -> list of composite keys
+        _stem_keys = {}
+        for ck in shelf_color_map:
+            parts = ck.split("_", 1)
+            if len(parts) == 2:
+                _stem_keys.setdefault(parts[1], []).append(ck)
+
+        for stem in sorted(_stem_keys.keys()):
+            keys = _stem_keys[stem]
+            if len(keys) == 1:
+                # 唯一来源，无需消歧
+                self.filter_combo.addItem(stem, userData=keys[0])
+            else:
+                # 同名 shelf 来自多个目录，追加来源标识
+                for ck in sorted(keys):
+                    prefix = ck.split("_", 1)[0]
+                    self.filter_combo.addItem(
+                        f"{stem} ({_get_prefix_label(prefix)})", userData=ck)
+
+            # 设置颜色（取该 stem 下第一个 key 的颜色）
+            bg_color, border_color = shelf_color_map[keys[0]]
             index = self.filter_combo.count() - 1
-            self.filter_combo.setItemData(index, QtGui.QColor(bg_color), QtCore.Qt.BackgroundRole)
-            self.filter_combo.setItemData(index, QtGui.QColor(TEXT_PRIMARY), QtCore.Qt.ForegroundRole)
+            # 多来源时为每个条目分别着色，单来源只着一次
+            if len(keys) == 1:
+                self.filter_combo.setItemData(index, QtGui.QColor(bg_color), QtCore.Qt.BackgroundRole)
+                self.filter_combo.setItemData(index, QtGui.QColor(TEXT_PRIMARY), QtCore.Qt.ForegroundRole)
+            else:
+                # 回溯 len(keys) 个条目分别着色
+                for i, ck in enumerate(sorted(keys)):
+                    ci = index - len(keys) + 1 + i
+                    bg, _ = shelf_color_map[ck]
+                    self.filter_combo.setItemData(ci, QtGui.QColor(bg), QtCore.Qt.BackgroundRole)
+                    self.filter_combo.setItemData(ci, QtGui.QColor(TEXT_PRIMARY), QtCore.Qt.ForegroundRole)
 
         # 确定要恢复的筛选项
         if restore_filter:
@@ -948,9 +1013,22 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         if data == "all":
             filtered_names = list(_TOOL_NAMES)
         else:
-            # shelf 名称过滤
-            shelf_name = data
-            filtered_names = [uid for uid in _TOOL_NAMES if uid in _TOOL_REGISTRY and _TOOL_REGISTRY[uid][0] == shelf_name]
+            # 复合键过滤：data = "{prefix}_{shelfStem}"
+            parts = data.split("_", 1)
+            if len(parts) == 2:
+                filter_prefix, filter_stem = parts
+                filtered_names = [
+                    uid for uid in _TOOL_NAMES
+                    if uid in _TOOL_REGISTRY
+                    and _TOOL_REGISTRY[uid][0] == filter_stem
+                    and uid.split("_", 1)[0] == filter_prefix
+                ]
+            else:
+                # 兼容旧格式（仅 shelf_stem）
+                filtered_names = [
+                    uid for uid in _TOOL_NAMES
+                    if uid in _TOOL_REGISTRY and _TOOL_REGISTRY[uid][0] == data
+                ]
 
         # 然后按标签/收藏筛选
         if tag_data == "favorites":
