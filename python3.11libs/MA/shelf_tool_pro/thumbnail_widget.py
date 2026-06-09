@@ -219,9 +219,10 @@ class ThumbnailWidget(QtWidgets.QWidget):
         font.setPointSize(max(7, size // 14))
         self.name_label.setFont(font)
 
-        # 更新星标大小
+        # 更新星标大小和位置
         star_size = max(16, size // 5)
         self.favorite_star.setFixedSize(star_size, star_size)
+        self.favorite_star.move(size + 2 - star_size - 2, 2)
         self._update_favorite_icon(star_size)
 
         self._render_thumbnail(size)
@@ -233,10 +234,11 @@ class ThumbnailWidget(QtWidgets.QWidget):
         self.setFixedSize(size, size + 4 + name_h + 8)
         self.image_container.setFixedSize(size + 2, size + 2)
         self.image_label.setGeometry(0, 0, size + 2, size + 2)
-        # 更新星标位置和大小
+        # 更新星标位置、大小和图标
         star_size = max(16, size // 5)
         self.favorite_star.setFixedSize(star_size, star_size)
         self.favorite_star.move(size + 2 - star_size - 2, 2)
+        self._update_favorite_icon(star_size)
         self.name_label.setFixedHeight(name_h)
         font = self.name_label.font()
         font.setPointSize(max(7, size // 14))
