@@ -314,11 +314,19 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                 shelf_stem, _, label, icon, _ = tool_registry[unique_id]
                 display_name = label
             else:
-                # fallback: 格式 {prefix}_{shelfStem}_{toolName}，跳过 prefix 前缀
-                rest = unique_id[7:] if len(unique_id) > 7 else unique_id
-                display_name = rest
+                # fallback: 格式 {prefix}_{shelfStem}_{toolName}
+                # 尝试从 _STEM_PATH_MAP 中匹配已知的 shelf_stem（长 stem 优先，避免短 stem 误匹配）
+                from MA.shelf_tool_pro.shelf_loader import _STEM_PATH_MAP
+                display_name = unique_id
                 icon = ""
-                shelf_stem = rest.split("_", 1)[0] if "_" in rest else "default"
+                shelf_stem = "default"
+                for stem in sorted(_STEM_PATH_MAP, key=len, reverse=True):
+                    sep = f"_{stem}_"
+                    pos = unique_id.find(sep)
+                    if pos >= 0:
+                        shelf_stem = stem
+                        display_name = unique_id[pos + len(sep):]
+                        break
 
             # 获取该 shelf 对应的颜色（背景色, 边框色）
             bg_color, border_color = shelf_color_map.get(shelf_stem, _SHELF_COLORS[0])
