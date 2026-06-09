@@ -35,8 +35,8 @@ QGroupBox {
     background-color: #1D1D20;
     border: 1px solid #3d3d3d;
     border-radius: 8px;
-    margin-top: 14px;
-    padding: 14px 10px 10px 10px;
+    margin-top: 10px;
+    padding: 10px 8px 8px 8px;
     font-weight: normal;
     font-size: 12px;
 }
@@ -645,8 +645,8 @@ class _VideoToSequenceWindow(QDialog):
 
     def _build_ui(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(12, 12, 12, 12)
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(6)
 
         self._build_source_section(main_layout)
         self._build_info_section(main_layout)
@@ -659,8 +659,8 @@ class _VideoToSequenceWindow(QDialog):
         group = QGroupBox("视频源")
         group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         layout = QVBoxLayout(group)
-        layout.setContentsMargins(10, 18, 10, 10)
-        layout.setSpacing(8)
+        layout.setContentsMargins(8, 16, 8, 8)
+        layout.setSpacing(6)
 
         file_row = QHBoxLayout()
         self._browse_btn = QPushButton("浏览...")
@@ -679,8 +679,8 @@ class _VideoToSequenceWindow(QDialog):
         group = QGroupBox("视频信息")
         group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         form = QFormLayout(group)
-        form.setContentsMargins(10, 18, 10, 10)
-        form.setSpacing(6)
+        form.setContentsMargins(8, 16, 8, 8)
+        form.setSpacing(4)
         form.setLabelAlignment(Qt.AlignRight)
 
         label_style = "color: #888888; font-weight: normal;"
@@ -710,8 +710,8 @@ class _VideoToSequenceWindow(QDialog):
         group = QGroupBox("相机")
         group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         layout = QHBoxLayout(group)
-        layout.setContentsMargins(10, 18, 10, 10)
-        layout.setSpacing(8)
+        layout.setContentsMargins(8, 16, 8, 8)
+        layout.setSpacing(6)
 
         cam_lbl = QLabel("选择相机:")
         cam_lbl.setStyleSheet("color: #888888;")
@@ -732,8 +732,8 @@ class _VideoToSequenceWindow(QDialog):
         group = QGroupBox("输出设置")
         group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         layout = QVBoxLayout(group)
-        layout.setContentsMargins(10, 18, 10, 10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(8, 16, 8, 8)
+        layout.setSpacing(6)
 
         # 质量
         quality_row = QHBoxLayout()
