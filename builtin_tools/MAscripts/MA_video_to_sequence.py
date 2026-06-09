@@ -1064,12 +1064,12 @@ class _VideoToSequenceWindow(QDialog):
             bg_path = f"$HIP/images/{video_name}/{prefix}.$F{padding}.jpg"
 
             # 设置 background 参数
-            bg_parm = cam.parm("background")
+            bg_parm = cam.parm("vm_background")
             if bg_parm:
                 bg_parm.set(bg_path)
 
-            # 设置 usebackground 为 0（禁用）
-            use_bg_parm = cam.parm("usebackground")
+            # 设置 vm_bgenable 为 0（禁用）
+            use_bg_parm = cam.parm("vm_bgenable")
             if use_bg_parm:
                 use_bg_parm.set(0)
 
