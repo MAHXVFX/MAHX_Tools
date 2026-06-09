@@ -15,7 +15,7 @@ from typing import Optional
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QSpinBox, QSlider, QGroupBox, QFormLayout,
-    QFileDialog, QMessageBox, QProgressBar,
+    QFileDialog, QMessageBox, QProgressBar, QInputDialog,
 )
 from PySide6.QtCore import Qt, QThread, Signal
 
@@ -650,6 +650,7 @@ class _VideoToSequenceWindow(QDialog):
 
         self._build_source_section(main_layout)
         self._build_info_section(main_layout)
+        self._build_camera_section(main_layout)
         self._build_output_section(main_layout)
         self._build_progress_section(main_layout)
         main_layout.addStretch()
@@ -704,6 +705,28 @@ class _VideoToSequenceWindow(QDialog):
             self._info_labels[key] = val
 
         parent_layout.addWidget(group)
+
+    def _build_camera_section(self, parent_layout):
+        group = QGroupBox("相机")
+        group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
+        layout = QHBoxLayout(group)
+        layout.setContentsMargins(10, 18, 10, 10)
+        layout.setSpacing(8)
+
+        cam_lbl = QLabel("选择相机:")
+        cam_lbl.setStyleSheet("color: #888888;")
+        self._camera_edit = QLineEdit()
+        self._camera_edit.setReadOnly(True)
+        self._camera_edit.setPlaceholderText("未选择相机...")
+        self._pick_cam_btn = QPushButton("选择...")
+        self._pick_cam_btn.setObjectName("browseBtn")
+        self._pick_cam_btn.clicked.connect(self._on_pick_camera)
+        layout.addWidget(cam_lbl)
+        layout.addWidget(self._camera_edit, 1)
+        layout.addWidget(self._pick_cam_btn)
+
+        parent_layout.addWidget(group)
+        self._auto_select_camera()
 
     def _build_output_section(self, parent_layout):
         group = QGroupBox("输出设置")
@@ -1039,6 +1062,49 @@ class _VideoToSequenceWindow(QDialog):
         except (ImportError, ValueError, TypeError, AttributeError):
             pass
         return 1001
+
+    def _find_scene_cameras(self) -> list:
+        """查找当前场景中的所有相机节点"""
+        try:
+            import hou
+            cameras = []
+            obj = hou.node("/obj")
+            if obj:
+                for node in obj.allSubChildren():
+                    if node.type().name() == "cam":
+                        cameras.append(node.path())
+            return cameras
+        except ImportError:
+            return []
+
+    def _auto_select_camera(self):
+        """根据场景中的相机数量自动选择"""
+        cameras = self._find_scene_cameras()
+        if len(cameras) == 1:
+            self._camera_edit.setText(cameras[0])
+
+    def _on_pick_camera(self):
+        """打开相机选择对话框"""
+        try:
+            import hou
+            cameras = self._find_scene_cameras()
+            if not cameras:
+                QMessageBox.information(self, "提示", "当前场景中没有找到相机。")
+                return
+
+            cam_names = [c.split("/")[-1] for c in cameras]
+            current = self._camera_edit.text()
+            current_idx = cameras.index(current) if current in cameras else 0
+
+            name, ok = QInputDialog.getItem(
+                self, "选择相机", "场景中的相机:",
+                cam_names, current_idx, False,
+            )
+            if ok and name:
+                idx = cam_names.index(name)
+                self._camera_edit.setText(cameras[idx])
+        except ImportError:
+            QMessageBox.warning(self, "提示", "此功能仅在 Houdini 中可用。")
 
     def _reset_info_labels(self):
         for lbl in self._info_labels.values():
