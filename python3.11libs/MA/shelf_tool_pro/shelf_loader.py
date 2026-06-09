@@ -308,4 +308,4 @@ def _clear_module_cache():
 
 
 # 模块加载时扫描工具名称
-_TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS, _BUILTIN_TOOL_IDS = scan_tool_names()/r/n
+_TOOL_NAMES, _TOOL_REGISTRY, _TOOL_SCRIPTS, _BUILTIN_TOOL_IDS = scan_tool_names()
