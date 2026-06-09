@@ -37,13 +37,15 @@ QGroupBox {
     border-radius: 8px;
     margin-top: 14px;
     padding: 14px 10px 10px 10px;
-    font-weight: bold;
+    font-weight: normal;
     font-size: 12px;
 }
 QGroupBox::title {
     subcontrol-origin: margin;
     left: 12px;
     padding: 0 6px;
+    color: #cccccc;
+    text-decoration: none;
 }
 QLineEdit {
     background-color: #2d2d2d;
@@ -141,6 +143,12 @@ QSlider#qualitySlider::handle:horizontal:hover {
     background-color: #ffffff;
 }
 """
+
+# QGroupBox 内联样式，确保覆盖 Houdini 全局样式，消除标题下划线
+_GROUPBOX_INLINE_STYLE = (
+    "QGroupBox { font-weight: normal; }"
+    "QGroupBox::title { text-decoration: none; color: #cccccc; }"
+)
 
 
 # ─── Data Classes ────────────────────────────────────────────────────
@@ -646,6 +654,7 @@ class _VideoToSequenceWindow(QDialog):
 
     def _build_source_section(self, parent_layout):
         group = QGroupBox("视频源")
+        group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         layout = QVBoxLayout(group)
         layout.setContentsMargins(10, 18, 10, 10)
         layout.setSpacing(8)
@@ -665,6 +674,7 @@ class _VideoToSequenceWindow(QDialog):
 
     def _build_info_section(self, parent_layout):
         group = QGroupBox("视频信息")
+        group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         form = QFormLayout(group)
         form.setContentsMargins(10, 18, 10, 10)
         form.setSpacing(6)
@@ -695,6 +705,7 @@ class _VideoToSequenceWindow(QDialog):
 
     def _build_output_section(self, parent_layout):
         group = QGroupBox("输出设置")
+        group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         layout = QVBoxLayout(group)
         layout.setContentsMargins(10, 18, 10, 10)
         layout.setSpacing(10)
@@ -1014,13 +1025,16 @@ class _VideoToSequenceWindow(QDialog):
     # ── Helpers ──────────────────────────────────────────────────────
 
     def _get_rfstart(self) -> int:
-        """从 Houdini 的 $RFSTART 变量获取默认起始帧号"""
+        """从 Houdini 的 $RFSTART 表达式获取默认起始帧号"""
         try:
             import hou
             val = hou.getenv("RFSTART")
-            if val:
+            if val is not None and str(val).strip():
+                return int(float(str(val)))
+            val = hou.text.expandString("$RFSTART")
+            if val and val != "$RFSTART":
                 return int(float(val))
-        except (ImportError, ValueError, TypeError):
+        except (ImportError, ValueError, TypeError, AttributeError):
             pass
         return 1001
 
