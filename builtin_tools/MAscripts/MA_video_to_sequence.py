@@ -35,8 +35,8 @@ QGroupBox {
     background-color: #1D1D20;
     border: 1px solid #3d3d3d;
     border-radius: 8px;
-    margin-top: 10px;
-    padding: 10px 8px 8px 8px;
+    margin-top: 12px;
+    padding: 14px 8px 8px 8px;
     font-weight: normal;
     font-size: 12px;
 }
@@ -44,7 +44,6 @@ QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
     left: 12px;
-    top: -2px;
     padding: 0 6px;
     color: #cccccc;
     text-decoration: none;
@@ -645,8 +644,8 @@ class _VideoToSequenceWindow(QDialog):
 
     def _build_ui(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(6)
+        main_layout.setContentsMargins(10, 8, 10, 8)
+        main_layout.setSpacing(4)
 
         self._build_source_section(main_layout)
         self._build_info_section(main_layout)
@@ -659,7 +658,7 @@ class _VideoToSequenceWindow(QDialog):
         group = QGroupBox("视频源")
         group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         layout = QVBoxLayout(group)
-        layout.setContentsMargins(8, 16, 8, 8)
+        layout.setContentsMargins(8, 14, 8, 8)
         layout.setSpacing(6)
 
         file_row = QHBoxLayout()
@@ -679,7 +678,7 @@ class _VideoToSequenceWindow(QDialog):
         group = QGroupBox("视频信息")
         group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         form = QFormLayout(group)
-        form.setContentsMargins(8, 16, 8, 8)
+        form.setContentsMargins(8, 14, 8, 8)
         form.setSpacing(4)
         form.setLabelAlignment(Qt.AlignRight)
 
@@ -710,7 +709,7 @@ class _VideoToSequenceWindow(QDialog):
         group = QGroupBox("相机")
         group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         layout = QHBoxLayout(group)
-        layout.setContentsMargins(8, 16, 8, 8)
+        layout.setContentsMargins(8, 14, 8, 8)
         layout.setSpacing(6)
 
         cam_lbl = QLabel("选择相机:")
@@ -732,7 +731,7 @@ class _VideoToSequenceWindow(QDialog):
         group = QGroupBox("输出设置")
         group.setStyleSheet(_GROUPBOX_INLINE_STYLE)
         layout = QVBoxLayout(group)
-        layout.setContentsMargins(8, 16, 8, 8)
+        layout.setContentsMargins(8, 14, 8, 8)
         layout.setSpacing(6)
 
         # 质量
@@ -818,7 +817,8 @@ class _VideoToSequenceWindow(QDialog):
 
     def _build_progress_section(self, parent_layout):
         self._status_label = QLabel("")
-        self._status_label.setStyleSheet("color: #888888; font-size: 12px;")
+        self._status_label.setStyleSheet("color: #888888; font-size: 11px;")
+        self._status_label.setFixedHeight(14)
         parent_layout.addWidget(self._status_label)
 
         self._progress_bar = QProgressBar()
