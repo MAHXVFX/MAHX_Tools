@@ -1073,12 +1073,14 @@ class _VideoToSequenceWindow(QDialog):
             if not cam:
                 return
 
-            video_name = os.path.splitext(os.path.basename(self._current_video_path))[0]
             prefix = getattr(self, "_last_prefix", "cam")
             padding = getattr(self, "_last_padding", 4)
 
-            # 构建路径：$HIP/images/{视频名}/{前缀}.$F{位数}.jpg
-            bg_path = f"$HIP/images/{video_name}/{prefix}.$F{padding}.jpg"
+            # 从 UI 的输出目录构建路径（保留 Houdini 变量如 $HIP）
+            raw_dir = self._output_dir_edit.text().strip()
+            if not raw_dir.endswith("/"):
+                raw_dir += "/"
+            bg_path = f"{raw_dir}{prefix}.$F{padding}.jpg"
 
             # 设置 background 参数
             bg_parm = cam.parm("vm_background")
