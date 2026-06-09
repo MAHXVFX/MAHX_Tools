@@ -923,6 +923,10 @@ class _VideoToSequenceWindow(QDialog):
         padding = self._padding_spin.value()
         prefix = self._prefix_edit.text().strip() or "cam"
 
+        # 保存转换上下文，供完成回调使用
+        self._last_prefix = prefix
+        self._last_padding = padding
+
         total = self._video_info.total_frames
 
         # 切换到转换中状态
@@ -1034,10 +1038,43 @@ class _VideoToSequenceWindow(QDialog):
         )
         self._status_label.setStyleSheet("color: #87cc8e; font-size: 12px;")
 
+        # 若选择了相机，设置其 Background Image 参数
+        cam_path = self._camera_edit.text().strip()
+        if cam_path:
+            self._set_camera_background(cam_path, output_dir)
+
         QMessageBox.information(
             self, "完成",
             f"成功提取 {total_frames} 帧序列图\n\n输出目录:\n{output_dir}",
         )
+
+    def _set_camera_background(self, cam_path, output_dir):
+        """设置相机的 Background Image 参数"""
+        try:
+            import hou
+            cam = hou.node(cam_path)
+            if not cam:
+                return
+
+            video_name = os.path.splitext(os.path.basename(self._current_video_path))[0]
+            prefix = getattr(self, "_last_prefix", "cam")
+            padding = getattr(self, "_last_padding", 4)
+
+            # 构建路径：$HIP/images/{视频名}/{前缀}.$F{位数}.jpg
+            bg_path = f"$HIP/images/{video_name}/{prefix}.$F{padding}.jpg"
+
+            # 设置 background 参数
+            bg_parm = cam.parm("background")
+            if bg_parm:
+                bg_parm.set(bg_path)
+
+            # 设置 usebackground 为 0（禁用）
+            use_bg_parm = cam.parm("usebackground")
+            if use_bg_parm:
+                use_bg_parm.set(0)
+
+        except ImportError:
+            pass
 
     def _on_extract_error(self, error_msg):
         self._cancel_btn.hide()
