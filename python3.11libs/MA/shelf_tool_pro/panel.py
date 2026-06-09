@@ -601,10 +601,24 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             f"border-radius: 10px; padding: 6px 16px; font-size: 11px;")
         self.browse_btn.clicked.connect(self._browse_thumbnail_directory)
         dir_row.addWidget(self.browse_btn)
-        dir_row.addSpacing(12)
 
-        # 添加shelf路径按钮（与路径管理同行，逻辑归属一致）
-        self.add_shelf_path_btn = QtWidgets.QPushButton("添加shelf路径")
+        settings_layout.addLayout(dir_row)
+
+        # ── Shelf 路径管理（方框分组） ────────────────────
+        _GROUP_STYLE = (
+            f"QGroupBox {{ color: {TEXT_SECONDARY}; font-size: 11px; font-weight: bold; "
+            f"border: 1px solid {BORDER_COLOR}; border-radius: 6px; "
+            f"margin-top: 10px; padding: 14px 8px 8px 8px; background-color: transparent; }}"
+            f"QGroupBox::title {{ subcontrol-origin: margin; subcontrol-position: top left; "
+            f"left: 10px; padding: 0 6px; background-color: {BG_SECONDARY}; }}"
+        )
+
+        shelf_group = QtWidgets.QGroupBox("Shelf 路径管理")
+        shelf_group.setStyleSheet(_GROUP_STYLE)
+        shelf_row = QtWidgets.QHBoxLayout(shelf_group)
+        shelf_row.setContentsMargins(8, 4, 8, 4)
+
+        self.add_shelf_path_btn = QtWidgets.QPushButton("Shelf 路径管理")
         self.add_shelf_path_btn.setCursor(QtCore.Qt.PointingHandCursor)
         self.add_shelf_path_btn.setStyleSheet(
             f"QPushButton {{ background-color: {BORDER_COLOR}; color: white; border: none; "
@@ -613,16 +627,16 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             f"QPushButton:pressed {{ background-color: {ACCENT_BLUE}; }}"
         )
         self.add_shelf_path_btn.clicked.connect(self._on_add_shelf_path)
-        dir_row.addWidget(self.add_shelf_path_btn)
+        shelf_row.addWidget(self.add_shelf_path_btn)
+        shelf_row.addStretch(1)
 
-        settings_layout.addLayout(dir_row)
+        settings_layout.addWidget(shelf_group)
 
-        # ── 备注悬停延迟设置 ────────────────────────
-        delay_row = QtWidgets.QHBoxLayout()
-        delay_label = QtWidgets.QLabel("备注悬停延迟：")
-        delay_label.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 13px; font-weight: bold; background-color: transparent;")
-        delay_row.addWidget(delay_label)
+        # ── 备注悬停延迟（方框分组） ────────────────────────
+        delay_group = QtWidgets.QGroupBox("备注悬停延迟")
+        delay_group.setStyleSheet(_GROUP_STYLE)
+        delay_row = QtWidgets.QHBoxLayout(delay_group)
+        delay_row.setContentsMargins(8, 4, 8, 4)
 
         # 数值显示：自定义 widget（数字 + 紫色下划线，下划线宽度随数字变化）
         self.notes_delay_field = _UnderlinedNumber(
@@ -653,7 +667,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         delay_row.addWidget(self.modify_delay_btn)
         delay_row.addStretch(1)
 
-        settings_layout.addLayout(delay_row)
+        settings_layout.addWidget(delay_group)
         return self.settings_widget
 
     def _on_modify_delay(self):
