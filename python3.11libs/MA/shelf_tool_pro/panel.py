@@ -253,8 +253,9 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
             # Cache icon path (键用 unique_id = prefix + shelf_stem + tool_name)
             from MA.common.settings import ShelfToolsCacheManager
+            shelf_dir = os.path.dirname(shelf_file)
             shelf_stem = os.path.splitext(os.path.basename(shelf_file))[0]
-            unique_id = make_unique_id(shelf_stem, tool_name)
+            unique_id = make_unique_id(shelf_dir, shelf_stem, tool_name)
             ShelfToolsCacheManager.set_tool_icon(unique_id, result.get("icon_path", ""))
 
             # Load the .shelf file into Houdini
@@ -314,19 +315,12 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                 shelf_stem, _, label, icon, _ = tool_registry[unique_id]
                 display_name = label
             else:
-                # fallback: 格式 {prefix}_{shelfStem}_{toolName}
-                # 尝试从 _STEM_PATH_MAP 中匹配已知的 shelf_stem（长 stem 优先，避免短 stem 误匹配）
-                from MA.shelf_tool_pro.shelf_loader import _STEM_PATH_MAP
-                display_name = unique_id
+                # fallback: 格式 {prefix}_{shelfStem}_{toolName}，跳过第一个 _ 前的前缀
+                parts = unique_id.split("_", 1)
+                rest = parts[-1] if len(parts) > 1 else unique_id
+                display_name = rest
                 icon = ""
-                shelf_stem = "default"
-                for stem in sorted(_STEM_PATH_MAP, key=len, reverse=True):
-                    sep = f"_{stem}_"
-                    pos = unique_id.find(sep)
-                    if pos >= 0:
-                        shelf_stem = stem
-                        display_name = unique_id[pos + len(sep):]
-                        break
+                shelf_stem = rest.split("_", 1)[0] if "_" in rest else "default"
 
             # 获取该 shelf 对应的颜色（背景色, 边框色）
             bg_color, border_color = shelf_color_map.get(shelf_stem, _SHELF_COLORS[0])
@@ -751,8 +745,9 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         # 保存缩略图缓存
         icon_path = result.get("icon_path", "")
         if icon_path:
+            shelf_dir = os.path.dirname(result["shelf_file"])
             shelf_stem = os.path.splitext(os.path.basename(result["shelf_file"]))[0]
-            unique_id = make_unique_id(shelf_stem, result['tool_name'])
+            unique_id = make_unique_id(shelf_dir, shelf_stem, result['tool_name'])
             ShelfToolsCacheManager.set_tool_icon(unique_id, icon_path)
         
         # 加载 .shelf 文件到 Houdini

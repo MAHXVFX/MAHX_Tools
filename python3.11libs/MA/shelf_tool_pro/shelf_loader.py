@@ -44,7 +44,6 @@ _TOOL_NAMES = []      # 唯一标识列表：["{prefix}_{shelfStem}_{toolName}",
 _TOOL_REGISTRY = {}   # 唯一标识 -> (shelf_stem, tool_name, label, icon, shelf_path)
 _TOOL_SCRIPTS = {}    # 唯一标识 -> script content (直接从 XML 解析)
 _BUILTIN_TOOL_IDS = set()  # 内置工具 unique_id 集合（来自 builtin_tools/ 目录下的 .shelf）
-_STEM_PATH_MAP = {}   # shelf_stem -> prefix（用于外部构造 unique_id）
 
 
 # 内置工具目录名（与 shelf_loader.scan_tool_names() 中判断 shelf 是否属于内置的逻辑对应）
@@ -64,7 +63,7 @@ def project_root():
     return os.path.dirname(os.path.dirname(os.path.dirname(MA.__file__)))
 
 
-def _path_hash(shelf_dir: str) -> str:
+def path_prefix(shelf_dir: str) -> str:
     """生成目录路径的标识符，用于区分不同路径下的同名 shelf 文件。
 
     内置工具目录（builtin_tools/）和默认用户目录（MAtoolbar/）使用固定标识符，
@@ -84,16 +83,15 @@ def _path_hash(shelf_dir: str) -> str:
     return hashlib.md5(normalized.encode("utf-8")).hexdigest()[:6]
 
 
-def make_unique_id(shelf_stem: str, tool_name: str) -> str:
-    """根据 shelf_stem 和 tool_name 构造完整 unique_id（含路径前缀）。
+def make_unique_id(shelf_dir: str, shelf_stem: str, tool_name: str) -> str:
+    """根据 shelf 目录、shelf_stem 和 tool_name 构造完整 unique_id（含路径前缀）。
 
     前缀规则：builtin_tools/ → ``built``，MAtoolbar/ → ``deflt``，
     额外路径 → 6 位 hex 哈希。
-    依赖 _STEM_PATH_MAP（由 scan_tool_names() 构建）。
-    若 stem 未在映射中（极端情况），回退到 "__none__" 占位符。
+    直接调用 ``path_prefix(shelf_dir)`` 计算前缀，无全局状态依赖。
     """
-    path_hash = _STEM_PATH_MAP.get(shelf_stem, "__none__")
-    return f"{path_hash}_{shelf_stem}_{tool_name}"
+    prefix = path_prefix(shelf_dir)
+    return f"{prefix}_{shelf_stem}_{tool_name}"
 
 
 def _find_network_editor(prefer_current=True):
@@ -131,13 +129,10 @@ def scan_tool_names():
     Returns:
         tuple: (names, registry, scripts, builtin_ids) 四元组
     """
-    global _STEM_PATH_MAP
-
     names = []
     registry = {}
     scripts = {}
     builtin_ids = set()
-    stem_path_map = {}  # shelf_stem -> path_hash
     
     # 扫描两个目录：MAtoolbar（用户工具）和 builtin_tools（内置工具）
     shelf_dirs = [
@@ -160,7 +155,7 @@ def scan_tool_names():
     for shelf_dir in shelf_dirs:
         if not os.path.isdir(shelf_dir):
             continue
-        path_hash = _path_hash(shelf_dir)
+        prefix = path_prefix(shelf_dir)
         # 整个目录都是内置工具：扫描时一次性标记，目录内所有工具都属 builtin
         norm_dir = os.path.normpath(shelf_dir)
         # 仅当目录在项目根目录下且名称为 builtin_tools 时才视为内置目录
@@ -170,7 +165,6 @@ def scan_tool_names():
         )
         for f in sorted(glob.glob(os.path.join(shelf_dir, "*.shelf"))):
             shelf_stem = os.path.splitext(os.path.basename(f))[0]
-            stem_path_map[shelf_stem] = path_hash
             try:
                 with open(f, "r", encoding="utf-8") as fp:
                     content = fp.read()
@@ -191,7 +185,7 @@ def scan_tool_names():
                         # 修复可能的中文乱码
                         script_content = _fix_encoding(script_content)
                     
-                    unique_id = f"{path_hash}_{shelf_stem}_{tool_name}"
+                    unique_id = f"{prefix}_{shelf_stem}_{tool_name}"
                     if is_builtin_dir:
                         builtin_ids.add(unique_id)
                     names.append(unique_id)
@@ -202,7 +196,6 @@ def scan_tool_names():
             except Exception as e:
                 _logger.warning("Failed to scan shelf file: %s — %s", f, e)
 
-    _STEM_PATH_MAP = stem_path_map
     return names, registry, scripts, builtin_ids
 
 

@@ -658,7 +658,7 @@ class ThumbnailWidget(QtWidgets.QWidget):
             
             # 如果名称改变了，需要迁移缓存数据
             if name_changed:
-                self._migrate_cache_data(self._unique_id, make_unique_id(shelf_stem, new_tool_name))
+                self._migrate_cache_data(self._unique_id, make_unique_id(os.path.dirname(shelf_path), shelf_stem, new_tool_name))
 
         # 更新脚本代码（如果有变更）
         new_code = result.get("code")
