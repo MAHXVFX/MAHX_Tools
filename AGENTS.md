@@ -39,8 +39,10 @@ root/
 │       └── tests/              # 单元测试
 ├── builtin_tools/              # 内置工具（只读，随项目提交）
 │   ├── builtin_tools.json      # 内置工具配置（图标/标签/元数据）
-│   ├── MA_*.shelf              # 工具注册入口
+│   ├── MA Builtin Tools.shelf  # 工具架定义
 │   ├── MAscripts/              # 功能代码（.py）
+│   │   ├── MA_automation_tool.py # 自动化批处理工具
+│   │   └── MA_video_to_sequence.py # 视频转序列图工具
 │   └── notes/                  # 备注文件（.md），按 unique_id 命名
 ├── python_panels/              # Pane Tab 定义（XML 入口）
 ├── MAtoolbar/                  # 用户工具目录（.shelf 文件）
@@ -101,10 +103,11 @@ root/
 | Module | AGENTS.md Location | Content |
 |--------|-------------------|---------|
 | `MA/common/` | `python3.11libs/MA/common/AGENTS.md` | 共享模块：设置/缓存/过滤器/样式/动画 |
-| `MA/about/` | `python3.11libs/MA/about/AGENTS.md` | 关于面板：单例模式、WebRenderer 复用 |
+| `MA/about/` | `python3.11libs/MA/about/AGENTS.md` | 关于面板：单例模式、QTextBrowser 渲染 |
 | `MA/hdr_library/` | `python3.11libs/MA/hdr_library/AGENTS.md` | HDR 环境光库面板详细文档 |
 | `MA/shelf_tool_pro/` | `python3.11libs/MA/shelf_tool_pro/AGENTS.md` | 加强版工具架详细文档 |
 | `MA/ma_automation/` | `python3.11libs/MA/ma_automation/AGENTS.md` | 自动化批处理工具详细文档 |
+| `builtin_tools/` | `builtin_tools/AGENTS.md` | 内置工具：开发流程、配置管理、工具列表 |
 
 **使用场景**：
 - 需要深入了解特定模块的实现细节时

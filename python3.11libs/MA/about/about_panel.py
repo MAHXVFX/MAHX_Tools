@@ -47,7 +47,7 @@ td { border: 1px solid #3d3d3d; padding: 8px 12px; color: #d4d4d4; }
 <p><strong style="color: #d4d4d4;">Houdini 21.0 PySide6 工具集</strong></p>
 <hr>
 <p>一套为 Houdini 21.0 打造的 PySide6 图形化工具集，<br>
-提供 <strong>HDR 环境光库管理</strong>、<strong>加强版工具架</strong> 和 <strong>自动化批处理</strong> 三大核心功能。</p>
+提供 <strong>HDR 环境光库管理</strong>、<strong>加强版工具架</strong>、<strong>自动化批处理</strong> 和 <strong>视频转序列图</strong> 四大核心功能。</p>
 <p><strong>作者：MAHX</strong></p>
 </center>
 <h2>✨ 核心功能</h2>
@@ -161,6 +161,40 @@ td { border: 1px solid #3d3d3d; padding: 8px 12px; color: #d4d4d4; }
     <li>参数路径支持：支持从 Houdini 参数面板拖入参数路径</li>
     <li>多配置管理：可编辑配置下拉菜单，支持保存/加载多套任务配置</li>
     <li>设置面板：可配置日志输出选项</li>
+    </ul>
+</li>
+</ul>
+
+<h3>🎬 MA 视频转序列图</h3>
+<p>MA 视频转序列图是一个专业的视频帧提取工具，将 mov、mp4、avi 等视频格式转换为 JPG 序列图。</p>
+<p><strong>主要特性：</strong></p>
+<ul>
+<li><strong>视频格式支持</strong>
+    <ul>
+    <li>支持 mov、mp4、avi、mkv、wmv、flv、webm、m4v、mpg、mpeg、3gp、ts 等格式</li>
+    <li>ffprobe 优先获取元数据，ffmpeg 作为回退方案</li>
+    </ul>
+</li>
+<li><strong>输出设置</strong>
+    <ul>
+    <li>可自定义 JPG 图片质量（1%-100%）</li>
+    <li>可设置起始帧号（默认从 $RFSTART 获取）</li>
+    <li>可自定义帧号位数（默认 4 位）</li>
+    <li>可自定义文件名前缀（默认 cam）</li>
+    </ul>
+</li>
+<li><strong>相机集成</strong>
+    <ul>
+    <li>自动检测场景中的相机节点</li>
+    <li>转换完成后自动设置相机 Background Image 参数</li>
+    <li>自动禁用 vm_bgenable（设为 0）</li>
+    </ul>
+</li>
+<li><strong>性能优化</strong>
+    <ul>
+    <li>ffmpeg 单进程直接批量输出 JPEG 序列</li>
+    <li>-progress pipe:1 实时帧级进度报告</li>
+    <li>QThread 后台线程，支持取消操作</li>
     </ul>
 </li>
 </ul>
