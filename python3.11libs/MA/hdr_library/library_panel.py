@@ -145,17 +145,34 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         cache_layout.addWidget(btn_browse_cache)
         settings_layout.addLayout(cache_layout)
 
+        cb_style = "QFrame { border: 1px solid #3d3d3d; border-radius: 6px; padding: 4px 8px; }"
+        cb_row = QtWidgets.QHBoxLayout()
+        cb_row.setSpacing(8)
+
+        frame_print = QtWidgets.QFrame()
+        frame_print.setStyleSheet(cb_style)
+        fl_print = QtWidgets.QHBoxLayout(frame_print)
+        fl_print.setContentsMargins(0, 0, 0, 0)
         self.print_path_checkbox = QtWidgets.QCheckBox("输出 HDR 路径")
         self.print_path_checkbox.setChecked(True)
         self.print_path_checkbox.setCursor(QCursor(Qt.PointingHandCursor))
         self.print_path_checkbox.stateChanged.connect(self._on_setting_changed)
-        settings_layout.addWidget(self.print_path_checkbox)
+        fl_print.addWidget(self.print_path_checkbox)
+        cb_row.addWidget(frame_print)
 
+        frame_gray = QtWidgets.QFrame()
+        frame_gray.setStyleSheet(cb_style)
+        fl_gray = QtWidgets.QHBoxLayout(frame_gray)
+        fl_gray.setContentsMargins(0, 0, 0, 0)
         self.hide_gray_checkbox = QtWidgets.QCheckBox("隐藏灰色缩略图")
         self.hide_gray_checkbox.setChecked(False)
         self.hide_gray_checkbox.setCursor(QCursor(Qt.PointingHandCursor))
         self.hide_gray_checkbox.toggled.connect(self._on_hide_gray_toggled)
-        settings_layout.addWidget(self.hide_gray_checkbox)
+        fl_gray.addWidget(self.hide_gray_checkbox)
+        cb_row.addWidget(frame_gray)
+
+        cb_row.addStretch()
+        settings_layout.addLayout(cb_row)
 
         btn_layout = QtWidgets.QHBoxLayout()
         self.btn_scan = QtWidgets.QPushButton("扫描 HDR 文件")
