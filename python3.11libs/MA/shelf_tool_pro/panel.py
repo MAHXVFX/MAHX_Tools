@@ -482,6 +482,11 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         layout.addWidget(self.search_input)
         layout.addSpacing(10)
 
+        # 搜索提示浮动 widget（初始隐藏）
+        self._search_hint = _SearchHintWidget(self)
+        self._search_hint.hide()
+        self._search_hint.installEventFilter(self)
+
         # 筛选下拉菜单
         filter_lbl = QtWidgets.QLabel("shelf")
         filter_lbl.setStyleSheet(
@@ -573,7 +578,10 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         self._search_timer.setSingleShot(True)
         self._search_timer.setInterval(500)
         self._search_timer.timeout.connect(self._apply_filter)
-        self.search_input.textChanged.connect(lambda: self._search_timer.start())
+        self.search_input.textChanged.connect(self._on_search_text_changed)
+
+        # 监听搜索框焦点和文本变化，控制提示显示
+        self.search_input.installEventFilter(self)
 
         # 用 _ToolbarWidget 包裹，控制 toolbar 压缩阈值
         toolbar_widget = _ToolbarWidget()
@@ -655,7 +663,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             f"QComboBox QAbstractItemView {{ background-color: {BG_INPUT}; color: white; "
             f"selection-background-color: #0d6399; }}")
         self.path_filter_combo.setCursor(QtCore.Qt.PointingHandCursor)
-        self._populate_path_filter_combo()
+        self._populate_path_filter_combo(restore_filter=True)
         self.path_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
         path_filter_row.addWidget(self.path_filter_combo)
 
@@ -1027,8 +1035,13 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
         self.tag_filter_combo.blockSignals(False)
 
-    def _populate_path_filter_combo(self):
-        """填充路径筛选下拉菜单：全部路径、内置、默认、用户自定义路径名称。"""
+    def _populate_path_filter_combo(self, restore_filter=False):
+        """填充路径筛选下拉菜单：全部路径、内置、默认、用户自定义路径名称。
+
+        Args:
+            restore_filter: 是否恢复上次关闭时的筛选状态。
+        """
+        # 保存当前筛选状态（防止 clear() 丢失选择）
         current_path = None
         if self.path_filter_combo.count() > 0:
             current_path = self.path_filter_combo.itemData(self.path_filter_combo.currentIndex())
@@ -1039,14 +1052,11 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         # 添加"全部"选项
         self.path_filter_combo.addItem("全部路径", userData="all")
 
-        # 内置路径
-        from MA.shelf_tool_pro.shelf_loader import project_root
-        builtin_path = os.path.normpath(os.path.join(project_root(), "builtin_tools"))
-        self.path_filter_combo.addItem("内置", userData=f"builtin:{builtin_path}")
+        # 内置路径（使用相对标识符，不存储绝对路径）
+        self.path_filter_combo.addItem("内置", userData="builtin")
 
-        # 默认路径
-        default_path = os.path.normpath(os.path.join(project_root(), "MAtoolbar"))
-        self.path_filter_combo.addItem("默认", userData=f"default:{default_path}")
+        # 默认路径（使用相对标识符，不存储绝对路径）
+        self.path_filter_combo.addItem("默认", userData="default")
 
         # 用户额外路径（显示自定义命名）
         extra_paths = ShelfToolsSettingsManager.get_extra_shelf_paths()
@@ -1056,13 +1066,24 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
             display_text = path_name if path_name else os.path.basename(norm)
             self.path_filter_combo.addItem(display_text, userData=f"extra:{norm}")
 
-        # 恢复之前的选择
-        if current_path is not None:
+        # 确定要恢复的筛选项
+        if restore_filter:
+            saved_path_filter = ShelfToolsSettingsManager.get_path_filter()
+            index = self.path_filter_combo.findData(saved_path_filter)
+            if index >= 0:
+                self.path_filter_combo.setCurrentIndex(index)
+            else:
+                self.path_filter_combo.setCurrentIndex(0)
+        elif current_path is not None:
+            # 非首次加载时，恢复调用前的选择
             index = self.path_filter_combo.findData(current_path)
             if index >= 0:
                 self.path_filter_combo.setCurrentIndex(index)
 
         self.path_filter_combo.blockSignals(False)
+
+        # 信号被 block，手动应用筛选
+        self._apply_filter()
 
     def _on_filter_changed(self, index):
         """筛选项变化时触发。"""
@@ -1167,17 +1188,17 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
         Args:
             tool_names: 待筛选的工具 unique_id 列表
-            path_data: 路径筛选数据，格式为 "builtin:{path}" / "default:{path}" / "extra:{path}"
+            path_data: 路径筛选数据，格式为 "builtin" / "default" / "extra:{path}"
 
         Returns:
             筛选后的工具列表
         """
-        from MA.shelf_tool_pro.shelf_loader import is_builtin_tool, path_prefix, project_root
+        from MA.shelf_tool_pro.shelf_loader import is_builtin_tool, path_prefix
 
-        if path_data.startswith("builtin:"):
+        if path_data == "builtin":
             # 内置工具
             return [uid for uid in tool_names if is_builtin_tool(uid)]
-        elif path_data.startswith("default:"):
+        elif path_data == "default":
             # 默认路径工具（prefix 为 "deflt"）
             return [uid for uid in tool_names if uid.split("_", 1)[0] == "deflt"]
         elif path_data.startswith("extra:"):
@@ -1230,10 +1251,61 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         if tag_data != "all":
             self._apply_filter()
 
+    def eventFilter(self, obj, event):
+        """事件过滤器：处理搜索框焦点和文本变化，控制提示显示。"""
+        if obj == self.search_input:
+            if event.type() == QtCore.QEvent.Type.FocusIn:
+                # 搜索框获得焦点且内容为空时显示提示
+                if not self.search_input.text().strip():
+                    self._show_search_hint()
+            elif event.type() == QtCore.QEvent.Type.FocusOut:
+                # 搜索框失去焦点时隐藏提示
+                self._hide_search_hint()
+            elif event.type() == QtCore.QEvent.Type.KeyPress:
+                # 按下 Escape 键时隐藏提示并取消焦点
+                if event.key() == QtCore.Qt.Key.Key_Escape:
+                    self._hide_search_hint()
+                    self.search_input.clearFocus()
+                    return True
+        elif obj == self._search_hint:
+            if event.type() == QtCore.QEvent.Type.MouseButtonPress:
+                # 点击提示时将焦点转移到搜索框
+                self.search_input.setFocus()
+                return True
+        return super().eventFilter(obj, event)
+
+    def _on_search_text_changed(self, text):
+        """搜索框文本变化时的处理。"""
+        # 启动去抖定时器
+        self._search_timer.start()
+        # 根据文本内容控制提示显示
+        if text.strip():
+            self._hide_search_hint()
+        elif self.search_input.hasFocus():
+            self._show_search_hint()
+
+    def _show_search_hint(self):
+        """显示搜索提示。"""
+        if not hasattr(self, '_search_hint') or self._search_hint is None:
+            return
+        # 计算提示位置：搜索框下方
+        pos = self.search_input.mapToGlobal(QtCore.QPoint(0, self.search_input.height()))
+        self._search_hint.move(pos)
+        self._search_hint.show()
+        self._search_hint.raise_()
+
+    def _hide_search_hint(self):
+        """隐藏搜索提示。"""
+        if not hasattr(self, '_search_hint') or self._search_hint is None:
+            return
+        self._search_hint.hide()
+
     def closeEvent(self, event):
         """面板关闭时保存当前筛选状态。"""
         current_filter = self.filter_combo.itemData(self.filter_combo.currentIndex())
         ShelfToolsSettingsManager.set_filter(current_filter)
+        current_path_filter = self.path_filter_combo.itemData(self.path_filter_combo.currentIndex())
+        ShelfToolsSettingsManager.set_path_filter(current_path_filter)
         super().closeEvent(event)
 
 
@@ -1842,3 +1914,63 @@ class _PathNameDialog(QtWidgets.QDialog):
     def get_name(self) -> str:
         """返回用户输入的名称。"""
         return self.name_edit.text().strip()
+
+
+class _SearchHintWidget(QtWidgets.QFrame):
+    """搜索提示浮动 widget。
+
+    显示可用的搜索方法提示，在搜索框获得焦点且内容为空时显示。
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(QtCore.Qt.ToolTip)
+        self.setStyleSheet(
+            f"QFrame {{ background-color: {BG_INPUT}; border: none; "
+            f"border-radius: 6px; padding: 4px; }}"
+        )
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(2)
+
+        # 标题
+        title = QtWidgets.QLabel("搜索选项")
+        title.setStyleSheet(
+            f"color: {TEXT_PRIMARY}; font-size: 12px; font-weight: bold; "
+            f"background-color: transparent;"
+        )
+        layout.addWidget(title)
+
+        # 提示内容
+        hints = [
+            ("直接输入", "匹配工具显示名"),
+            ("name:", "匹配工具系统名"),
+            ("shelf:", "匹配 shelf 文件名"),
+            ("tag:", "搜索标签"),
+        ]
+
+        for prefix, desc in hints:
+            row = QtWidgets.QHBoxLayout()
+            row.setSpacing(6)
+            row.setContentsMargins(0, 0, 0, 0)
+
+            prefix_label = QtWidgets.QLabel(prefix)
+            prefix_label.setStyleSheet(
+                f"color: {TEXT_PRIMARY}; font-size: 11px; font-weight: bold; "
+                f"background-color: transparent; min-width: 40px;"
+            )
+            row.addWidget(prefix_label)
+
+            desc_label = QtWidgets.QLabel(desc)
+            desc_label.setStyleSheet(
+                f"color: {TEXT_PRIMARY}; font-size: 11px; font-weight: bold; "
+                f"background-color: transparent;"
+            )
+            row.addWidget(desc_label)
+
+            row.addStretch()
+            layout.addLayout(row)
+
+        self.adjustSize()
+        self.setFixedSize(self.sizeHint())

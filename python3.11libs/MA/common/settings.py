@@ -132,6 +132,19 @@ class ShelfToolsSettingsManager(BaseJsonManager):
         """保存当前筛选项。"""
         cls.update(cls._FILTER_KEY, filter_value)
 
+    # ── 路径筛选状态 ────────────────────────────
+    _PATH_FILTER_KEY = "last_path_filter"
+
+    @classmethod
+    def get_path_filter(cls) -> str:
+        """获取上次关闭时的路径筛选项。"""
+        return cls.load().get(cls._PATH_FILTER_KEY, "all")
+
+    @classmethod
+    def set_path_filter(cls, filter_value: str):
+        """保存当前路径筛选项。"""
+        cls.update(cls._PATH_FILTER_KEY, filter_value)
+
     # ── 额外 shelf 路径管理 ────────────────────────
     _EXTRA_SHELF_PATHS_KEY = "extra_shelf_paths"
 
