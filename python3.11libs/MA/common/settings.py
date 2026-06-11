@@ -167,7 +167,60 @@ class ShelfToolsSettingsManager(BaseJsonManager):
         if len(new_paths) == len(paths):
             return False
         cls.set_extra_shelf_paths(new_paths)
+        # 同时删除该路径的命名
+        cls.remove_path_name(path)
         return True
+
+    # ── 路径命名管理 ───────────────────────────
+    _PATH_NAMES_KEY = "shelf_path_names"
+
+    @classmethod
+    def get_path_names(cls) -> dict:
+        """获取所有路径命名映射 {路径: 命名}。"""
+        return cls.load().get(cls._PATH_NAMES_KEY, {})
+
+    @classmethod
+    def set_path_name(cls, path: str, name: str) -> bool:
+        """设置路径命名。返回 True=已设置, False=命名已存在。"""
+        names = dict(cls.get_path_names())
+        norm = os.path.normpath(path)
+
+        # 检查命名是否重复（排除当前路径自身）
+        for existing_path, existing_name in names.items():
+            if existing_name == name and os.path.normpath(existing_path) != norm:
+                return False
+
+        names[norm] = name
+        cls.update(cls._PATH_NAMES_KEY, names)
+        return True
+
+    @classmethod
+    def remove_path_name(cls, path: str) -> bool:
+        """移除路径命名。返回 True=已移除, False=不存在。"""
+        names = dict(cls.get_path_names())
+        norm = os.path.normpath(path)
+        if norm not in names:
+            return False
+        del names[norm]
+        cls.update(cls._PATH_NAMES_KEY, names)
+        return True
+
+    @classmethod
+    def get_path_name(cls, path: str) -> str:
+        """获取路径命名，未设置返回空字符串。"""
+        names = cls.get_path_names()
+        norm = os.path.normpath(path)
+        return names.get(norm, "")
+
+    @classmethod
+    def is_path_name_taken(cls, name: str, exclude_path: str = "") -> bool:
+        """检查命名是否已被使用（排除指定路径）。"""
+        names = cls.get_path_names()
+        exclude_norm = os.path.normpath(exclude_path) if exclude_path else ""
+        for path, existing_name in names.items():
+            if existing_name == name and os.path.normpath(path) != exclude_norm:
+                return True
+        return False
 
     # ── 备注悬停延迟 ───────────────────────────
     # 鼠标进入缩略图后到备注面板出现的延迟（ms）。

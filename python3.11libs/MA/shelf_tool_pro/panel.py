@@ -383,6 +383,9 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         # 更新 shelf 筛选下拉菜单（新增的 shelf 文件需要显示）
         self._populate_filter_combo()
 
+        # 更新路径筛选下拉菜单
+        self._populate_path_filter_combo()
+
         # 复用统一的筛选逻辑（包含 shelf、标签、搜索三层筛选）
         filtered_names = self._get_filtered_tool_names()
 
@@ -635,6 +638,28 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         shelf_row.addWidget(self.add_shelf_path_btn)
 
         groups_row.addWidget(shelf_group)
+
+        # 中间：路径筛选（自适应宽度）
+        path_filter_group = QtWidgets.QGroupBox("路径筛选")
+        path_filter_group.setStyleSheet(_GROUP_STYLE)
+        path_filter_group.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Fixed)
+        path_filter_row = QtWidgets.QHBoxLayout(path_filter_group)
+        path_filter_row.setContentsMargins(8, 4, 8, 4)
+
+        self.path_filter_combo = QtWidgets.QComboBox()
+        self.path_filter_combo.setMinimumWidth(120)
+        self.path_filter_combo.setStyleSheet(
+            f"QComboBox {{ background-color: {BG_INPUT}; color: white; border: 1px solid {BORDER_COLOR}; "
+            f"border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: bold; }} "
+            f"QComboBox::drop-down {{ border: none; }} "
+            f"QComboBox QAbstractItemView {{ background-color: {BG_INPUT}; color: white; "
+            f"selection-background-color: #0d6399; }}")
+        self.path_filter_combo.setCursor(QtCore.Qt.PointingHandCursor)
+        self._populate_path_filter_combo()
+        self.path_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        path_filter_row.addWidget(self.path_filter_combo)
+
+        groups_row.addWidget(path_filter_group)
 
         # 右侧：备注悬停延迟（自适应宽度）
         delay_group = QtWidgets.QGroupBox("备注悬停延迟")
@@ -1002,6 +1027,43 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
 
         self.tag_filter_combo.blockSignals(False)
 
+    def _populate_path_filter_combo(self):
+        """填充路径筛选下拉菜单：全部路径、内置、默认、用户自定义路径名称。"""
+        current_path = None
+        if self.path_filter_combo.count() > 0:
+            current_path = self.path_filter_combo.itemData(self.path_filter_combo.currentIndex())
+
+        self.path_filter_combo.blockSignals(True)
+        self.path_filter_combo.clear()
+
+        # 添加"全部"选项
+        self.path_filter_combo.addItem("全部路径", userData="all")
+
+        # 内置路径
+        from MA.shelf_tool_pro.shelf_loader import project_root
+        builtin_path = os.path.normpath(os.path.join(project_root(), "builtin_tools"))
+        self.path_filter_combo.addItem("内置", userData=f"builtin:{builtin_path}")
+
+        # 默认路径
+        default_path = os.path.normpath(os.path.join(project_root(), "MAtoolbar"))
+        self.path_filter_combo.addItem("默认", userData=f"default:{default_path}")
+
+        # 用户额外路径（显示自定义命名）
+        extra_paths = ShelfToolsSettingsManager.get_extra_shelf_paths()
+        for p in extra_paths:
+            norm = os.path.normpath(p)
+            path_name = ShelfToolsSettingsManager.get_path_name(p)
+            display_text = path_name if path_name else os.path.basename(norm)
+            self.path_filter_combo.addItem(display_text, userData=f"extra:{norm}")
+
+        # 恢复之前的选择
+        if current_path is not None:
+            index = self.path_filter_combo.findData(current_path)
+            if index >= 0:
+                self.path_filter_combo.setCurrentIndex(index)
+
+        self.path_filter_combo.blockSignals(False)
+
     def _on_filter_changed(self, index):
         """筛选项变化时触发。"""
         self._apply_filter()
@@ -1028,6 +1090,7 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
         """根据当前筛选项返回工具名列表。"""
         data = self.filter_combo.itemData(self.filter_combo.currentIndex())
         tag_data = self.tag_filter_combo.itemData(self.tag_filter_combo.currentIndex())
+        path_data = self.path_filter_combo.itemData(self.path_filter_combo.currentIndex())
 
         # 首先按 shelf 筛选
         if data == "all":
@@ -1064,7 +1127,11 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                 or tag_data in BuiltinToolsCacheManager.get_tool_tags(uid)
             ]
 
-        # Layer 3: 搜索文本筛选（叠加/交集）
+        # 路径筛选（与 shelf/标签筛选取交集）
+        if path_data != "all":
+            filtered_names = self._filter_by_path(filtered_names, path_data)
+
+        # Layer 4: 搜索文本筛选（叠加/交集）
         search_text = self.search_input.text().strip()
         if search_text:
             mode, query = self._parse_search_query(search_text)
@@ -1094,6 +1161,32 @@ class MAShelfToolProPanel(QtWidgets.QWidget):
                     ]
 
         return filtered_names
+
+    def _filter_by_path(self, tool_names, path_data):
+        """根据路径筛选工具列表。
+
+        Args:
+            tool_names: 待筛选的工具 unique_id 列表
+            path_data: 路径筛选数据，格式为 "builtin:{path}" / "default:{path}" / "extra:{path}"
+
+        Returns:
+            筛选后的工具列表
+        """
+        from MA.shelf_tool_pro.shelf_loader import is_builtin_tool, path_prefix, project_root
+
+        if path_data.startswith("builtin:"):
+            # 内置工具
+            return [uid for uid in tool_names if is_builtin_tool(uid)]
+        elif path_data.startswith("default:"):
+            # 默认路径工具（prefix 为 "deflt"）
+            return [uid for uid in tool_names if uid.split("_", 1)[0] == "deflt"]
+        elif path_data.startswith("extra:"):
+            # 额外路径工具
+            target_path = path_data[6:]  # 去掉 "extra:" 前缀
+            target_prefix = path_prefix(target_path)
+            return [uid for uid in tool_names if uid.split("_", 1)[0] == target_prefix]
+
+        return tool_names
 
     def _apply_filter(self):
         """应用当前筛选条件，重新构建缩略图网格。"""
@@ -1319,6 +1412,10 @@ class _ShelfPathsDialog(QtWidgets.QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.paths_changed = False
+        self._pending_adds = []  # 待添加的路径
+        self._pending_removes = []  # 待删除的路径
+        self._pending_names = {}  # 待设置的命名 {path: name}
+        self._pending_name_removes = []  # 待删除的命名
         self.setWindowTitle("Shelf 路径管理")
         self.setModal(True)
         self.setWindowFlags(
@@ -1390,26 +1487,47 @@ class _ShelfPathsDialog(QtWidgets.QDialog):
         self.remove_btn.clicked.connect(self._on_remove_path)
         button_row.addWidget(self.remove_btn)
 
+        # 命名按钮
+        self.name_btn = QtWidgets.QPushButton("命名")
+        self.name_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self.name_btn.setMinimumHeight(32)
+        self.name_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {ACCENT_PURPLE}; color: white; border: none; "
+            f"border-radius: 6px; padding: 8px 20px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background-color: #7a4cc8; }}"
+            f"QPushButton:disabled {{ background-color: #1a1a1a; color: #3a3a3a; }}"
+        )
+        self.name_btn.clicked.connect(self._on_rename_path)
+        button_row.addWidget(self.name_btn)
+
         button_row.addStretch(1)
 
-        # 关闭按钮
-        close_btn = QtWidgets.QPushButton("关闭")
-        close_btn.setCursor(QtCore.Qt.PointingHandCursor)
-        close_btn.setMinimumHeight(32)
-        close_btn.setStyleSheet(
+        # 确认按钮
+        confirm_btn = QtWidgets.QPushButton("确认")
+        confirm_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        confirm_btn.setMinimumHeight(32)
+        confirm_btn.setStyleSheet(SAVE_BUTTON_STYLE)
+        confirm_btn.clicked.connect(self._on_confirm)
+        button_row.addWidget(confirm_btn)
+
+        # 取消按钮
+        cancel_btn = QtWidgets.QPushButton("取消")
+        cancel_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        cancel_btn.setMinimumHeight(32)
+        cancel_btn.setStyleSheet(
             f"QPushButton {{ background-color: {BG_INPUT}; color: {TEXT_SECONDARY}; "
             f"border: 1px solid {BORDER_COLOR}; border-radius: 6px; "
             f"padding: 8px 20px; }}"
             f"QPushButton:hover {{ background-color: {BG_HOVER}; color: {TEXT_PRIMARY}; }}"
         )
-        close_btn.clicked.connect(self.accept)
-        button_row.addWidget(close_btn)
+        cancel_btn.clicked.connect(self.reject)
+        button_row.addWidget(cancel_btn)
 
         layout.addLayout(button_row)
 
-        # 更新删除按钮可用状态
-        self._list_widget.currentRowChanged.connect(self._update_remove_btn)
-        self._update_remove_btn(self._list_widget.currentRow())
+        # 更新按钮可用状态
+        self._list_widget.currentRowChanged.connect(self._update_buttons)
+        self._update_buttons(self._list_widget.currentRow())
 
     def _get_default_path(self) -> str:
         """获取默认的 MAtoolbar 路径。"""
@@ -1422,7 +1540,7 @@ class _ShelfPathsDialog(QtWidgets.QDialog):
         return os.path.normpath(os.path.join(project_root(), "builtin_tools"))
 
     def _populate_list(self):
-        """填充路径列表：内置路径 + 默认路径（均不可删除）+ 额外路径。"""
+        """填充路径列表：内置路径 + 默认路径（均不可删除）+ 额外路径（显示命名）。"""
         self._list_widget.clear()
 
         builtin_path = self._get_builtin_path()
@@ -1431,29 +1549,31 @@ class _ShelfPathsDialog(QtWidgets.QDialog):
         # 受保护项的样式：灰色文字
         protected_fg = QtGui.QColor(TEXT_SECONDARY)
 
-        # 内置工具路径（不可删除）
+        # 内置工具路径（不可删除、不可命名）
         builtin_item = QtWidgets.QListWidgetItem(f"[内置] {builtin_path}")
         builtin_item.setData(QtCore.Qt.ItemDataRole.UserRole, {"path": builtin_path, "is_default": True})
-        builtin_item.setToolTip("内置工具路径，不可删除")
+        builtin_item.setToolTip("内置工具路径，不可删除、不可命名")
         builtin_item.setForeground(protected_fg)
         if not self._lock_icon.isNull():
             builtin_item.setIcon(self._lock_icon)
         self._list_widget.addItem(builtin_item)
 
-        # 默认路径（不可删除）
+        # 默认路径（不可删除、不可命名）
         default_item = QtWidgets.QListWidgetItem(f"[默认] {default_path}")
         default_item.setData(QtCore.Qt.ItemDataRole.UserRole, {"path": default_path, "is_default": True})
-        default_item.setToolTip("默认路径，不可删除")
+        default_item.setToolTip("默认路径，不可删除、不可命名")
         default_item.setForeground(protected_fg)
         if not self._lock_icon.isNull():
             default_item.setIcon(self._lock_icon)
         self._list_widget.addItem(default_item)
 
-        # 额外路径（可删除）
+        # 额外路径（可删除、可命名）
         user_fg = QtGui.QColor(TEXT_PRIMARY)
         extra_paths = ShelfToolsSettingsManager.get_extra_shelf_paths()
         for p in extra_paths:
-            item = QtWidgets.QListWidgetItem(p)
+            path_name = ShelfToolsSettingsManager.get_path_name(p)
+            display_text = f"[{path_name}] {p}" if path_name else p
+            item = QtWidgets.QListWidgetItem(display_text)
             item.setData(QtCore.Qt.ItemDataRole.UserRole, {"path": p, "is_default": False})
             item.setToolTip(p)
             item.setForeground(user_fg)
@@ -1472,11 +1592,12 @@ class _ShelfPathsDialog(QtWidgets.QDialog):
         f"QPushButton:hover {{ background-color: #1a1a1a; color: #3a3a3a; }}"
     )
 
-    def _update_remove_btn(self, row: int):
-        """根据选中行更新删除按钮状态与样式：受保护路径暗色不可用，用户路径亮色可删除。"""
+    def _update_buttons(self, row: int):
+        """根据选中行更新删除按钮和命名按钮状态与样式。"""
         if row < 0 or row >= self._list_widget.count():
             self.remove_btn.setEnabled(False)
             self.remove_btn.setStyleSheet(self._REMOVE_BTN_DISABLED)
+            self.name_btn.setEnabled(False)
             return
         item = self._list_widget.item(row)
         data = item.data(QtCore.Qt.ItemDataRole.UserRole)
@@ -1485,6 +1606,8 @@ class _ShelfPathsDialog(QtWidgets.QDialog):
         self.remove_btn.setStyleSheet(
             self._REMOVE_BTN_DISABLED if is_default else self._REMOVE_BTN_ENABLED
         )
+        # 命名按钮：只有用户路径（非默认/内置）可以命名
+        self.name_btn.setEnabled(not is_default)
 
     def _on_add_path(self):
         """打开文件夹选择对话框，添加新的 shelf 路径。"""
@@ -1510,13 +1633,17 @@ class _ShelfPathsDialog(QtWidgets.QDialog):
             )
             return
 
-        # 检查是否与已有额外路径重复
-        added = ShelfToolsSettingsManager.add_extra_shelf_path(dir_path)
-        if not added:
-            QtWidgets.QMessageBox.information(
-                self, "提示", "该路径已存在。"
-            )
-            return
+        # 检查是否与已有额外路径重复（包括待添加的路径）
+        existing_paths = ShelfToolsSettingsManager.get_extra_shelf_paths() + self._pending_adds
+        for existing in existing_paths:
+            if os.path.normpath(existing) == norm:
+                QtWidgets.QMessageBox.information(
+                    self, "提示", "该路径已存在。"
+                )
+                return
+
+        # 记录待添加
+        self._pending_adds.append(norm)
 
         # 添加到列表
         item = QtWidgets.QListWidgetItem(norm)
@@ -1539,6 +1666,179 @@ class _ShelfPathsDialog(QtWidgets.QDialog):
             return  # 默认路径不可删除
 
         path = data["path"]
-        ShelfToolsSettingsManager.remove_extra_shelf_path(path)
+        
+        # 如果是待添加的路径，直接从待添加列表中移除
+        if path in self._pending_adds:
+            self._pending_adds.remove(path)
+        else:
+            # 记录待删除
+            self._pending_removes.append(path)
+
         self._list_widget.takeItem(row)
         self.paths_changed = True
+
+    def _on_rename_path(self):
+        """为当前选中的用户路径设置命名。"""
+        row = self._list_widget.currentRow()
+        if row < 0:
+            return
+        item = self._list_widget.item(row)
+        data = item.data(QtCore.Qt.ItemDataRole.UserRole)
+        if data.get("is_default", False):
+            return  # 默认/内置路径不可命名
+
+        path = data["path"]
+        # 获取当前名称（优先从待命名列表中获取）
+        current_name = self._pending_names.get(path, ShelfToolsSettingsManager.get_path_name(path))
+
+        dialog = _PathNameDialog(path, current_name, parent=self)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+
+        new_name = dialog.get_name()
+        if new_name == current_name:
+            return  # 无变化
+
+        if not new_name:
+            # 清除命名
+            if path in self._pending_names:
+                del self._pending_names[path]
+            self._pending_name_removes.append(path)
+        else:
+            # 检查命名是否重复（排除当前路径）
+            all_names = dict(ShelfToolsSettingsManager.get_path_names())
+            all_names.update(self._pending_names)
+            for existing_path, existing_name in all_names.items():
+                if existing_name == new_name and os.path.normpath(existing_path) != os.path.normpath(path):
+                    QtWidgets.QMessageBox.warning(
+                        self, "命名重复",
+                        f"命名 '{new_name}' 已被其他路径使用，请使用其他名称。"
+                    )
+                    return
+            # 记录待设置
+            self._pending_names[path] = new_name
+            # 从待删除列表中移除（如果之前有清除命名的操作）
+            if path in self._pending_name_removes:
+                self._pending_name_removes.remove(path)
+
+        # 更新列表显示
+        display_text = f"[{new_name}] {path}" if new_name else path
+        item.setText(display_text)
+        self.paths_changed = True
+
+    def _on_confirm(self):
+        """确认按钮：保存所有待处理的变更。"""
+        # 1. 添加新路径
+        for path in self._pending_adds:
+            ShelfToolsSettingsManager.add_extra_shelf_path(path)
+        
+        # 2. 删除路径
+        for path in self._pending_removes:
+            ShelfToolsSettingsManager.remove_extra_shelf_path(path)
+        
+        # 3. 设置命名
+        for path, name in self._pending_names.items():
+            ShelfToolsSettingsManager.set_path_name(path, name)
+        
+        # 4. 清除命名
+        for path in self._pending_name_removes:
+            ShelfToolsSettingsManager.remove_path_name(path)
+        
+        self.accept()
+
+
+class _PathNameDialog(QtWidgets.QDialog):
+    """路径命名对话框。
+
+    为用户自定义的 shelf 路径设置自定义名称（支持中文）。
+    内置和默认路径无法命名。
+    """
+
+    def __init__(self, path: str, current_name: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("设置路径名称")
+        self.setModal(True)
+        self.setWindowFlags(
+            QtCore.Qt.WindowType.Dialog
+            | QtCore.Qt.WindowType.WindowCloseButtonHint
+        )
+        self.setSizeGripEnabled(False)
+        self.setStyleSheet(f"QDialog {{ background-color: {BG_PRIMARY}; }}")
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(16, 18, 16, 18)
+        layout.setSpacing(14)
+
+        # 标题
+        title = QtWidgets.QLabel("设置路径名称")
+        title.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet(
+            f"color: {TEXT_PRIMARY}; font-size: 15px; font-weight: bold; "
+            f"background-color: transparent;"
+        )
+        layout.addWidget(title)
+
+        # 路径显示
+        path_label = QtWidgets.QLabel(f"路径: {path}")
+        path_label.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: 11px; "
+            f"background-color: transparent;"
+        )
+        path_label.setWordWrap(True)
+        layout.addWidget(path_label)
+
+        # 说明
+        hint = QtWidgets.QLabel("设置自定义名称后，将显示在路径筛选列表中。\n留空则清除命名。")
+        hint.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        hint.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: 12px; "
+            f"background-color: transparent;"
+        )
+        layout.addWidget(hint)
+
+        # 输入框
+        self.name_edit = QtWidgets.QLineEdit(current_name)
+        self.name_edit.setPlaceholderText("输入自定义名称（支持中文）")
+        self.name_edit.setStyleSheet(
+            f"QLineEdit {{ background-color: {BG_INPUT}; color: {TEXT_PRIMARY}; "
+            f"border: 1px solid {BORDER_COLOR}; border-radius: 4px; "
+            f"padding: 8px 12px; font-size: 13px; }}"
+            f"QLineEdit:focus {{ border-color: {ACCENT_BLUE}; }}"
+        )
+        layout.addWidget(self.name_edit)
+
+        # 按钮行
+        button_row = QtWidgets.QHBoxLayout()
+        button_row.setSpacing(8)
+        button_row.addStretch(1)
+
+        save_btn = QtWidgets.QPushButton("保存")
+        save_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        save_btn.setMinimumHeight(32)
+        save_btn.setStyleSheet(SAVE_BUTTON_STYLE)
+        save_btn.clicked.connect(self._on_save)
+        button_row.addWidget(save_btn)
+
+        cancel_btn = QtWidgets.QPushButton("取消")
+        cancel_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        cancel_btn.setMinimumHeight(32)
+        cancel_btn.setStyleSheet(CANCEL_BUTTON_STYLE)
+        cancel_btn.clicked.connect(self.reject)
+        button_row.addWidget(cancel_btn)
+
+        button_row.addStretch(1)
+        layout.addLayout(button_row)
+
+        # 锁死弹窗尺寸
+        self.adjustSize()
+        self.setFixedSize(self.size())
+
+    def _on_save(self):
+        """保存按钮点击：验证输入并接受对话框。"""
+        name = self.name_edit.text().strip()
+        # 名称可以为空（清除命名）
+        self.accept()
+
+    def get_name(self) -> str:
+        """返回用户输入的名称。"""
+        return self.name_edit.text().strip()
