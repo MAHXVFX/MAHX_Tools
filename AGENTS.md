@@ -57,12 +57,12 @@ root/
 | Task | Location | Notes |
 |------|----------|-------|
 | 全局路径/常量 | `MA/common/constants.py` | `_MA_TOOLS_DIR` 自动计算根目录 |
-| 设置/缓存读写 | `MA/common/settings.py` | `BaseJsonManager` 类级缓存，`ShelfToolsSettingsManager`（收藏/筛选/额外shelf路径/备注延迟），`ShelfToolsCacheManager`（图标/备注/标签） |
+| 设置/缓存读写 | `MA/common/settings.py` | `BaseJsonManager` 类级缓存，`ShelfToolsSettingsManager`（收藏/筛选/路径筛选/额外shelf路径/路径命名/备注延迟），`ShelfToolsCacheManager`（图标/备注/标签） |
 | 内置工具配置 | `MA/common/settings.py` | `BuiltinToolsCacheManager` 读取 `builtin_tools.json` |
 | 收藏/筛选逻辑 | `MA/common/filter_manager.py` | property setter 自动重建索引 |
 | HDR 面板 | `MA/hdr_library/library_panel.py` | ~614 行主 UI |
 | 缩略图生成 | `MA/hdr_library/thumbnail_worker.py` | QThread + ffmpeg |
-| Shelf 面板 | `MA/shelf_tool_pro/panel.py` | 主面板 |
+| Shelf 面板 | `MA/shelf_tool_pro/panel.py` | 主面板：工具栏、设置面板、搜索提示、路径筛选 |
 | Markdown 渲染 | `MA/shelf_tool_pro/web_renderer.py` | QWebEngineView + marked.js |
 | Shelf 加载/执行 | `MA/shelf_tool_pro/shelf_loader.py` | 扫描 `MAtoolbar/` + `builtin_tools/` |
 | Shelf 保存 | `MA/shelf_tool_pro/shelf_saver.py` | 节点→.shelf 文件保存 |

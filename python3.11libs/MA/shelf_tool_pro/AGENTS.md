@@ -34,6 +34,11 @@ Houdini shelf tools 可视化面板，支持点击/拖拽放置、GIF 动画、M
 - **Extra shelf paths**: `ShelfToolsSettingsManager.get_extra_shelf_paths()` 支持用户添加额外 shelf 目录，`path_prefix()` 用 MD5 哈希生成前缀
 - **Chinese encoding fix**: `_fix_encoding()` 修复 .shelf 文件中 UTF-8 字节被当 Latin-1 处理导致的中文乱码
 - **Unique ID format**: `{prefix}_{shelfStem}_{toolName}`，prefix 由 `path_prefix()` 生成（builtin→`built`，default→`deflt`，额外→6位hex）
+- **Search hint**: `_SearchHintWidget` 浮动提示，搜索框获得焦点且内容为空时显示搜索选项（直接输入/name:/shelf:/tag:），白色加粗字体，无边框
+- **Path filter**: 路径筛选下拉菜单在设置面板中，支持"全部路径/内置/默认/用户自定义名称"，与 shelf/标签/搜索筛选取交集
+- **Path naming**: 用户可为额外 shelf 路径设置自定义中文名称，内置和默认路径不可命名，命名存储在 `ShelfToolsSettingsManager` 的 `shelf_path_names` 字段
+- **Path filter persistence**: 路径筛选状态持久化，关闭时保存，首次加载时恢复；内置/默认使用相对标识符（`builtin`/`default`），避免存储绝对路径
+- **ShelfPathsDialog confirm/cancel**: Shelf 路径管理弹窗使用确认/取消按钮模式，变更记录在临时列表中，确认时批量保存
 
 ## Anti-Patterns
 
