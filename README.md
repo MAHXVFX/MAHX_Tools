@@ -136,7 +136,8 @@
 | **Houdini 21.0+** | Python 3.11 运行时 | ✅ 必需 |
 | **PySide6** | Qt 绑定 | ✅ Houdini 内置 |
 | **PySide6-Addons** | QWebEngineView | ✅ Houdini 内置 |
-| **ffmpeg** | HDR 缩略图生成 | ❌ 需要自行下载 |
+| **ffmpeg** | HDR 缩略图生成、视频转序列图 | ❌ 需要自行下载 |
+| **ffprobe** | 视频元数据获取（视频转序列图） | ❌ 需要自行下载 |
 
 ---
 
