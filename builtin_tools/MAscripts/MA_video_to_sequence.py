@@ -835,7 +835,7 @@ class _VideoToSequenceWindow(QDialog):
     def _build_progress_section(self, parent_layout):
         self._status_label = QLabel("")
         self._status_label.setStyleSheet("color: #888888; font-size: 11px;")
-        self._status_label.setFixedHeight(14)
+        self._status_label.setFixedHeight(12)
         parent_layout.addWidget(self._status_label)
 
         self._progress_bar = QProgressBar()
