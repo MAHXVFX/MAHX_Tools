@@ -9,7 +9,7 @@ from PySide6.QtGui import QCursor
 from MA.common import HDR_EXTENSIONS, HDR_PARAMETER_NAMES
 from MA.common import SettingsManager, CacheManager, _collect_hdr_files
 from MA.common.constants import (
-    LAYOUT_MARGIN, DEFAULT_THUMBNAIL_SIZE,
+    DEFAULT_THUMBNAIL_SIZE,
     THUMBNAIL_GRID_SPACING,
 )
 from MA.common.styles import (
@@ -59,7 +59,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.setStyleSheet(STYLE_SHEET)
 
         main_layout = QtWidgets.QVBoxLayout(self)
-        main_layout.setContentsMargins(LAYOUT_MARGIN, 5, LAYOUT_MARGIN, 0)
+        main_layout.setContentsMargins(0, 5, 0, 0)
         main_layout.setSpacing(5)
         main_layout.addLayout(self._create_toolbar())
         main_layout.addWidget(self._create_settings_panel())
@@ -70,6 +70,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
 
     def _create_toolbar(self):
         layout = QtWidgets.QHBoxLayout()
+        layout.setContentsMargins(4, 0, 4, 0)
 
         self.btn_toggle_settings = QtWidgets.QPushButton("设置")
         self.btn_toggle_settings.setObjectName("settingsButton")
@@ -120,6 +121,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.settings_widget.setVisible(False)
         settings_layout = QtWidgets.QVBoxLayout(self.settings_widget)
         settings_layout.setSpacing(10)
+        settings_layout.setContentsMargins(4, 5, 4, 5)
 
         hdr_layout = QtWidgets.QHBoxLayout()
         hdr_layout.addWidget(QtWidgets.QLabel("HDR 库:"))
@@ -209,7 +211,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.thumbnail_widget.setStyleSheet(THUMBNAIL_WIDGET_STYLE)
         self.thumbnail_layout = QtWidgets.QGridLayout(self.thumbnail_widget)
         self.thumbnail_layout.setSpacing(THUMBNAIL_GRID_SPACING)
-        self.thumbnail_layout.setContentsMargins(10, 10, 10, 10)
+        self.thumbnail_layout.setContentsMargins(0, 5, 0, 5)
         self.thumbnail_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         self.scroll_area.setWidget(self.thumbnail_widget)
 
@@ -247,7 +249,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         except Exception:
             pass
 
-        columns = max(1, (self.width() - LAYOUT_MARGIN * 2) // (self._thumb_mgr.thumbnail_size + THUMBNAIL_GRID_SPACING))
+        columns = max(1, self.width() // (self._thumb_mgr.thumbnail_size + THUMBNAIL_GRID_SPACING))
         self._thumb_mgr.current_columns = columns
         self._thumb_mgr.populate_grid(
             self.thumbnail_layout, filtered_thumbnails,
@@ -454,7 +456,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         if not self._filter_mgr.thumbnails:
             return
 
-        new_columns = max(1, (self.width() - LAYOUT_MARGIN * 2) // (value + THUMBNAIL_GRID_SPACING))
+        new_columns = max(1, self.width() // (value + THUMBNAIL_GRID_SPACING))
         if new_columns != self._thumb_mgr.current_columns:
             self._apply_filter()
         else:
@@ -704,7 +706,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if self._filter_mgr.thumbnails and self._thumb_mgr.widgets:
-            new_columns = max(1, (self.width() - LAYOUT_MARGIN * 2) // (self._thumb_mgr.thumbnail_size + THUMBNAIL_GRID_SPACING))
+            new_columns = max(1, self.width() // (self._thumb_mgr.thumbnail_size + THUMBNAIL_GRID_SPACING))
             if new_columns != self._thumb_mgr.current_columns:
                 self._thumb_mgr.current_columns = new_columns
                 self._apply_filter()
