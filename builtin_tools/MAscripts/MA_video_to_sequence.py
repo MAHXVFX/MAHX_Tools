@@ -835,7 +835,7 @@ class _VideoToSequenceWindow(QDialog):
     def _build_progress_section(self, parent_layout):
         self._status_label = QLabel("")
         self._status_label.setStyleSheet("color: #888888; font-size: 11px;")
-        self._status_label.setFixedHeight(12)
+        self._status_label.setVisible(False)
         parent_layout.addWidget(self._status_label)
 
         self._progress_bar = QProgressBar()
@@ -885,6 +885,7 @@ class _VideoToSequenceWindow(QDialog):
         self._video_info = None
         self._path_edit.setText(filepath)
         self._status_label.setText("")
+        self._status_label.setVisible(False)
         self._progress_bar.setValue(0)
         self._reset_info_labels()
 
@@ -958,6 +959,7 @@ class _VideoToSequenceWindow(QDialog):
 
         self._progress_bar.setMaximum(total)
         self._progress_bar.setValue(0)
+        self._status_label.setVisible(True)
         self._status_label.setText(
             f"正在提取 {total} 帧 (质量: {quality}%, 起始帧: {start_frame})..."
         )
@@ -979,6 +981,7 @@ class _VideoToSequenceWindow(QDialog):
             self._probe_worker.cancel()
         self._cancel_btn.hide()
         self._convert_btn.show()
+        self._status_label.setVisible(True)
         self._status_label.setText("已取消")
         self._status_label.setStyleSheet("color: #d1283e; font-size: 12px;")
 
@@ -988,6 +991,7 @@ class _VideoToSequenceWindow(QDialog):
         from MA.common import find_ffmpeg
         ffmpeg_path = find_ffmpeg()
         if not ffmpeg_path:
+            self._status_label.setVisible(True)
             self._status_label.setText("错误: 未找到 ffmpeg")
             self._status_label.setStyleSheet("color: #d1283e; font-size: 12px;")
             return
@@ -997,6 +1001,7 @@ class _VideoToSequenceWindow(QDialog):
             self._probe_worker.cancel()
             self._probe_worker.wait(2000)
 
+        self._status_label.setVisible(True)
         self._status_label.setText("正在分析视频信息...")
         self._status_label.setStyleSheet("color: #e0cb56; font-size: 12px;")
 
@@ -1031,10 +1036,12 @@ class _VideoToSequenceWindow(QDialog):
 
         self._info_labels["codec"].setText(info.codec or "-")
 
+        self._status_label.setVisible(True)
         self._status_label.setText("视频信息已获取")
         self._status_label.setStyleSheet("color: #87cc8e; font-size: 12px;")
 
     def _on_probe_error(self, error_msg):
+        self._status_label.setVisible(True)
         self._status_label.setText(f"分析失败: {error_msg}")
         self._status_label.setStyleSheet("color: #d1283e; font-size: 12px;")
         logger.error("Video probe failed: %s", error_msg)
@@ -1043,6 +1050,7 @@ class _VideoToSequenceWindow(QDialog):
 
     def _on_extract_progress(self, current, total):
         self._progress_bar.setValue(current)
+        self._status_label.setVisible(True)
         self._status_label.setText(
             f"正在提取: {current} / {total} 帧"
         )
@@ -1051,6 +1059,7 @@ class _VideoToSequenceWindow(QDialog):
         self._cancel_btn.hide()
         self._convert_btn.show()
         self._progress_bar.setValue(total_frames)
+        self._status_label.setVisible(True)
         self._status_label.setText(
             f"转换完成！共提取 {total_frames} 帧"
         )
@@ -1099,6 +1108,7 @@ class _VideoToSequenceWindow(QDialog):
     def _on_extract_error(self, error_msg):
         self._cancel_btn.hide()
         self._convert_btn.show()
+        self._status_label.setVisible(True)
         self._status_label.setText(f"转换失败: {error_msg}")
         self._status_label.setStyleSheet("color: #d1283e; font-size: 12px;")
         if error_msg != "转换已取消":
