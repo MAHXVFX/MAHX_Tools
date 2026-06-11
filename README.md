@@ -28,13 +28,19 @@
 扫描目录自动生成缩略图，一键加载 HDR 到场景环境光节点。
 
 <div align="center">
-  <img src="assets/HDR面板.png" alt="HDR Library Panel" width="500"/>
+  <img src="assets/MAHDR面板.png" alt="HDR Library Panel" width="500"/>
   <br/>
-  <em>HDR 库面板：缩略图网格、大小调节、文件夹筛选、收藏管理、双击快速应用</em>
+  <em>HDR 库面板：路径配置、缩略图网格、大小调节、文件夹筛选、收藏管理</em>
 </div>
 
 ### MA ShelfTools Pro
 工具架工具以缩略图形式展示，支持点击执行、拖拽定位、GIF 动画、Markdown 备注系统。
+
+<div align="center">
+  <img src="assets/MAShelfToolsPro面板.png" alt="ShelfTools Pro Panel" width="500"/>
+  <br/>
+  <em>ShelfTools Pro 面板：工具网格、搜索筛选、缩略图大小调节、路径管理</em>
+</div>
 
 #### 备注样式展示
 
@@ -42,23 +48,17 @@
   <table>
     <tr>
       <td align="center">
-        <img src="assets/备注样式01.png" alt="Markdown Basic Styles" width="380"/>
+        <img src="assets/备注01.png" alt="Markdown Basic Styles" width="380"/>
         <br/>
-        <em>基础样式：标题、列表、代码块</em>
+        <em>Markdown 渲染：标题层级、文本样式、列表格式、代码块</em>
       </td>
       <td align="center">
-        <img src="assets/备注样式02.png" alt="Callout Blocks" width="380"/>
+        <img src="assets/备注02.png" alt="Callout Blocks" width="380"/>
         <br/>
-        <em>代码高亮：VEX 语法高亮、一键复制、VitePress 风格</em>
+        <em>Callout 提示块：Note / Caution / Tip / Quote 色彩编码</em>
       </td>
     </tr>
   </table>
-</div>
-
-<div align="center">
-  <img src="assets/备注样式03.png" alt="Code Highlight" width="380"/>
-  <br/>
-  <em>Callout 提示块：Note / Caution / Tip / Quote</em>
 </div>
 
 #### 备注编辑器
@@ -66,7 +66,7 @@
 <div align="center">
   <img src="assets/备注编辑.png" alt="Edit Notes Dialog" width="500"/>
   <br/>
-  <em>编辑窗口：左编辑 / 右预览，支持 GIF、图片、视频链接实时渲染</em>
+  <em>备注编辑器：左右分栏、Markdown+HTML混合语法、GIF/图片/视频实时预览</em>
 </div>
 
 ---
