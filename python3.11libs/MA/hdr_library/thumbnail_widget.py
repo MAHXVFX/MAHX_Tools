@@ -142,7 +142,7 @@ class HDRThumbnailWidget(QtWidgets.QWidget):
         painter.end()
         return result
 
-    def updateSize(self, size, image_size, cache=None):
+    def updateSize(self, size, image_size):
         self.setFixedSize(size, size + 20)
         self.image_label.setFixedSize(image_size, image_size)
         self._image_size = image_size

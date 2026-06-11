@@ -1,14 +1,9 @@
-import os
-import logging
-
 from PySide6 import QtWidgets, QtCore
 from PySide6.QtCore import Qt
 
 from MA.hdr_library import HDRLibraryPanel
-from MA.common import SettingsManager, CacheManager
+from MA.common import SettingsManager
 from MA.common.styles import DIALOG_BG_STYLE
-
-logger = logging.getLogger("MA")
 
 _panel_window = None
 
@@ -35,43 +30,20 @@ class SavedSizeDialog(QtWidgets.QDialog):
             self._geometry_dirty = True
 
     def closeEvent(self, event):
-        # ── 设置（小数据） ──
-        settings = SettingsManager.load()
+        # 保存窗口几何信息
         if self._geometry_dirty:
+            settings = SettingsManager.load()
             size = self.size()
             pos = self.pos()
             settings['window_width'] = size.width()
             settings['window_height'] = size.height()
             settings['window_x'] = pos.x()
             settings['window_y'] = pos.y()
+            SettingsManager.save(settings)
 
+        # 委托给面板的统一保存逻辑
         if self.panel_widget:
-            panel = self.panel_widget
-            if panel._settings_dirty:
-                settings['thumbnail_size'] = panel._thumb_mgr.thumbnail_size
-                settings['current_filter'] = panel.folder_combo.currentText()
-                settings['recent_hdrs'] = panel._filter_mgr.recent_hdrs
-                settings['favorite_hdrs'] = panel._filter_mgr.favorite_hdrs
-                settings['hdr_directory'] = panel.hdr_directory
-                settings['cache_directory'] = panel.cache_directory
-                settings['print_path'] = panel.print_path_checkbox.isChecked()
-        SettingsManager.save(settings)
-
-        # ── 缓存（大数据） ──
-        if self.panel_widget and self.panel_widget._filter_mgr.thumbnails:
-            panel = self.panel_widget
-            cache = CacheManager.load()
-            cache['subfolders'] = panel._filter_mgr.subfolders
-            cache['thumbnails'] = panel._filter_mgr.group_thumbnails_by_folder(panel.cache_directory)
-            if os.path.exists(panel.hdr_directory):
-                cache['hdr_dir_mtime'] = os.path.getmtime(panel.hdr_directory)
-                subfolders_mtime = {}
-                for folder in panel._filter_mgr.subfolders:
-                    folder_path = os.path.join(panel.hdr_directory, folder)
-                    if os.path.exists(folder_path):
-                        subfolders_mtime[folder] = os.path.getmtime(folder_path)
-                cache['subfolders_mtime'] = subfolders_mtime
-            CacheManager.save(cache)
+            self.panel_widget._save_on_close()
 
         super().closeEvent(event)
 
@@ -110,7 +82,7 @@ def Panel():
 
     _panel_window = SavedSizeDialog(parent_window)
     _panel_window.panel_widget = panel_widget
-    _panel_window.setWindowTitle("MA HDR Asset Library")
+    _panel_window.setWindowTitle("MA HDR")
     _panel_window.setMinimumSize(500, 360)
     _panel_window.setWindowFlags(
         Qt.Window | Qt.WindowMinimizeButtonHint |

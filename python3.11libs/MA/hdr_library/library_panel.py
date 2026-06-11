@@ -9,22 +9,18 @@ from PySide6.QtGui import QCursor
 from MA.common import HDR_EXTENSIONS, HDR_PARAMETER_NAMES
 from MA.common import SettingsManager, CacheManager, _collect_hdr_files
 from MA.common.constants import (
-    LAYOUT_MARGIN, RESIZE_DELAY_MS, DEFAULT_THUMBNAIL_SIZE,
-    DEFAULT_THUMBNAIL_IMAGE_SIZE, THUMBNAIL_GRID_SPACING,
+    LAYOUT_MARGIN, DEFAULT_THUMBNAIL_SIZE,
+    THUMBNAIL_GRID_SPACING,
 )
 from MA.common.styles import (
     STYLE_SHEET, SETTINGS_BUTTON_STYLE, THUMB_SLIDER_STYLE,
     THUMB_SIZE_LABEL_STYLE, BROWSE_BUTTON_STYLE, ACTION_BUTTON_STYLE,
     COMBO_BOX_STYLE, FILTER_LABEL_STYLE, THUMB_SIZE_TITLE_STYLE,
-    STATUS_STYLE, VERSION_STYLE, THUMBNAIL_NAME_STYLE, THUMBNAIL_BG_STYLE,
-    NO_FILES_STYLE, THUMBNAIL_WIDGET_STYLE,
-    STATUS_SUCCESS, STATUS_WARNING, TEXT_STATUS, ACCENT_BLUE, ACCENT_BLUE_LIGHT,
-    BTN_PADDING, BTN_BORDER_RADIUS,
+    STATUS_STYLE, VERSION_STYLE, THUMBNAIL_WIDGET_STYLE,
+    STATUS_SUCCESS, STATUS_WARNING, TEXT_STATUS,
 )
 from MA.common.filter_manager import FilterManager
-from MA.common.animation_helper import (
-    elastic_resize, animate_button_width, pulse_button,
-)
+from MA.common.animation_helper import elastic_resize
 from .thumbnail_manager import ThumbnailManager
 from .thumbnail_worker import ThumbnailWorker
 
@@ -50,10 +46,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self._filter_mgr = FilterManager()
         self._thumb_mgr = ThumbnailManager()
         self._saved_on_close = False
-
-        self._resize_timer = QTimer()
-        self._resize_timer.setSingleShot(True)
-        self._resize_timer.timeout.connect(self._do_resize)
+        self._worker = None
 
         self._init_ui()
 
@@ -62,7 +55,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.status_label.setText(text)
 
     def _init_ui(self):
-        self.setWindowTitle("HDR Asset Library")
+        self.setWindowTitle("MA HDR")
         self.setStyleSheet(STYLE_SHEET)
 
         main_layout = QtWidgets.QVBoxLayout(self)
@@ -79,14 +72,14 @@ class HDRLibraryPanel(QtWidgets.QWidget):
     def _create_toolbar(self):
         layout = QtWidgets.QHBoxLayout()
 
-        self.btn_toggle_settings = QtWidgets.QPushButton("Settings")
+        self.btn_toggle_settings = QtWidgets.QPushButton("设置")
         self.btn_toggle_settings.setObjectName("settingsButton")
         self.btn_toggle_settings.setStyleSheet(SETTINGS_BUTTON_STYLE)
         self.btn_toggle_settings.setCursor(QCursor(Qt.PointingHandCursor))
         self.btn_toggle_settings.clicked.connect(self._toggle_settings)
         layout.addWidget(self.btn_toggle_settings)
 
-        lbl_thumb_size = QtWidgets.QLabel("Thumbnail Size")
+        lbl_thumb_size = QtWidgets.QLabel("缩略图大小")
         lbl_thumb_size.setStyleSheet(THUMB_SIZE_TITLE_STYLE)
         layout.addWidget(lbl_thumb_size)
 
@@ -111,7 +104,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         layout.addWidget(self.thumb_size_label)
         layout.addStretch()
 
-        self.folder_label = QtWidgets.QLabel("Filter:")
+        self.folder_label = QtWidgets.QLabel("筛选:")
         self.folder_label.setStyleSheet(FILTER_LABEL_STYLE)
         layout.addWidget(self.folder_label)
 
@@ -130,11 +123,11 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         settings_layout.setSpacing(10)
 
         hdr_layout = QtWidgets.QHBoxLayout()
-        hdr_layout.addWidget(QtWidgets.QLabel("HDR Library:"))
+        hdr_layout.addWidget(QtWidgets.QLabel("HDR 库:"))
         self.hdr_path_edit = QtWidgets.QLineEdit()
-        self.hdr_path_edit.setPlaceholderText("Select HDR library directory...")
+        self.hdr_path_edit.setPlaceholderText("选择 HDR 库目录...")
         hdr_layout.addWidget(self.hdr_path_edit)
-        btn_browse_hdr = QtWidgets.QPushButton("Browse")
+        btn_browse_hdr = QtWidgets.QPushButton("浏览")
         btn_browse_hdr.setStyleSheet(BROWSE_BUTTON_STYLE)
         btn_browse_hdr.setCursor(QCursor(Qt.PointingHandCursor))
         btn_browse_hdr.clicked.connect(self._browse_hdr_directory)
@@ -142,38 +135,38 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         settings_layout.addLayout(hdr_layout)
 
         cache_layout = QtWidgets.QHBoxLayout()
-        cache_layout.addWidget(QtWidgets.QLabel("Thumbnail Cache:"))
+        cache_layout.addWidget(QtWidgets.QLabel("缩略图缓存:"))
         self.cache_path_edit = QtWidgets.QLineEdit()
-        self.cache_path_edit.setPlaceholderText("Select thumbnail cache directory...")
+        self.cache_path_edit.setPlaceholderText("选择缩略图缓存目录...")
         cache_layout.addWidget(self.cache_path_edit)
-        btn_browse_cache = QtWidgets.QPushButton("Browse")
+        btn_browse_cache = QtWidgets.QPushButton("浏览")
         btn_browse_cache.setStyleSheet(BROWSE_BUTTON_STYLE)
         btn_browse_cache.setCursor(QCursor(Qt.PointingHandCursor))
         btn_browse_cache.clicked.connect(self._browse_cache_directory)
         cache_layout.addWidget(btn_browse_cache)
         settings_layout.addLayout(cache_layout)
 
-        self.print_path_checkbox = QtWidgets.QCheckBox("Log HDR path")
+        self.print_path_checkbox = QtWidgets.QCheckBox("输出 HDR 路径")
         self.print_path_checkbox.setChecked(True)
         self.print_path_checkbox.setCursor(QCursor(Qt.PointingHandCursor))
         self.print_path_checkbox.stateChanged.connect(self._on_setting_changed)
         settings_layout.addWidget(self.print_path_checkbox)
 
-        self.hide_gray_checkbox = QtWidgets.QCheckBox("Hide gray thumbnails")
+        self.hide_gray_checkbox = QtWidgets.QCheckBox("隐藏灰色缩略图")
         self.hide_gray_checkbox.setChecked(False)
         self.hide_gray_checkbox.setCursor(QCursor(Qt.PointingHandCursor))
         self.hide_gray_checkbox.toggled.connect(self._on_hide_gray_toggled)
         settings_layout.addWidget(self.hide_gray_checkbox)
 
         btn_layout = QtWidgets.QHBoxLayout()
-        self.btn_scan = QtWidgets.QPushButton("Scan HDR Files")
+        self.btn_scan = QtWidgets.QPushButton("扫描 HDR 文件")
         self.btn_scan.setCursor(QCursor(Qt.PointingHandCursor))
         self.btn_scan.setStyleSheet(ACTION_BUTTON_STYLE)
         self.btn_scan.clicked.connect(self._scan_hdr_files)
         self.btn_scan.setEnabled(False)
         btn_layout.addWidget(self.btn_scan)
 
-        self.btn_refresh = QtWidgets.QPushButton("Refresh Thumbnails")
+        self.btn_refresh = QtWidgets.QPushButton("刷新缩略图")
         self.btn_refresh.setCursor(QCursor(Qt.PointingHandCursor))
         self.btn_refresh.setStyleSheet(ACTION_BUTTON_STYLE)
         self.btn_refresh.clicked.connect(self._refresh_thumbnails)
@@ -208,7 +201,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
 
     def _create_status_bar(self):
         layout = QtWidgets.QHBoxLayout()
-        self.status_label = QtWidgets.QLabel("No HDR files loaded")
+        self.status_label = QtWidgets.QLabel("未加载 HDR 文件")
         self.status_label.setStyleSheet(f"color: {TEXT_STATUS}; {STATUS_STYLE}")
         self.status_label.setFixedHeight(20)
         self.version_label = QtWidgets.QLabel("MA Tools 1.0.0")
@@ -226,7 +219,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         for option in self._filter_mgr.get_filter_options(hide_placeholders):
             self.folder_combo.addItem(option)
         available = [self.folder_combo.itemText(i) for i in range(self.folder_combo.count())]
-        self.folder_combo.setCurrentText(current_text if current_text in available else 'ALL')
+        self.folder_combo.setCurrentText(current_text if current_text in available else '全部')
         self.folder_combo.blockSignals(False)
 
     def _apply_filter(self, hide_gray=None):
@@ -295,11 +288,11 @@ class HDRLibraryPanel(QtWidgets.QWidget):
 
         self._update_status_text()
 
-        saved_filter = settings.get('current_filter', 'ALL')
+        saved_filter = settings.get('current_filter', '全部')
         self._skip_filter_apply = True
         self.folder_combo.blockSignals(True)
         available = [self.folder_combo.itemText(i) for i in range(self.folder_combo.count())]
-        self.folder_combo.setCurrentText(saved_filter if saved_filter in available else 'ALL')
+        self.folder_combo.setCurrentText(saved_filter if saved_filter in available else '全部')
         self.folder_combo.blockSignals(False)
         self._skip_filter_apply = False
         self._apply_filter()
@@ -317,18 +310,21 @@ class HDRLibraryPanel(QtWidgets.QWidget):
             and not os.path.exists(t['thumbnail_path'])
         )
         if len(thumbnails) == 0 and self.hdr_directory:
-            self._set_status(TEXT_STATUS, "No HDR files found")
+            self._set_status(TEXT_STATUS, "未找到 HDR 文件")
         elif missing_count > 0:
-            self._set_status(STATUS_WARNING, f"Loaded {len(thumbnails)} HDR files ({missing_count} missing - scan to regenerate)")
+            self._set_status(STATUS_WARNING, f"已加载 {len(thumbnails)} 个 HDR 文件（{missing_count} 个缺失 - 扫描以重新生成）")
         else:
             color = STATUS_SUCCESS if self.hdr_directory else TEXT_STATUS
-            text = "Ready" if self.hdr_directory else "No HDR library path set"
+            text = "就绪" if self.hdr_directory else "未设置 HDR 库路径"
             self._set_status(color, text)
 
     def _try_load_cached_thumbnails(self, cache=None):
         if cache is None:
             cache = CacheManager.load()
         cached_thumbnails = cache.get('thumbnails', {})
+        # 兼容旧缓存：将空字符串键统一为 __root__
+        if '' in cached_thumbnails:
+            cached_thumbnails['__root__'] = cached_thumbnails.pop('')
         cached_root_mtime = cache.get('hdr_dir_mtime')
         cached_subfolders_mtime = cache.get('subfolders_mtime', {})
 
@@ -362,7 +358,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         for folder, thumbnails in cached_thumbnails.items():
             if not thumbnails:
                 continue
-            if folder and folder != '__root__':
+            if folder != '__root__':
                 if folder not in current_subfolders_set:
                     continue
                 subfolders.append(folder)
@@ -399,9 +395,9 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self._apply_filter()
 
         if missing_thumbnails > 0:
-            self._set_status(STATUS_WARNING, f"Loaded {len(all_thumbnails)} HDR files ({missing_thumbnails} missing - scan to regenerate)")
+            self._set_status(STATUS_WARNING, f"已加载 {len(all_thumbnails)} 个 HDR 文件（{missing_thumbnails} 个缺失 - 扫描以重新生成）")
         else:
-            self._set_status(STATUS_SUCCESS, f"Loaded {len(all_thumbnails)} HDR files (from cache)")
+            self._set_status(STATUS_SUCCESS, f"已加载 {len(all_thumbnails)} 个 HDR 文件（来自缓存）")
         return True
 
     def _load_existing_thumbnails(self):
@@ -431,9 +427,9 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self._apply_filter()
 
         if len(thumbnails) == 0:
-            self._set_status(TEXT_STATUS, "No HDR files found")
+            self._set_status(TEXT_STATUS, "未找到 HDR 文件")
         else:
-            self._set_status(STATUS_SUCCESS, f"Loaded {len(thumbnails)} HDR files (existing thumbnails only)")
+            self._set_status(STATUS_SUCCESS, f"已加载 {len(thumbnails)} 个 HDR 文件（仅已有缩略图）")
 
     def _toggle_settings(self):
         is_visible = self.settings_widget.isVisible()
@@ -454,8 +450,6 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         else:
             self._thumb_mgr.update_all_sizes(value)
 
-        self._resize_timer.start(RESIZE_DELAY_MS)
-
     def _on_thumb_size_label_edited(self):
         self._validate_thumb_size_input()
         self.thumb_size_label.clearFocus()
@@ -472,7 +466,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
 
     def _browse_hdr_directory(self):
         dir_path = QFileDialog.getExistingDirectory(
-            self, "Select HDR Library Directory",
+            self, "选择 HDR 库目录",
             self.hdr_directory or os.path.expanduser("~"),
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
         )
@@ -480,12 +474,12 @@ class HDRLibraryPanel(QtWidgets.QWidget):
             self.hdr_directory = dir_path
             self.hdr_path_edit.setText(dir_path)
             self.btn_scan.setEnabled(True)
-            self._set_status(STATUS_SUCCESS, f"HDR Library: {dir_path}")
+            self._set_status(STATUS_SUCCESS, f"HDR 库: {dir_path}")
             self._save_settings()
 
     def _browse_cache_directory(self):
         dir_path = QFileDialog.getExistingDirectory(
-            self, "Select Thumbnail Cache Directory",
+            self, "选择缩略图缓存目录",
             self.cache_directory or os.path.expanduser("~"),
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
         )
@@ -526,8 +520,8 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self._saved_on_close = True
 
         # ── 设置（小数据） ──
-        settings = SettingsManager.load()
         if self._settings_dirty:
+            settings = SettingsManager.load()
             settings['thumbnail_size'] = self._thumb_mgr.thumbnail_size
             settings['current_filter'] = self.folder_combo.currentText()
             settings['recent_hdrs'] = self._filter_mgr.recent_hdrs
@@ -535,10 +529,12 @@ class HDRLibraryPanel(QtWidgets.QWidget):
             settings['hdr_directory'] = self.hdr_directory
             settings['cache_directory'] = self.cache_directory
             settings['print_path'] = self.print_path_checkbox.isChecked()
-        SettingsManager.save(settings)
+            settings['hide_gray_thumbnails'] = self.hide_gray_checkbox.isChecked()
+            SettingsManager.save(settings)
+            self._settings_dirty = False
 
         # ── 缓存（大数据） ──
-        if self._filter_mgr.thumbnails:
+        if self._thumbnail_cache_dirty and self._filter_mgr.thumbnails:
             cache = CacheManager.load()
             cache['subfolders'] = self._filter_mgr.subfolders
             cache['thumbnails'] = self._filter_mgr.group_thumbnails_by_folder(self.cache_directory)
@@ -551,6 +547,7 @@ class HDRLibraryPanel(QtWidgets.QWidget):
                         subfolders_mtime[folder] = os.path.getmtime(folder_path)
                 cache['subfolders_mtime'] = subfolders_mtime
             CacheManager.save(cache)
+            self._thumbnail_cache_dirty = False
 
     def closeEvent(self, event):
         """嵌入面板模式下由 Houdini 触发的关闭事件。"""
@@ -559,10 +556,12 @@ class HDRLibraryPanel(QtWidgets.QWidget):
 
     def _scan_hdr_files(self):
         if not self.hdr_directory or not os.path.exists(self.hdr_directory):
-            QMessageBox.warning(self, "Error", "Please select a valid HDR library directory.")
+            QMessageBox.warning(self, "错误", "请选择有效的 HDR 库目录。")
             return
         if not self.cache_directory:
-            QMessageBox.warning(self, "Error", "Please select a thumbnail cache directory.")
+            QMessageBox.warning(self, "错误", "请选择缩略图缓存目录。")
+            return
+        if self._worker and self._worker.isRunning():
             return
 
         os.makedirs(self.cache_directory, exist_ok=True)
@@ -580,13 +579,14 @@ class HDRLibraryPanel(QtWidgets.QWidget):
     def _update_progress(self, current, total):
         if total <= 0:
             self.progress_bar.setValue(0)
-            self.status_label.setText("No HDR files found")
+            self.status_label.setText("未找到 HDR 文件")
             return
         percentage = int((current / total) * 100)
         self.progress_bar.setValue(percentage)
-        self.status_label.setText(f"Generating thumbnails: {current}/{total} ({percentage}%)")
+        self.status_label.setText(f"生成缩略图中: {current}/{total} ({percentage}%)")
 
     def _on_scan_finished(self, thumbnails, subfolders):
+        self._worker = None
         self._thumbnail_cache_dirty = True
         self._filter_mgr.thumbnails = thumbnails
         self._filter_mgr.subfolders = sorted(subfolders)
@@ -595,13 +595,14 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self.btn_refresh.setEnabled(True)
         self._update_folder_combo()
         self._apply_filter()
-        self._set_status(STATUS_SUCCESS, f"Loaded {len(thumbnails)} HDR files")
+        self._set_status(STATUS_SUCCESS, f"已加载 {len(thumbnails)} 个 HDR 文件")
 
     def _on_scan_error(self, error_msg):
+        self._worker = None
         self.progress_bar.setVisible(False)
         self.btn_scan.setEnabled(True)
         self.btn_refresh.setEnabled(True)
-        QMessageBox.critical(self, "Error", f"Failed to scan HDR files:\n{error_msg}")
+        QMessageBox.critical(self, "错误", f"扫描 HDR 文件失败:\n{error_msg}")
 
     def _refresh_thumbnails(self):
         if not self._filter_mgr.thumbnails:
@@ -615,13 +616,13 @@ class HDRLibraryPanel(QtWidgets.QWidget):
                 except OSError as e:
                     failed.append((thumbnail_path, e))
         if failed:
-            self._set_status(STATUS_WARNING, f"Could not delete {len(failed)} thumbnails")
+            self._set_status(STATUS_WARNING, f"{len(failed)} 个缩略图无法删除")
             logger.warning("Failed to delete %d thumbnails", len(failed))
             for path, error in failed:
                 logger.warning("  %s: %s", path, error)
             QMessageBox.warning(
-                self, "Refresh Thumbnails",
-                f"Could not delete {len(failed)} thumbnail files. Check the console for details."
+                self, "刷新缩略图",
+                f"{len(failed)} 个缩略图文件无法删除，请查看控制台了解详情。"
             )
         self._scan_hdr_files()
 
@@ -632,7 +633,9 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         scroll_y = self._vscroll.value()
         viewport_height = self.scroll_area.viewport().height()
         if viewport_height <= 0:
-            viewport_height = self.height() - 100
+            non_scroll_height = (self.settings_widget.sizeHint().height()
+                                 if self.settings_widget.isVisible() else 0)
+            viewport_height = max(100, self.height() - non_scroll_height - 80)
         row_height = self._thumb_mgr.thumbnail_size + 20 + THUMBNAIL_GRID_SPACING
         self._thumb_mgr.update_visible_range(scroll_y, viewport_height, row_height)
 
@@ -642,8 +645,8 @@ class HDRLibraryPanel(QtWidgets.QWidget):
     def _on_thumbnail_favorite_toggled(self, hdr_path):
         hdr_path = os.path.normpath(hdr_path)
         is_now_favorite = self._filter_mgr.toggle_favorite(hdr_path)
-        status_text = (f"Added to favorites: {os.path.basename(hdr_path)}" if is_now_favorite
-                       else f"Removed from favorites: {os.path.basename(hdr_path)}")
+        status_text = (f"已收藏: {os.path.basename(hdr_path)}" if is_now_favorite
+                       else f"已取消收藏: {os.path.basename(hdr_path)}")
         self._settings_dirty = True
         self._save_settings()
         self._set_status(STATUS_SUCCESS, status_text)
@@ -652,14 +655,14 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         self._update_folder_combo()
         available = [self.folder_combo.itemText(i) for i in range(self.folder_combo.count())]
         self.folder_combo.blockSignals(True)
-        self.folder_combo.setCurrentText(current_filter if current_filter in available else "ALL")
+        self.folder_combo.setCurrentText(current_filter if current_filter in available else "全部")
         self.folder_combo.blockSignals(False)
 
         if current_filter == "\u2605 \u6536\u85cf":
             self._apply_filter()
         else:
             for widget in self._thumb_mgr.widgets:
-                if os.path.normpath(widget.hdr_path).lower() == os.path.normpath(hdr_path).lower():
+                if widget.hdr_path.lower() == hdr_path.lower():
                     widget.setFavorite(is_now_favorite)
 
     def _load_hdr_to_environment_light(self, hdr_path):
@@ -667,9 +670,9 @@ class HDRLibraryPanel(QtWidgets.QWidget):
             return
         applied = False
         try:
-            import hou
             selected_nodes = hou.selectedNodes()
             if not selected_nodes:
+                self._set_status(STATUS_WARNING, "未选中节点 - 请先选中环境光节点")
                 return
             for node in selected_nodes:
                 parm = None
@@ -704,6 +707,3 @@ class HDRLibraryPanel(QtWidgets.QWidget):
                 self.thumb_size_label.clearFocus()
                 return True
         return super().eventFilter(obj, event)
-
-    def _do_resize(self):
-        pass

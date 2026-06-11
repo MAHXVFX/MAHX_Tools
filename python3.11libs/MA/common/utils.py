@@ -5,15 +5,17 @@ from .constants import _MA_TOOLS_DIR, HDR_EXTENSIONS
 
 
 def find_ffmpeg():
-    bundled_ffmpeg = os.path.join(_MA_TOOLS_DIR, 'ffmpeg.exe')
+    ffmpeg_exe = 'ffmpeg.exe' if os.name == 'nt' else 'ffmpeg'
+    hffmpeg_exe = 'hffmpeg.exe' if os.name == 'nt' else 'hffmpeg'
+    bundled_ffmpeg = os.path.join(_MA_TOOLS_DIR, ffmpeg_exe)
     if os.path.exists(bundled_ffmpeg):
         return bundled_ffmpeg
     hfs = os.environ.get('HFS', '')
     if hfs:
-        hffmpeg_path = os.path.join(hfs, 'bin', 'hffmpeg.exe')
+        hffmpeg_path = os.path.join(hfs, 'bin', hffmpeg_exe)
         if os.path.exists(hffmpeg_path):
             return hffmpeg_path
-        ffmpeg_path = os.path.join(hfs, 'bin', 'ffmpeg.exe')
+        ffmpeg_path = os.path.join(hfs, 'bin', ffmpeg_exe)
         if os.path.exists(ffmpeg_path):
             return ffmpeg_path
     hffmpeg_path = shutil.which('hffmpeg')

@@ -122,7 +122,7 @@ class FilterManager:
         )
 
     def get_filter_options(self, hide_placeholders=False):
-        options = ["ALL"]
+        options = ["全部"]
         if self._favorite_hdrs:
             options.append("\u2605 \u6536\u85cf")
         if self._recent_hdrs:
@@ -131,7 +131,7 @@ class FilterManager:
             if not hide_placeholders or self._folder_has_valid_thumbnails(
                 os.path.normpath(self._hdr_directory).lower()
             ):
-                options.append("Root Only")
+                options.append("根目录")
         for folder in self._subfolders:
             if not hide_placeholders or self._folder_has_valid_thumbnails(
                 os.path.normpath(os.path.join(self._hdr_directory, folder)).lower()
@@ -140,13 +140,13 @@ class FilterManager:
         return options
 
     def apply_filter(self, selected):
-        if selected == "ALL":
+        if selected == "全部":
             return self._thumbnails
         elif selected == "\u2605 \u6536\u85cf":
             return self._filter_favorites()
         elif selected == "\u6700\u8fd1":
             return self._filter_recent()
-        elif selected == "Root Only":
+        elif selected == "根目录":
             return self._filter_root_only()
         else:
             return self._filter_by_folder(selected)
@@ -166,10 +166,8 @@ class FilterManager:
             return []
         recent_set = set(self._recent_hdrs)
         filtered = [t for t in self._thumbnails if t['hdr_path'] in recent_set]
-        filtered.sort(
-            key=lambda t: self._recent_hdrs.index(t['hdr_path'])
-            if t['hdr_path'] in self._recent_hdrs else 999
-        )
+        recent_index = {path: idx for idx, path in enumerate(self._recent_hdrs)}
+        filtered.sort(key=lambda t: recent_index.get(t['hdr_path'], 999))
         return filtered
 
     def _filter_root_only(self):

@@ -1,16 +1,7 @@
-import os
-import logging
-
-from PySide6.QtWidgets import QGridLayout
-
 from .thumbnail_widget import HDRThumbnailWidget
-
-logger = logging.getLogger("MA")
 
 
 class ThumbnailManager:
-    MAX_CACHE_SIZE = 500
-
     def __init__(self):
         self._widgets = []
         self._pixmap_cache = {}
@@ -78,6 +69,7 @@ class ThumbnailManager:
             if item.widget():
                 item.widget().deleteLater()
         self._widgets = []
+        self._pixmap_cache.clear()
 
     def update_visible_range(self, scroll_value, viewport_height, row_height):
         if not self._widgets or self._current_columns <= 0:
@@ -110,10 +102,4 @@ class ThumbnailManager:
         self._thumbnail_size = new_size
         self._thumbnail_image_size = new_size - 10
         for widget in self._widgets:
-            widget.updateSize(new_size, new_size - 10, self._pixmap_cache)
-
-    def _cache_pixmap(self, key, pixmap):
-        if len(self._pixmap_cache) >= self.MAX_CACHE_SIZE:
-            oldest_key = next(iter(self._pixmap_cache))
-            del self._pixmap_cache[oldest_key]
-        self._pixmap_cache[key] = pixmap
+            widget.updateSize(new_size, new_size - 10)

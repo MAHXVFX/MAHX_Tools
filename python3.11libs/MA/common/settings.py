@@ -17,6 +17,9 @@ class BaseJsonManager:
 
     @classmethod
     def load(cls):
+        """返回缓存的配置数据（可变引用）。
+        注意：返回的是内部缓存 dict 的同一对象，修改会影响缓存。
+        请遵循 load → 修改 → save(data) 的使用模式，勿长期持有引用。"""
         if cls._cache is not None:
             return cls._cache
         try:

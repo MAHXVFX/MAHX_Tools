@@ -5,8 +5,8 @@ from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtCore import Qt
 
-from MA.common import HDR_EXTENSIONS
 from MA.common import find_ffmpeg, _collect_hdr_files
+from MA.common.constants import MIN_VALID_THUMBNAIL_SIZE
 
 
 SHARED_PLACEHOLDER_FILENAME = "_placeholder_gray.jpg"
@@ -55,7 +55,7 @@ class ThumbnailWorker(QThread):
         thumbnail_path = os.path.normpath(os.path.join(self.cache_dir, thumbnail_rel))
 
         if os.path.exists(thumbnail_path):
-            if os.path.getsize(thumbnail_path) > 3000:
+            if os.path.getsize(thumbnail_path) > MIN_VALID_THUMBNAIL_SIZE:
                 return thumbnail_path, False
             os.remove(thumbnail_path)
 
@@ -78,7 +78,7 @@ class ThumbnailWorker(QThread):
                 result = subprocess.run(cmd, capture_output=True, timeout=30, **startup_kwargs)
                 thumbnail_path = os.path.normpath(thumbnail_path)
                 if result.returncode == 0 and os.path.exists(thumbnail_path):
-                    if os.path.getsize(thumbnail_path) > 3000:
+                    if os.path.getsize(thumbnail_path) > MIN_VALID_THUMBNAIL_SIZE:
                         return thumbnail_path, False
                 elif result.returncode != 0:
                     print(f"ffmpeg failed for {hdr_path}: {result.stderr}")
