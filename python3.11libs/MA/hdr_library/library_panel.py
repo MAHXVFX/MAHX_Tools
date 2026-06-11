@@ -16,7 +16,7 @@ from MA.common.styles import (
     STYLE_SHEET, SETTINGS_BUTTON_STYLE, THUMB_SLIDER_STYLE,
     THUMB_SIZE_LABEL_STYLE, BROWSE_BUTTON_STYLE, ACTION_BUTTON_STYLE,
     COMBO_BOX_STYLE, FILTER_LABEL_STYLE, THUMB_SIZE_TITLE_STYLE,
-    STATUS_STYLE, VERSION_STYLE, THUMBNAIL_WIDGET_STYLE,
+    STATUS_STYLE, THUMBNAIL_WIDGET_STYLE,
     STATUS_SUCCESS, STATUS_WARNING, TEXT_STATUS,
 )
 from MA.common.filter_manager import FilterManager
@@ -64,7 +64,6 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         main_layout.addLayout(self._create_toolbar())
         main_layout.addWidget(self._create_settings_panel())
         main_layout.addWidget(self._create_scroll_area())
-        main_layout.addLayout(self._create_status_bar())
         self.progress_bar = QtWidgets.QProgressBar()
         self.progress_bar.setVisible(False)
         main_layout.addWidget(self.progress_bar)
@@ -175,6 +174,11 @@ class HDRLibraryPanel(QtWidgets.QWidget):
         btn_layout.addStretch()
         settings_layout.addLayout(btn_layout)
 
+        self.status_label = QtWidgets.QLabel("未加载 HDR 文件")
+        self.status_label.setStyleSheet(f"color: {TEXT_STATUS}; {STATUS_STYLE}")
+        self.status_label.setFixedHeight(20)
+        settings_layout.addWidget(self.status_label)
+
         return self.settings_widget
 
     def _create_scroll_area(self):
@@ -198,17 +202,6 @@ class HDRLibraryPanel(QtWidgets.QWidget):
     def _vscroll(self):
         """实时获取滚动条（Qt6 可能重建滚动条，不能缓存引用）"""
         return self.scroll_area.verticalScrollBar()
-
-    def _create_status_bar(self):
-        layout = QtWidgets.QHBoxLayout()
-        self.status_label = QtWidgets.QLabel("未加载 HDR 文件")
-        self.status_label.setStyleSheet(f"color: {TEXT_STATUS}; {STATUS_STYLE}")
-        self.status_label.setFixedHeight(20)
-        self.version_label = QtWidgets.QLabel("MA Tools 1.0.0")
-        self.version_label.setStyleSheet(VERSION_STYLE)
-        layout.addWidget(self.status_label, 1)
-        layout.addWidget(self.version_label)
-        return layout
 
     def _update_folder_combo(self, hide_placeholders=None):
         if hide_placeholders is None:
