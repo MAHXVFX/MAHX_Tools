@@ -844,6 +844,7 @@ class _VideoToSequenceWindow(QDialog):
         parent_layout.addWidget(self._progress_bar)
 
         btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(0, 8, 0, 0)
         btn_row.addStretch()
         self._convert_btn = QPushButton("开始转换")
         self._convert_btn.setObjectName("convertBtn")
