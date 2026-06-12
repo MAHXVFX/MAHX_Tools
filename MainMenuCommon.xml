@@ -10,7 +10,7 @@
         <label>Hello</label>
         <scriptCode><![CDATA[        
 import hou
-hou.ui.displayMessage("Hello, Houdini!")
+hou.ui.displayMessage("Hello, Houdini")
         ]]></scriptCode>
       </scriptItem>
       
