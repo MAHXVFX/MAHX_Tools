@@ -26,16 +26,6 @@ Panel()
 
         ]]></scriptCode>
       </scriptItem>
-      
-      <subMenu id="my_tools_sub_menu">
-        <label>More tools</label>
-        <scriptItem id="my_tools.sub_item_1">
-          <label>tools</label>
-          <scriptCode><![CDATA[
-print("Null")
-          ]]></scriptCode>
-        </scriptItem>
-      </subMenu>
 
       <!-- ✅ 分隔线 -->
       <separatorItem/>

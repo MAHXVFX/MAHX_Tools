@@ -49,6 +49,7 @@ td { border: 1px solid #3d3d3d; padding: 8px 12px; color: #d4d4d4; }
 <p>一套为 Houdini 21.0 打造的 PySide6 图形化工具集，<br>
 提供 <strong>HDR 环境光库管理</strong>、<strong>加强版工具架</strong>、<strong>自动化批处理</strong> 和 <strong>视频转序列图</strong> 四大核心功能。</p>
 <p><strong>作者：MAHX</strong></p>
+<p><a href="https://github.com/MAHXVFX/MAHX_Tools">GitHub: MAHXVFX/MAHX_Tools</a></p>
 </center>
 <h2>✨ 核心功能</h2>
 <h3>🖼️ HDR 环境光库面板</h3>
